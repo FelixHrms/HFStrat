@@ -38,7 +38,14 @@
 % Compact table of contents (default spacing overflows the Roadmap frame)
 \setbeamerfont{section in toc}{size=\small}
 \setbeamertemplate{section in toc}{%
-  {\color{slate}\inserttocsectionnumber.}\hspace{0.5em}\inserttocsection\par\vskip0.55em}
+  {\color{slate}\inserttocsectionnumber.}\hspace{0.5em}\inserttocsection\par}
+
+% Beamer hard-codes \vskip1.5em between TOC section entries, outside any
+% template — patch it down so the entries sit closer together.
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd{\beamer@sectionintoc}{\vskip1.5em}{\vskip0.5em}{}{}
+\makeatother
 
 % Frame title with a thin gray rule underneath
 \setbeamertemplate{frametitle}{%
