@@ -2,24 +2,56 @@
 % ---------------------------------------------------------------------------
 % Slide deck — first structural draft, oriented on Outline.tex
 % Minimal skeleton: one section per outline section, frames to be populated
-% step by step. Figures live in figures/, table fragments in tables/.
+% step by step. Figures live in Figures/, table fragments in Tables/.
 % ---------------------------------------------------------------------------
 \documentclass[aspectratio=169,11pt]{beamer}
 
-\usetheme{Madrid}
-\usecolortheme{default}
+% --- Clean, low-color look ------------------------------------------------
+\usetheme{default}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{caption}{\insertcaption}
+\setbeamersize{text margin left=1.6em, text margin right=1.6em}
+
+\definecolor{ink}{RGB}{35,38,45}     % near-black text
+\definecolor{slate}{RGB}{90,97,110}  % muted gray accent
+\definecolor{faint}{RGB}{175,180,188}% light gray rules
+\definecolor{wine}{RGB}{130,60,60}   % desaturated red for \alert only
+
+\setbeamercolor{normal text}{fg=ink,bg=white}
+\setbeamercolor{structure}{fg=ink}
+\setbeamercolor{alerted text}{fg=wine}
+\setbeamercolor{frametitle}{fg=ink,bg=white}
+\setbeamercolor{title}{fg=ink}
+\setbeamercolor{itemize item}{fg=slate}
+\setbeamercolor{itemize subitem}{fg=slate}
+\setbeamercolor{enumerate item}{fg=slate}
+\setbeamercolor{section in toc}{fg=ink}
+\setbeamercolor{page number in head/foot}{fg=slate}
+
+\setbeamerfont{title}{series=\bfseries,size=\Large}
+\setbeamerfont{frametitle}{series=\bfseries,size=\large}
+\setbeamerfont{author}{size=\normalsize}
+\setbeamerfont{date}{size=\small}
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{footline}[frame number]
+
+% Frame title with a thin gray rule underneath
+\setbeamertemplate{frametitle}{%
+  \vskip1.2ex
+  {\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle\strut\par}%
+  \vskip0.4ex
+  {\color{faint}\hrule height 0.4pt}%
+  \vskip1.2ex
+}
 
 \usepackage{booktabs}
 \usepackage{siunitx}   % needed by the estout table fragments (S columns)
 \usepackage{graphicx}
-\graphicspath{{figures/}}
+\graphicspath{{Figures/}}
 
-% --- Working title — adjust freely -----------------------------------------
-\title[HF sovereign basis trading]{Hedge Funds in the Sovereign Cash--Futures Trade:\\ Anatomy and Fragility}
-\author{Felix Hermes}
-\institute{} % TODO
+% --- Title and authors as in main.tex --------------------------------------
+\title{Hedge Funds Strategies}
+\author{Felix Hermes \and Davide Tomio}
 \date{\today}
 
 \begin{document}
@@ -74,8 +106,8 @@
     \item Bond selection: not CTD, not OTR --- positive Svensson pricing errors, in both jurisdictions.
     \item Interpretation: funds are paid to hold what curve-sensitive investors and dealers don't want --- liquidity and convergence provision in the illiquid segment.
   \end{itemize}
-  % TODO: figures/EUR_ctd.png, figures/USD_ctd.png, figures/EUR_otr.png, ...
-  % TODO: CTD difference tables (tables/t1.tex, tables/dFV.tex, ...)
+  % TODO: Figures/EUR_ctd.png, Figures/USD_ctd.png, Figures/EUR_otr.png, ...
+  % TODO: CTD difference tables (Tables/t1.tex, Tables/dFV.tex, ...)
 \end{frame}
 
 % ===========================================================================
@@ -86,7 +118,7 @@
     \item P\&L decomposition: pricing-error convergence $+$ carry $+$ repo specialness $-$ financing cost $-$ margin cost.
     \item Output: ex-ante fund--bond-level risk exposure measure (treatment intensity for the fragility tests).
   \end{itemize}
-  % TODO: figures/dur1.pdf, figures/dur2.pdf, figures/con1.pdf, figures/con2.pdf
+  % TODO: Figures/dur1.pdf, Figures/dur2.pdf, Figures/con1.pdf, Figures/con2.pdf
 \end{frame}
 
 % ===========================================================================
@@ -97,7 +129,7 @@
     \item Relationship stability over time.
     \item Takeaway: funding is concentrated, short-tenor, and relationship-based.
   \end{itemize}
-  % TODO: figures/distribution_HF_counterparties.png
+  % TODO: Figures/distribution_HF_counterparties.png
 \end{frame}
 
 % ===========================================================================
