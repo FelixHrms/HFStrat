@@ -35,6 +35,11 @@
 \setbeamertemplate{itemize items}[circle]
 \setbeamertemplate{footline}[frame number]
 
+% Compact table of contents (default spacing overflows the Roadmap frame)
+\setbeamerfont{section in toc}{size=\small}
+\setbeamertemplate{section in toc}{%
+  {\color{slate}\inserttocsectionnumber.}\hspace{0.5em}\inserttocsection\par\vskip0.55em}
+
 % Frame title with a thin gray rule underneath
 \setbeamertemplate{frametitle}{%
   \vskip1.2ex
