@@ -240,11 +240,21 @@
 % ===========================================================================
 \section{Fragility through the dealer funding channel}
 \begin{frame}{Fragility through the dealer funding channel}
+  \textbf{Hypothesis}
   \begin{itemize}
-    \item Khwaja and Mian design comparing the same fund across its dealers with fund$\times$time fixed effects.
-    \item Recurring year end balance sheet contractions give power and April 2025 gives salience.
-    \item Trace the shock from financing quantities to position cuts to which bonds are cut first, expecting the cheapest and least liquid to go first.
+    \item Changes in basis positions are caused by the supply of dealer financing, not by the funds' own capital or views.
+    \item The identification problem is that a fund cutting positions looks the same whether the fund chose to or its dealer pulled the financing.
   \end{itemize}
+  \medskip
+  \textbf{Test}\quad{\small\color{slate} the Khwaja and Mian design adapted from credit registers to repo}
+  \begin{itemize}
+    \item We observe the same fund borrowing from several dealers at the same time.
+    \item Take a shock that hits one dealer and not the others, recurring year end balance sheet contractions for power and April 2025 for salience.
+    \item Fund$\times$time fixed effects absorb the fund's capital, beliefs and redemptions, so a differential contraction at the shocked dealer is financing supply.
+    \item Trace it forward. Does the fund replace the financing elsewhere or does the position get cut, and which bonds go first?
+  \end{itemize}
+  \medskip
+  \takeaway{With three dealers supplying half the capital, a shock to one dealer is a shock to the market, not a rounding error.}
 \end{frame}
 
 % ===========================================================================
