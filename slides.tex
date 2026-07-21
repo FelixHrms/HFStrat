@@ -98,15 +98,15 @@
 \begin{frame}{Data and setting}
   \textbf{One dataset per leg of the trade}
   \begin{itemize}
-    \item \textbf{Cash leg}\quad \todohl{source to be decided}
+    \item \textbf{Cash leg}\quad \todohl{do we need this? MTS?}
     \item \textbf{Repo leg}\quad SFTDS transaction data
     \item \textbf{Futures leg}\quad EMIR transaction data
   \end{itemize}
   \bigskip
   \textbf{Coverage}
   \begin{itemize}
-    \item SFTDS and EMIR report every transaction that involves at least one euro area entity.
-    \item Euro area dealers are global banks, so the data cover both EUR and USD markets.
+    \item SFTDS and EMIR report every transaction that involves at least one euro area established entity.
+    \item Euro area dealers are global banks, so the data cover both parts of EUR and USD markets.
     \item US coverage is naturally thinner. A trade between two non euro area entities, for example a US dealer facing an offshore fund, never enters the data.
   \end{itemize}
 \end{frame}
@@ -114,9 +114,26 @@
 % ===========================================================================
 \section{Measuring basis positions}
 \begin{frame}{Measuring basis positions}
+  \textbf{Three building blocks}
   \begin{itemize}
-    \item Match the three legs at fund level and classify basis versus directional books.
-    \item Validate the aggregates against OFR positions and published ECB and Fed estimates.
+    \item \textbf{Bond day panel}\quad fitted yields, pricing errors, duration and convexity, with CTD, deliverable and on the run flags
+    \item \textbf{Repo panel}\quad SFTDS positions by fund, bond and day
+    \item \textbf{Futures panel}\quad EMIR positions by fund, contract and day, linked to bonds through the deliverable set
+  \end{itemize}
+  \smallskip
+  The panels merge in any combination of fund, bond and date.
+  \medskip
+
+  \textbf{Classifying positions}
+  \begin{itemize}
+    \item A fund that is long the future and short the bond, or the reverse, runs a basis trade.
+    \item Bond positions without an offsetting futures leg are directional.
+  \end{itemize}
+  \medskip
+  \textbf{Validation}
+  \begin{itemize}
+    \item Compare positions and captured market share with the OFR hedge fund monitor, weekly for futures and quarterly for bonds.
+    \item \todohl{still need ECB numbers as the benchmark for the euro leg}
   \end{itemize}
   % TODO: validation figure (e.g. \includegraphics[width=.7\textwidth]{ofrcomp.pdf})
 \end{frame}
