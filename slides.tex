@@ -3,6 +3,8 @@
 % Slide deck — first structural draft, oriented on Outline.tex
 % Minimal skeleton: one section per outline section, frames to be populated
 % step by step. Figures live in Figures/, table fragments in Tables/.
+% Style rule: no dashes, colons, or semicolons as sentence breaks in
+% rendered text.
 % ---------------------------------------------------------------------------
 \documentclass[aspectratio=169,11pt]{beamer}
 
@@ -61,6 +63,9 @@
 \usepackage{graphicx}
 \graphicspath{{Figures/}}
 
+% Yellow marker for unresolved placeholders
+\newcommand{\todohl}[1]{\colorbox{yellow!45}{\strut #1}}
+
 % --- Title and authors as in main.tex --------------------------------------
 \title{Hedge Funds Strategies}
 \author{Felix Hermes \and Davide Tomio}
@@ -76,10 +81,10 @@
 % ---------------------------------------------------------------------------
 \begin{frame}{This paper}
   \begin{itemize}
-    \item \textbf{Fact 1:} Hedge funds are the marginal intermediaries of the sovereign cash--futures pair --- and the trade they run is not the modeled basis trade.
-    \item \textbf{Fact 2:} It concentrates in cheap, off-the-run bonds; duration-neutral but convexity-exposed.
-    \item \textbf{Fact 3:} Three dealers finance over half of it.
-    \item \textbf{Experiment:} Dealer funding shocks and the April 2025 vol shock reveal the fragility.
+    \item \textbf{Fact 1.} Hedge funds are the marginal intermediaries between sovereign cash and futures markets, and the trade they run is not the modeled basis trade.
+    \item \textbf{Fact 2.} The trade concentrates in cheap off-the-run bonds and is duration neutral but convexity exposed.
+    \item \textbf{Fact 3.} Three dealers finance more than half of it.
+    \item \textbf{Experiment.} Dealer funding shocks and the April 2025 volatility shock reveal the fragility.
   \end{itemize}
 \end{frame}
 
@@ -91,32 +96,39 @@
 % ===========================================================================
 \section{Data and setting}
 \begin{frame}{Data and setting}
+  \textbf{One dataset per leg of the trade}
   \begin{itemize}
-    \item Counterparty-identified cash, repo, and futures legs.
-    \item EU and US coverage.
-    \item Coverage perimeter for the US leg --- the selection concern, addressed once, preemptively.
+    \item \textbf{Cash leg}\quad \todohl{source to be decided}
+    \item \textbf{Repo leg}\quad SFTDS transaction data
+    \item \textbf{Futures leg}\quad EMIR transaction data
   \end{itemize}
-  % TODO: coverage figure/table
+  \bigskip
+  \textbf{Coverage}
+  \begin{itemize}
+    \item SFTDS and EMIR report every transaction that involves at least one euro area entity.
+    \item Euro area dealers are global banks, so the data cover both EUR and USD markets.
+    \item US coverage is naturally thinner. A trade between two non euro area entities, for example a US dealer facing an offshore fund, never enters the data.
+  \end{itemize}
 \end{frame}
 
 % ===========================================================================
 \section{Measuring basis positions}
 \begin{frame}{Measuring basis positions}
   \begin{itemize}
-    \item Match the three legs at fund level; classify basis vs.\ directional books.
-    \item Validation: aggregates vs.\ OFR positions and ECB/Fed published estimates.
+    \item Match the three legs at fund level and classify basis versus directional books.
+    \item Validate the aggregates against OFR positions and published ECB and Fed estimates.
   \end{itemize}
   % TODO: validation figure (e.g. \includegraphics[width=.7\textwidth]{ofrcomp.pdf})
 \end{frame}
 
 % ===========================================================================
-\section{Anatomy: who, with whom, in what}
-\begin{frame}{Anatomy: who, with whom, in what}
+\section{Anatomy of the trade}
+\begin{frame}{Anatomy of the trade}
   \begin{itemize}
-    \item Fund concentration.
-    \item Dealer concentration: $>$50\% financed by three dealers.
-    \item Bond selection: not CTD, not OTR --- positive Svensson pricing errors, in both jurisdictions.
-    \item Interpretation: funds are paid to hold what curve-sensitive investors and dealers don't want --- liquidity and convergence provision in the illiquid segment.
+    \item Positions are concentrated in a handful of funds.
+    \item Three dealers finance more than half of the trade.
+    \item The bonds are neither cheapest to deliver nor on the run and show positive pricing errors in both jurisdictions.
+    \item Funds are paid to hold what curve sensitive investors and dealers do not want, providing liquidity and convergence in the illiquid segment.
   \end{itemize}
   % TODO: Figures/EUR_ctd.png, Figures/USD_ctd.png, Figures/EUR_otr.png, ...
   % TODO: CTD difference tables (Tables/t1.tex, Tables/dFV.tex, ...)
@@ -126,9 +138,9 @@
 \section{Risk and return of the trade}
 \begin{frame}{Risk and return of the trade}
   \begin{itemize}
-    \item Duration offset; convexity gap and its dependence on rate volatility and term premium.
-    \item P\&L decomposition: pricing-error convergence $+$ carry $+$ repo specialness $-$ financing cost $-$ margin cost.
-    \item Output: ex-ante fund--bond-level risk exposure measure (treatment intensity for the fragility tests).
+    \item Positions are duration matched but leave a convexity gap that widens with rate volatility and the term premium.
+    \item Returns decompose into convergence, carry and specialness net of financing and margin costs.
+    \item This yields an ex ante exposure measure at the fund and bond level, the treatment intensity for the fragility tests.
   \end{itemize}
   % TODO: Figures/dur1.pdf, Figures/dur2.pdf, Figures/con1.pdf, Figures/con2.pdf
 \end{frame}
@@ -137,42 +149,42 @@
 \section{The funding architecture}
 \begin{frame}{The funding architecture}
   \begin{itemize}
-    \item Repo terms by fund$\times$dealer pair: rates, haircuts, tenor, rollover frequency.
+    \item Repo terms for every fund and dealer pair, including rates, haircuts, tenor and rollover frequency.
     \item Relationship stability over time.
-    \item Takeaway: funding is concentrated, short-tenor, and relationship-based.
+    \item Funding is concentrated, short term and relationship based.
   \end{itemize}
   % TODO: Figures/distribution_HF_counterparties.png
 \end{frame}
 
 % ===========================================================================
-\section{Fragility I: the dealer funding channel}
-\begin{frame}{Fragility I: the dealer funding channel}
+\section{Fragility through the dealer funding channel}
+\begin{frame}{Fragility through the dealer funding channel}
   \begin{itemize}
-    \item Khwaja--Mian design: same fund, multiple dealers, fund$\times$time fixed effects.
-    \item Shocks: recurring year-end balance-sheet contractions (power), April 2025 (salience).
-    \item Outcomes in sequence: financing quantities $\rightarrow$ position cuts $\rightarrow$ which bonds get cut first (prediction: the cheapest, least liquid).
+    \item Khwaja and Mian design comparing the same fund across its dealers with fund$\times$time fixed effects.
+    \item Recurring year end balance sheet contractions give power and April 2025 gives salience.
+    \item Trace the shock from financing quantities to position cuts to which bonds are cut first, expecting the cheapest and least liquid to go first.
   \end{itemize}
 \end{frame}
 
 % ===========================================================================
-\section{Fragility II: the volatility shock and its propagation}
-\begin{frame}{Fragility II: the volatility shock and its propagation}
+\section{Fragility through the volatility shock}
+\begin{frame}{Fragility through the volatility shock}
   \begin{itemize}
-    \item April 2025 as the realized convexity-gap event; treatment intensity from the ex-ante exposure measure.
-    \item Cross-market test: did UST-exposed funds cut EGB positions more, within bond$\times$week?
-    \item Spillover: did exposed bonds' prices and liquidity move?
+    \item April 2025 realized the convexity gap. Exposure measured ex ante gives the treatment intensity.
+    \item \textbf{Cross market test.} Did funds with larger UST exposure cut their EGB positions more within the same bond and week?
+    \item \textbf{Spillover.} Did prices and liquidity of the exposed bonds move?
   \end{itemize}
 \end{frame}
 
 \begin{frame}{The causal chain}
   \centering
-  Dealer or US-book shock\\[.5em]
+  Dealer or US book shock\\[.5em]
   $\downarrow$\\[.5em]
-  Fund's financing or capital contracts \hfill {\small (dealer funding channel)}\\[.5em]
+  The fund's financing or capital contracts \hfill {\small (dealer funding channel)}\\[.5em]
   $\downarrow$\\[.5em]
-  Fund adjusts positions in the other market \hfill {\small (cross-market transmission)}\\[.5em]
+  The fund adjusts positions in the other market \hfill {\small (cross market transmission)}\\[.5em]
   $\downarrow$\\[.5em]
-  Bond-level prices and liquidity move with exposure \hfill {\small (spillover result)}
+  Bond prices and liquidity move with exposure \hfill {\small (spillover result)}
 \end{frame}
 
 % ===========================================================================
@@ -180,7 +192,7 @@
 \begin{frame}{Implications}
   \begin{itemize}
     \item The risk is not directional exposure but convexity and funding concentration in illiquid bonds.
-    \item Not what current NBFI monitoring measures --- consequences for the transparency and leverage debates.
+    \item Current NBFI monitoring does not measure this, with consequences for the transparency and leverage debates.
   \end{itemize}
 \end{frame}
 
