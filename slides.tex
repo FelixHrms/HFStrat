@@ -70,6 +70,14 @@
 % Yellow marker for unresolved placeholders
 \newcommand{\todohl}[1]{\colorbox{yellow!45}{\strut #1}}
 
+% Light gray takeaway box
+\definecolor{mist}{RGB}{242,243,246}
+\setbeamercolor{takeawaybox}{bg=mist,fg=ink}
+\newcommand{\takeaway}[1]{%
+  \begin{beamercolorbox}[sep=0.6em,wd=\textwidth]{takeawaybox}
+    \textbf{Takeaway.} #1
+  \end{beamercolorbox}}
+
 % --- Title and authors as in main.tex --------------------------------------
 \title{Hedge Funds Strategies}
 \author{Felix Hermes \and Davide Tomio}
@@ -148,8 +156,9 @@
     \item Positions are concentrated in a handful of funds.
     \item Three dealers finance more than half of the trade.
     \item The bonds are neither cheapest to deliver nor on the run and show positive pricing errors in both jurisdictions.
-    \item Funds are paid to hold what curve sensitive investors and dealers do not want, providing liquidity and convergence in the illiquid segment.
   \end{itemize}
+  \bigskip
+  \takeaway{Funds are paid to hold what curve sensitive investors and dealers do not want, providing liquidity and convergence in the illiquid segment.}
 \end{frame}
 
 \begin{frame}{Anatomy of the trade}{Positions are concentrated in a handful of funds}
@@ -161,19 +170,12 @@
 \begin{frame}{Anatomy of the trade}{Three dealers finance more than half of the trade}
   \centering
   \todohl{dealer share figure to be produced}
-  % The underlying numbers exist in descriptives_prep.ipynb (cells sorting
-  % counterparties by volume with cumulative shares, top three are primary
-  % dealers with 88 percent of USD activity) but no chart is exported yet.
-  % Figures/distribution_HF_counterparties.png shows counterparties per fund
-  % instead and fits the funding architecture section.
 \end{frame}
 
 \begin{frame}{Anatomy of the trade}{The bonds are not the cheapest to deliver}
   \centering
   \includegraphics[width=.88\textwidth,height=.7\textheight,keepaspectratio]{ctd.png}\\
   {\small\color{slate} Daily net positions summed across funds, cheapest to deliver bonds against all others}
-  % Backup candidates for this statement are Tables/t1.tex and the CTD
-  % difference tables (Tables/dTY.tex etc.).
 \end{frame}
 
 \begin{frame}{Anatomy of the trade}{The bonds are not the on the run issues}
@@ -196,6 +198,14 @@
   \medskip
   \centering
   {\small\color{slate} Bonds grouped into one hundred bins of net fund positions, each dot shows the bin average deviation of the bond yield from the fitted Svensson curve}
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{Takeaway}
+  \centering
+  \begin{minipage}{.8\textwidth}
+    \centering\large
+    Funds are paid to hold what curve sensitive investors and dealers do not want, providing liquidity and convergence in the illiquid segment.
+  \end{minipage}
 \end{frame}
 
 % ===========================================================================
