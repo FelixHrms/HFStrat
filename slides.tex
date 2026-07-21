@@ -259,7 +259,7 @@
 
 % ===========================================================================
 \section{Fragility through the volatility shock}
-\begin{frame}{Fragility through the volatility shock}{Cross market transmission}
+\begin{frame}{Fragility through the volatility shock}{Cross market transmission, a fund level test in quantities}
   \textbf{Hypothesis}
   \begin{itemize}
     \item The same funds run both a UST and an EGB basis book, so losses in one book force adjustment in the other through shared capital and margin.
@@ -268,22 +268,22 @@
   \medskip
   \textbf{Test}
   \begin{itemize}
-    \item Treatment intensity is the fund's ex ante UST exposure.
-    \item Did exposed funds cut their European positions more than other funds in the same bond and week, with bond$\times$time fixed effects?
+    \item The unit is the fund. Treatment is the fund's ex ante UST exposure and the outcome is how its European positions change.
+    \item Did exposed funds cut more than other funds in the same bond and week, with bond$\times$time fixed effects?
   \end{itemize}
   \medskip
   \takeaway{Same logic as the dealer channel with the fund as the node, separating contagion through common funds from contagion through common dealers.}
 \end{frame}
 
-\begin{frame}{Fragility through the volatility shock}{The spillover result}
+\begin{frame}{Fragility through the volatility shock}{The spillover result, a bond level test in prices}
   \textbf{Hypothesis}
   \begin{itemize}
-    \item Fund selling matters for markets only if it aggregates, the step from funds sold to prices moved.
+    \item What funds sell at the fund level matters only if it aggregates into bond level prices, the step from funds sold to prices moved.
   \end{itemize}
   \medskip
   \textbf{Test}
   \begin{itemize}
-    \item Bond level cross section where treatment is the bond's pre shock exposure to affected funds.
+    \item The unit is the bond. Treatment is the bond's pre shock exposure to affected funds and the outcome is its price and liquidity.
     \item Did exposed bonds show wider bases, higher yields or worse liquidity than otherwise similar bonds?
     \item If funds adjusted but prices did not move, amplification is a null and a paragraph rather than a section.
   \end{itemize}
