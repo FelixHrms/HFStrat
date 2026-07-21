@@ -34,6 +34,7 @@
 \setbeamerfont{frametitle}{series=\bfseries,size=\large}
 \setbeamerfont{author}{size=\normalsize}
 \setbeamerfont{date}{size=\small}
+\setbeamerfont{framesubtitle}{size=\small}
 \setbeamertemplate{itemize items}[circle]
 \setbeamertemplate{footline}[frame number]
 
@@ -49,10 +50,13 @@
 \patchcmd{\beamer@sectionintoc}{\vskip1.5em}{\vskip0.5em}{}{}
 \makeatother
 
-% Frame title with a thin gray rule underneath
+% Frame title with an optional gray subtitle and a thin rule underneath
 \setbeamertemplate{frametitle}{%
   \vskip1.2ex
   {\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle\strut\par}%
+  \ifx\insertframesubtitle\empty\else
+    {\usebeamerfont{framesubtitle}\color{slate}\insertframesubtitle\strut\par}%
+  \fi
   \vskip0.4ex
   {\color{faint}\hrule height 0.4pt}%
   \vskip1.2ex
@@ -132,10 +136,9 @@
   \medskip
   \textbf{Validation}
   \begin{itemize}
-    \item Compare positions and captured market share with the OFR hedge fund monitor, weekly for futures and quarterly for bonds.
+    \item Compare positions and captured market share with the OFR hedge fund monitor.
     \item \todohl{still need ECB numbers as the benchmark for the euro leg}
   \end{itemize}
-  % TODO: validation figure (e.g. \includegraphics[width=.7\textwidth]{ofrcomp.pdf})
 \end{frame}
 
 % ===========================================================================
@@ -147,8 +150,46 @@
     \item The bonds are neither cheapest to deliver nor on the run and show positive pricing errors in both jurisdictions.
     \item Funds are paid to hold what curve sensitive investors and dealers do not want, providing liquidity and convergence in the illiquid segment.
   \end{itemize}
-  % TODO: Figures/EUR_ctd.png, Figures/USD_ctd.png, Figures/EUR_otr.png, ...
-  % TODO: CTD difference tables (Tables/t1.tex, Tables/dFV.tex, ...)
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{Positions are concentrated in a handful of funds}
+  \centering
+  \todohl{fund concentration figure to be added}
+  % DT.do computes the fund concentration shares on screen only,
+  % no exported figure in the repo yet.
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{Three dealers finance more than half of the trade}
+  \centering
+  \includegraphics[width=.72\textwidth,height=.72\textheight,keepaspectratio]{distribution_HF_counterparties.png}
+  % Closest committed figure (from descriptives_prep.ipynb). A chart of the
+  % top dealers' financing share may fit this statement even better.
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{Neither cheapest to deliver nor on the run}
+  \begin{columns}[T]
+    \begin{column}{.48\textwidth}\centering
+      \includegraphics[width=\linewidth,height=.33\textheight,keepaspectratio]{EUR_ctd.png}\\
+      {\small\color{slate} EUR, CTD and other bonds}\\[.4em]
+      \includegraphics[width=\linewidth,height=.33\textheight,keepaspectratio]{EUR_otr.png}\\
+      {\small\color{slate} EUR, on the run and other bonds}
+    \end{column}
+    \begin{column}{.48\textwidth}\centering
+      \includegraphics[width=\linewidth,height=.33\textheight,keepaspectratio]{USD_ctd.png}\\
+      {\small\color{slate} USD, CTD and other bonds}\\[.4em]
+      \includegraphics[width=\linewidth,height=.33\textheight,keepaspectratio]{USD_otr.png}\\
+      {\small\color{slate} USD, on the run and other bonds}
+    \end{column}
+  \end{columns}
+  % Backup candidates for this statement are Tables/t1.tex and the CTD
+  % difference tables (Tables/dTY.tex etc.).
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{Paid to hold what curve sensitive investors and dealers do not want}
+  \centering
+  \includegraphics[width=.72\textwidth,height=.68\textheight,keepaspectratio]{dyieldnet_long1.pdf}\\
+  {\small\color{slate} Net long positions and the bond yield relative to the fitted curve}
+  % Alternative or companion figure is dyieldnet_long2.pdf.
 \end{frame}
 
 % ===========================================================================
