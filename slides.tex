@@ -106,6 +106,12 @@
 \end{frame}
 
 % ===========================================================================
+\section{Literature}
+\begin{frame}{Literature}
+\todohl{Placeholder for an overview of what we already know about the basis}
+\end{frame}
+
+% ===========================================================================
 \section{Data and setting}
 \begin{frame}{Data and setting}
   \textbf{One dataset per leg of the trade}
@@ -145,7 +151,7 @@
   \textbf{Validation}
   \begin{itemize}
     \item Compare positions and captured market share with the OFR hedge fund monitor.
-    \item \todohl{still need ECB numbers as the benchmark for the euro leg}
+    \item \todohl{not sure what do use for ECB numbers as the benchmark for the euro leg}
   \end{itemize}
 \end{frame}
 
@@ -200,28 +206,21 @@
   {\small\color{slate} Bonds grouped into one hundred bins of net fund positions, each dot shows the bin average deviation of the bond yield from the fitted Svensson curve}
 \end{frame}
 
-\begin{frame}{Anatomy of the trade}{Takeaway}
-  \centering
-  \begin{minipage}{.8\textwidth}
-    \centering\large
-    Funds are paid to hold what curve sensitive investors and dealers do not want, providing liquidity and convergence in the illiquid segment.
-  \end{minipage}
-\end{frame}
+
 
 % ===========================================================================
 \section{Risk and return of the trade}
 \begin{frame}{Risk and return of the trade}
   \begin{itemize}
-    \item Positions are duration matched but leave a convexity gap that widens with rate volatility and the term premium.
+    \item Positions are duration matched but leave a convexity gap that widens with rate volatility and the term premium. \todohl{show this graphically}
     \item Returns decompose into convergence, carry and specialness net of financing and margin costs.
-    \item This yields an ex ante exposure measure at the fund and bond level, the treatment intensity for the fragility tests.
+    \item If convexity is an unpriced residual, this yields an ex ante exposure measure at the fund and bond level, the treatment intensity for the fragility tests.
   \end{itemize}
-  % TODO: Figures/dur1.pdf, Figures/dur2.pdf, Figures/con1.pdf, Figures/con2.pdf
 \end{frame}
 
 % ===========================================================================
 \section{The funding architecture}
-\begin{frame}{The funding architecture}
+\begin{frame}{The funding architecture - \todohl{create the descriptives}}
   \begin{itemize}
     \item Repo terms by fund$\times$dealer pair
     \begin{itemize}
@@ -234,7 +233,6 @@
   \end{itemize}
   \bigskip
   \takeaway{Funding is concentrated, short term and relationship based.}
-  % TODO: Figures/distribution_HF_counterparties.png
 \end{frame}
 
 % ===========================================================================
@@ -246,7 +244,7 @@
     \item The identification problem is that a fund cutting positions looks the same whether the fund chose to or its dealer pulled the financing.
   \end{itemize}
   \medskip
-  \textbf{Test}\quad{\small\color{slate} the Khwaja and Mian design adapted from credit registers to repo}
+  \textbf{Test}\quad{\small\color{slate} the Khwaja and Mian design}
   \begin{itemize}
     \item We observe the same fund borrowing from several dealers at the same time.
     \item Take a shock that hits one dealer and not the others, recurring year end balance sheet contractions for power and April 2025 for salience.
@@ -289,31 +287,16 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{The causal chain}
-  \centering
-  Dealer or US book shock\\[.5em]
-  $\downarrow$\\[.5em]
-  The fund's financing or capital contracts \hfill {\small (dealer funding channel)}\\[.5em]
-  $\downarrow$\\[.5em]
-  The fund adjusts positions in the other market \hfill {\small (cross market transmission)}\\[.5em]
-  $\downarrow$\\[.5em]
-  Bond prices and liquidity move with exposure \hfill {\small (spillover result)}
-\end{frame}
+
 
 % ===========================================================================
 \section{Implications}
 \begin{frame}{Implications}
   \begin{itemize}
-    \item The risk is not directional exposure but convexity and funding concentration in illiquid bonds.
+    \item The risk is not just directional exposure but convexity and funding concentration in illiquid bonds.
     \item Current NBFI monitoring does not measure this, with consequences for the transparency and leverage debates.
   \end{itemize}
 \end{frame}
 
-% ===========================================================================
-\appendix
-\section*{Backup}
-\begin{frame}{Backup}
-  % TODO: robustness figures and tables
-\end{frame}
 
 \end{document}
