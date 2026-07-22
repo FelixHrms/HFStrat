@@ -78,6 +78,12 @@
     \textbf{Takeaway.} #1
   \end{beamercolorbox}}
 
+% Key point box leading each literature slide
+\newcommand{\keypoint}[1]{%
+  \begin{beamercolorbox}[sep=0.6em,wd=\textwidth]{takeawaybox}
+    \textbf{Key point.} #1
+  \end{beamercolorbox}}
+
 % --- Title and authors as in main.tex --------------------------------------
 \title{Hedge Funds Strategies}
 \author{Felix Hermes \and Davide Tomio}
@@ -112,21 +118,19 @@
 \end{frame}
 
 \begin{frame}{Literature}{Can the Treasury kill the basis trade? Steven Kelly, Without Warning, February 2024}
-  \textbf{The trade}
+  \small
+  \keypoint{Yes, gently. By issuing more bills the Treasury would serve the money demand that currently funds the trade and crowd it out without any regulatory crackdown.}
+  \medskip
+  \textbf{The argument in steps}
   \begin{itemize}
-    \item Funds are long the cash Treasury and short the rich futures contract with asset managers on the other side, positions approach 800 billion dollars and exceed the pre pandemic peak.
-    \item TBAC puts the carry near 45 basis points a year, above 900 basis points at twenty times leverage, and a Fed note estimates average repo leverage at 56 times.
-    \item March 2020 showed the fragility, when the basis diverged margin calls forced fire sales into the dash for cash.
+    \item The trade is repo funded. Cash invested in Treasury repo would rather sit in bills, so basis traders are manufacturing short term money assets out of long term bonds.
+    \item The repo footprint therefore measures untapped structural demand at the short end. The Treasury can issue substantially more bills into it with limited indigestion, and direct issuance crowds out the trade.
+    \item The futures side adjusts on its own. Asset managers hold long futures to close the duration gap between credit heavy portfolios and Treasury heavy benchmarks, and a bill heavier index shrinks that gap and the futures demand with it.
+    \item The cost is small for the safest issuer. Rollover risk is limited, short debt already acts as the shock absorber in crises, and forgone episodes of negative term premium are the price of less blowup risk.
+    \item Historically the Treasury only termed out its debt while the Fed ran QE, and the basis trade grew as QE unwound.
   \end{itemize}
   \medskip
-  \textbf{The argument}
-  \begin{itemize}
-    \item Repo funding of the trade reveals structural demand for short term money assets, which funds manufacture out of long term Treasuries.
-    \item The Treasury could capture that demand directly by issuing more bills and crowd out the trade without any crackdown.
-    \item Asset managers would adjust on their own since more bills shorten the benchmark index and their demand for long futures falls.
-  \end{itemize}
-  \medskip
-  \takeaway{The trade is repo funded maturity transformation, so funding conditions and issuance policy set its size, exactly the margins our funding architecture and fragility sections examine.}
+  \takeaway{Issuance composition is a policy lever on the size of the trade, a determinant that sits upstream of the funding architecture and fragility we study.}
 \end{frame}
 
 % ===========================================================================
