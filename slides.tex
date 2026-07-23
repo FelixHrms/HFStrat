@@ -229,10 +229,10 @@
   \textbf{The long futures position is not a rate view.}
   \begin{itemize}
     \item Active managers are judged against an index that is heavy in Treasuries. Credit yields more than Treasuries, so they overweight credit to beat the index.
-    \item They fund the credit by selling Treasuries. That leaves the portfolio with less interest rate risk than the index, so they buy Treasury futures to restore the duration. Futures need no cash, which is already spent on the credit.
+    \item They fund the credit by selling Treasuries. That leaves the portfolio with less interest rate risk than the index, so they buy Treasury futures to restore the duration. Futures need no cash.
     \item The lower the duration of the credit, the more futures are needed. A floating rate CLO has none at all, so its full Treasury replacement is bought in futures.
     \item Repo would be more precise. The manager would keep the exact bond and borrow cash against it. But 40 Act rules cap repo, most separate accounts ban it, and repo interest inflates published expense ratios, so futures win.
-    \item With so many managers long, futures trade rich to cash bonds. Holding them costs about 45 basis points per year, which is the basis hedge funds earn on the other side. Every major credit sector earns more, so managers pay it willingly.
+    \item With so many managers long, futures trade rich to cash bonds. Holding them costs about 45 basis points per year. Every major credit sector earns more, so managers pay it willingly.
   \end{itemize}
 \end{frame}
 
@@ -247,7 +247,7 @@
   \smallskip
   \textbf{Implementation reaches beyond the cheapest to deliver.}
   \begin{itemize}
-    \item CTDs often trade rich to the fitted curve with negative OAS, like on the run bonds, so funds use cheaper off the run bonds instead.
+    \item CTD bonds usually yield less than the fitted curve implies. Their delivery role and liquidity make them expensive, just like on the run bonds, so funds implement the trade with cheaper off the run bonds.
     \item Dealers reported large off the run liquidations by relative value funds in March 2020, confirming the broader implementation.
     \item The proposed monitoring list includes term repo spreads, margin changes and the concentration of funding sources in bilateral repo.
   \end{itemize}
