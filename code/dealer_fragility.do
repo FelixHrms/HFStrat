@@ -27,8 +27,17 @@ bysort date: egen totdcds = total(dcds)
 bysort date: gen ncds = _N
 keep if ncds == 4
 gen shock = dcds - (totdcds - dcds)/3 /*minus leave-one-out mean = country-specific component*/
-keep country date shock
-reshape wide shock, i(date) j(country) string
+local W = 20 /*business-day window for cumulated shocks*/
+bysort country: egen sdshock = sd(shock)
+gen eshock = shock*(abs(shock) > 2*sdshock) /*tail shocks only*/
+sort country date
+by country: gen runs = sum(shock)
+by country: gen rune = sum(eshock)
+by country: replace shock = runs - runs[_n-`W']
+by country: replace eshock = rune - rune[_n-`W']
+drop if missing(shock)
+keep country date shock eshock
+reshape wide shock eshock, i(date) j(country) string
 tempfile shocks
 save `shocks'
 
@@ -60,7 +69,8 @@ use `shocks', clear
 gen qtr = qofd(date)
 joinby qtr using `dealer_w'
 gen dshock = shareDE*shockDE + shareFR*shockFR + shareIT*shockIT + shareES*shockES
-keep dealer_id date dshock
+gen edshock = shareDE*eshockDE + shareFR*eshockFR + shareIT*eshockIT + shareES*eshockES
+keep dealer_id date dshock edshock
 tempfile dealershock
 save `dealershock'
 
@@ -84,7 +94,8 @@ use `dealershock', clear
 gen qtr = qofd(date)
 joinby dealer_id qtr using `fund_w'
 gen prod = fdshare*dshock
-collapse (sum) fexp = prod, by(fund_id date)
+gen eprod = fdshare*edshock
+collapse (sum) fexp = prod efexp = eprod, by(fund_id date)
 tempfile fundexp
 save `fundexp'
 
@@ -101,14 +112,17 @@ gen qtr = qofd(date)
 merge m:1 date using `shocks', keep(match) nogen
 merge m:1 dealer_id qtr using `dealer_w', keep(match) nogen
 gen dexp = 0
+gen edexp = 0
 foreach c in DE FR IT ES {
 	replace dexp = dexp + share`c'*shock`c' if country != "`c'" /*exclude collateral country*/
+	replace edexp = edexp + share`c'*eshock`c' if country != "`c'"
 }
 
 merge m:1 fund_id date using `fundexp', keep(master match) nogen
 merge m:1 fund_id dealer_id qtr using `fund_w', keep(master match) nogen
 merge m:1 dealer_id date using `dealershock', keep(master match) nogen
 replace fexp = fexp - fdshare*dshock if !missing(fexp) & !missing(fdshare) & !missing(dshock) /*leave out own dealer*/
+replace efexp = efexp - fdshare*edshock if !missing(efexp) & !missing(fdshare) & !missing(edshock)
 
 foreach v in borrowing_volume lending_volume {
 	replace `v' = 0 if missing(`v')
@@ -122,8 +136,10 @@ egen bond_day = group(security_isin date)
 egen fund_n = group(fund_id)
 egen dealer_n = group(dealer_id)
 
-label var dexp "Dealer exposure"
-label var fexp "Fund exposure (other dealers)"
+label var dexp "Dealer exposure (20d cum.)"
+label var edexp "Dealer exposure (20d cum., >2sd)"
+label var fexp "Fund exposure (other dealers, 20d cum.)"
+label var efexp "Fund exposure (other dealers, >2sd)"
 
 **# Support: share of obs in cells with >1 dealer (hop 1) / >1 fund (hop 2)
 
@@ -134,16 +150,18 @@ tab multifund if !missing(borrowing_rate, fexp)
 
 **# Hop 1: shock -> dealer -> fund, within fund x country x day
 
-reghdfe borrowing_rate dexp, a(fcd bond_day) vce(cluster dealer_n date)
-reghdfe borrowing_rate dexp if borrowing_term <= 2, a(fcd bond_day) vce(cluster dealer_n date) /*fresh rates: stock is ON/open, reprices daily*/
-reghdfe lvol dexp, a(fcd bond_day) vce(cluster dealer_n date)
-reghdfe net_long dexp, a(fcd bond_day) vce(cluster dealer_n date)
+foreach x in dexp edexp {
+	reghdfe borrowing_rate `x' if borrowing_term <= 2, a(fcd bond_day) vce(cluster dealer_n date) /*fresh rates: stock is ON/open, reprices daily*/
+	reghdfe lvol `x', a(fcd bond_day) vce(cluster dealer_n date)
+	reghdfe net_long `x', a(fcd bond_day) vce(cluster dealer_n date)
+}
 
 **# Hop 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
-reghdfe borrowing_rate fexp, a(dcd bond_day fund_n) vce(cluster fund_n date)
-reghdfe borrowing_rate fexp if borrowing_term <= 2, a(dcd bond_day fund_n) vce(cluster fund_n date)
-reghdfe lvol fexp, a(dcd bond_day fund_n) vce(cluster fund_n date)
-reghdfe net_long fexp, a(dcd bond_day fund_n) vce(cluster fund_n date)
+foreach x in fexp efexp {
+	reghdfe borrowing_rate `x' if borrowing_term <= 2, a(dcd bond_day fund_n) vce(cluster fund_n date)
+	reghdfe lvol `x', a(dcd bond_day fund_n) vce(cluster fund_n date)
+	reghdfe net_long `x', a(dcd bond_day fund_n) vce(cluster fund_n date)
+}
 
 log close
