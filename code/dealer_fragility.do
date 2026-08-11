@@ -163,13 +163,11 @@ tab multi_fund if !missing(fund_exposure_other)
 
 reghdfe net_position dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
 reghdfe log_total_volume dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
-reghdfe net_position dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster dealer_num) /*headline, unit-clustered*/
 
 **# Hop 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
 reghdfe net_position fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
 reghdfe log_total_volume fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
-reghdfe net_position fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster fund_num) /*headline, unit-clustered*/
 reghdfe net_position fund_exposure_other_tail, a(dealer_country_day bond_day fund_num) vce(cluster month) /*tail robustness*/
 
 **# Fund aggregate: does the shock reach the fund's total book
