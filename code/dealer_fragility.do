@@ -156,25 +156,19 @@ label var fund_exposure_other_tail "Fund exposure via other dealers (>2sd)"
 
 bysort fund_country_day (dealer_num): gen multi_dealer = dealer_num[1] != dealer_num[_N]
 bysort dealer_country_day (fund_num): gen multi_fund = fund_num[1] != fund_num[_N]
-gen both_sides = borrowing_volume > 0 & lending_volume > 0
 tab multi_dealer if !missing(dealer_exposure)
 tab multi_fund if !missing(fund_exposure_other)
-tab both_sides
 
 **# Hop 1: shock -> dealer -> fund, within fund x country x day
 
 reghdfe net_position dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
 reghdfe log_total_volume dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
-reghdfe borrowing_rate dealer_exposure if borrowing_term <= 2, a(fund_country_day bond_day dealer_num) vce(cluster month) /*fresh rates: stock is ON/open*/
-reghdfe lending_rate dealer_exposure if lending_term <= 2, a(fund_country_day bond_day dealer_num) vce(cluster month)
 reghdfe net_position dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster dealer_num) /*headline, unit-clustered*/
 
 **# Hop 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
 reghdfe net_position fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
 reghdfe log_total_volume fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
-reghdfe borrowing_rate fund_exposure_other if borrowing_term <= 2, a(dealer_country_day bond_day fund_num) vce(cluster month)
-reghdfe lending_rate fund_exposure_other if lending_term <= 2, a(dealer_country_day bond_day fund_num) vce(cluster month)
 reghdfe net_position fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster fund_num) /*headline, unit-clustered*/
 reghdfe net_position fund_exposure_other_tail, a(dealer_country_day bond_day fund_num) vce(cluster month) /*tail robustness*/
 
