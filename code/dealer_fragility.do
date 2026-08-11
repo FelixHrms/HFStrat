@@ -3,6 +3,9 @@ snapshot erase _all
 
 global key "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
 
+cap log close
+log using "$key\\dealer_fragility.log", replace text
+
 **# CDS country-specific shocks
 
 tempfile cds
@@ -107,6 +110,10 @@ merge m:1 fund_id dealer_id qtr using `fund_w', keep(master match) nogen
 merge m:1 dealer_id date using `dealershock', keep(master match) nogen
 replace fexp = fexp - fdshare*dshock if !missing(fexp) & !missing(fdshare) & !missing(dshock) /*leave out own dealer*/
 
+foreach v in borrowing_volume lending_volume {
+	replace `v' = 0 if missing(`v')
+}
+gen net_long = (borrowing_volume - lending_volume)/10^9 /*net long position in bn*/
 gen lvol = log(borrowing_volume)
 
 egen fcd = group(fund_id country date)
@@ -130,9 +137,13 @@ tab multifund if !missing(borrowing_rate, fexp)
 reghdfe borrowing_rate dexp, a(fcd bond_day) vce(cluster dealer_n date)
 reghdfe borrowing_rate dexp if borrowing_term <= 2, a(fcd bond_day) vce(cluster dealer_n date) /*fresh rates: stock is ON/open, reprices daily*/
 reghdfe lvol dexp, a(fcd bond_day) vce(cluster dealer_n date)
+reghdfe net_long dexp, a(fcd bond_day) vce(cluster dealer_n date)
 
 **# Hop 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
 reghdfe borrowing_rate fexp, a(dcd bond_day fund_n) vce(cluster fund_n date)
 reghdfe borrowing_rate fexp if borrowing_term <= 2, a(dcd bond_day fund_n) vce(cluster fund_n date)
 reghdfe lvol fexp, a(dcd bond_day fund_n) vce(cluster fund_n date)
+reghdfe net_long fexp, a(dcd bond_day fund_n) vce(cluster fund_n date)
+
+log close
