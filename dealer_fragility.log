@@ -3,7 +3,7 @@
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.l
 > og
   log type:  text
- opened on:  11 Aug 2026, 11:32:21
+ opened on:  11 Aug 2026, 14:18:40
 
 . 
 . **# CDS country-specific shocks
@@ -41,27 +41,33 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000001.tmp saved as .dta format
 
 . sort country date
 
-. by country: gen dcds = cds - cds[_n-1]
+. by country: gen dlcds = log(cds) - log(cds[_n-1])
 (4 missing values generated)
 
-. drop if missing(dcds)
+. by country: gen lagcds = cds[_n-1]
+(4 missing values generated)
+
+. drop if missing(dlcds)
 (4 observations deleted)
 
-. bysort date: egen totdcds = total(dcds)
+. bysort date: egen totdl = total(dlcds)
 
 . bysort date: gen ncds = _N
 
 . keep if ncds == 4
 (0 observations deleted)
 
-. gen shock = dcds - (totdcds - dcds)/3 /*minus leave-one-out mean = country-specific compo
-> nent*/
+. gen relshock = dlcds - (totdl - dlcds)/3 /*LOO-demeaned log change = country-specific, sc
+> ale-free*/
+
+. gen shock = relshock*lagcds /*rescaled to bp by lagged own level*/
 
 . local W = 20 /*business-day window for cumulated shocks*/
 
-. bysort country: egen sdshock = sd(shock)
+. bysort country: egen sdrel = sd(relshock)
 
-. gen eshock = shock*(abs(shock) > 2*sdshock) /*tail shocks only*/
+. gen eshock = shock*(abs(relshock) > 2*sdrel) /*tail shocks only, tail defined in relative
+>  space*/
 
 . sort country date
 
@@ -73,7 +79,7 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000001.tmp saved as .dta format
 (5844 real changes made, 80 to missing)
 
 . by country: replace eshock = rune - rune[_n-`W']
-(2515 real changes made, 80 to missing)
+(3111 real changes made, 80 to missing)
 
 . drop if missing(shock)
 (80 observations deleted)
@@ -314,7 +320,7 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000006.tmp saved as .dta format
 
 . replace efexp = efexp - fdshare*edshock if !missing(efexp) & !missing(fdshare) & !missing
 > (edshock)
-(3,538,347 real changes made)
+(4,247,799 real changes made)
 
 . 
 . foreach v in borrowing_volume lending_volume {
@@ -391,8 +397,8 @@ multidealer |      Freq.     Percent        Cum.
 (MWFE estimator converged in 21 iterations)
 
 HDFE Linear regression                            Number of obs   =  5,131,964
-Absorbing 3 HDFE groups                           F(   1,     54) =       4.89
-Statistics robust to heteroskedasticity           Prob > F        =     0.0313
+Absorbing 3 HDFE groups                           F(   1,     54) =       1.08
+Statistics robust to heteroskedasticity           Prob > F        =     0.3024
                                                   R-squared       =     0.2221
                                                   Adj R-squared   =     0.0923
                                                   Within R-sq.    =     0.0000
@@ -403,8 +409,8 @@ Number of clusters (month)   =         55         Root MSE        =     0.1651
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        dexp |  -.0005019   .0002271    -2.21   0.031    -.0009572   -.0000467
-       _cons |  -.0074751   4.16e-06 -1797.52   0.000    -.0074834   -.0074668
+        dexp |  -.0004822   .0004631    -1.04   0.302    -.0014106    .0004462
+       _cons |  -.0076061   .0001346   -56.50   0.000     -.007876   -.0073362
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -422,8 +428,8 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 21 iterations)
 
 HDFE Linear regression                            Number of obs   =  5,131,964
-Absorbing 3 HDFE groups                           F(   1,     54) =       2.48
-Statistics robust to heteroskedasticity           Prob > F        =     0.1212
+Absorbing 3 HDFE groups                           F(   1,     54) =       0.02
+Statistics robust to heteroskedasticity           Prob > F        =     0.9024
                                                   R-squared       =     0.7015
                                                   Adj R-squared   =     0.6517
                                                   Within R-sq.    =     0.0000
@@ -434,8 +440,8 @@ Number of clusters (month)   =         55         Root MSE        =     1.2868
              |               Robust
         ltot | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        dexp |   -.003509   .0022284    -1.57   0.121    -.0079766    .0009585
-       _cons |   16.74167   .0000408  4.1e+05   0.000     16.74159    16.74175
+        dexp |   .0005834   .0047355     0.12   0.902    -.0089107    .0100775
+       _cons |   16.74191   .0013766  1.2e+04   0.000     16.73915    16.74467
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -454,11 +460,11 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 32 iterations)
 
 HDFE Linear regression                            Number of obs   =    754,625
-Absorbing 3 HDFE groups                           F(   1,     52) =       1.40
-Statistics robust to heteroskedasticity           Prob > F        =     0.2414
+Absorbing 3 HDFE groups                           F(   1,     52) =       3.01
+Statistics robust to heteroskedasticity           Prob > F        =     0.0887
                                                   R-squared       =     0.9989
                                                   Adj R-squared   =     0.9985
-                                                  Within R-sq.    =     0.0000
+                                                  Within R-sq.    =     0.0001
 Number of clusters (month)   =         53         Root MSE        =     0.0694
 
                                  (Std. err. adjusted for 53 clusters in month)
@@ -466,8 +472,8 @@ Number of clusters (month)   =         53         Root MSE        =     0.0694
              |               Robust
 borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        dexp |    .000244   .0002059     1.18   0.241    -.0001692    .0006572
-       _cons |   2.047791   2.62e-06  7.8e+05   0.000     2.047786    2.047796
+        dexp |   .0005992   .0003454     1.73   0.089    -.0000939    .0012923
+       _cons |   2.047912   .0000712  2.9e+04   0.000     2.047769    2.048054
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -486,8 +492,8 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 29 iterations)
 
 HDFE Linear regression                            Number of obs   =    757,721
-Absorbing 3 HDFE groups                           F(   1,     52) =       0.27
-Statistics robust to heteroskedasticity           Prob > F        =     0.6064
+Absorbing 3 HDFE groups                           F(   1,     52) =       1.06
+Statistics robust to heteroskedasticity           Prob > F        =     0.3089
                                                   R-squared       =     0.9987
                                                   Adj R-squared   =     0.9981
                                                   Within R-sq.    =     0.0000
@@ -498,8 +504,8 @@ Number of clusters (month)   =         53         Root MSE        =     0.0805
              |               Robust
 lending_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        dexp |   .0001254   .0002419     0.52   0.606    -.0003601    .0006109
-       _cons |    1.85091   .0000139  1.3e+05   0.000     1.850882    1.850938
+        dexp |  -.0004495   .0004375    -1.03   0.309    -.0013274    .0004283
+       _cons |   1.850802   .0000985  1.9e+04   0.000     1.850604    1.850999
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -518,8 +524,8 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 21 iterations)
 
 HDFE Linear regression                            Number of obs   =  5,131,964
-Absorbing 3 HDFE groups                           F(   1,     31) =       7.25
-Statistics robust to heteroskedasticity           Prob > F        =     0.0113
+Absorbing 3 HDFE groups                           F(   1,     31) =       3.25
+Statistics robust to heteroskedasticity           Prob > F        =     0.0810
                                                   R-squared       =     0.2221
                                                   Adj R-squared   =     0.0933
                                                   Within R-sq.    =     0.0000
@@ -530,8 +536,8 @@ Number of clusters (dealer_n) =         32        Root MSE        =     0.1650
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        dexp |  -.0005019   .0001864    -2.69   0.011    -.0008822   -.0001217
-       _cons |  -.0074751   3.41e-06 -2189.31   0.000    -.0074821   -.0074681
+        dexp |  -.0004822   .0002673    -1.80   0.081    -.0010274     .000063
+       _cons |  -.0076061   .0000777   -97.88   0.000    -.0077646   -.0074476
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -552,8 +558,8 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 14 iterations)
 
 HDFE Linear regression                            Number of obs   =  5,167,329
-Absorbing 3 HDFE groups                           F(   1,     54) =       0.02
-Statistics robust to heteroskedasticity           Prob > F        =     0.8852
+Absorbing 3 HDFE groups                           F(   1,     54) =       0.74
+Statistics robust to heteroskedasticity           Prob > F        =     0.3943
                                                   R-squared       =     0.1869
                                                   Adj R-squared   =     0.1011
                                                   Within R-sq.    =     0.0000
@@ -564,8 +570,8 @@ Number of clusters (month)   =         55         Root MSE        =     0.1639
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |  -.0001388   .0009571    -0.15   0.885    -.0020577      .00178
-       _cons |  -.0074593   .0000401  -185.99   0.000    -.0075397   -.0073789
+        fexp |  -.0010782   .0012555    -0.86   0.394    -.0035952    .0014389
+       _cons |  -.0077072   .0002954   -26.09   0.000    -.0082995   -.0071149
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -583,20 +589,20 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 15 iterations)
 
 HDFE Linear regression                            Number of obs   =  5,167,329
-Absorbing 3 HDFE groups                           F(   1,     54) =       0.96
-Statistics robust to heteroskedasticity           Prob > F        =     0.3325
+Absorbing 3 HDFE groups                           F(   1,     54) =       4.38
+Statistics robust to heteroskedasticity           Prob > F        =     0.0411
                                                   R-squared       =     0.6584
                                                   Adj R-squared   =     0.6224
                                                   Within R-sq.    =     0.0001
-Number of clusters (month)   =         55         Root MSE        =     1.3435
+Number of clusters (month)   =         55         Root MSE        =     1.3434
 
                                  (Std. err. adjusted for 55 clusters in month)
 ------------------------------------------------------------------------------
              |               Robust
         ltot | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |    .029692   .0303635     0.98   0.332    -.0311833    .0905672
-       _cons |   16.73784   .0012724  1.3e+04   0.000     16.73529    16.74039
+        fexp |   .0259302   .0123916     2.09   0.041     .0010865    .0507739
+       _cons |    16.7427   .0029158  5742.02   0.000     16.73685    16.74854
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -615,11 +621,11 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 24 iterations)
 
 HDFE Linear regression                            Number of obs   =    777,331
-Absorbing 3 HDFE groups                           F(   1,     52) =       0.76
-Statistics robust to heteroskedasticity           Prob > F        =     0.3876
+Absorbing 3 HDFE groups                           F(   1,     52) =       0.14
+Statistics robust to heteroskedasticity           Prob > F        =     0.7138
                                                   R-squared       =     0.9986
                                                   Adj R-squared   =     0.9980
-                                                  Within R-sq.    =     0.0001
+                                                  Within R-sq.    =     0.0000
 Number of clusters (month)   =         53         Root MSE        =     0.0794
 
                                  (Std. err. adjusted for 53 clusters in month)
@@ -627,8 +633,8 @@ Number of clusters (month)   =         53         Root MSE        =     0.0794
              |               Robust
 borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |    .003615   .0041491     0.87   0.388    -.0047109    .0119408
-       _cons |   2.053123   .0000328  6.3e+04   0.000     2.053057    2.053189
+        fexp |  -.0007258   .0019681    -0.37   0.714    -.0046751    .0032235
+       _cons |   2.052917   .0004795  4281.74   0.000     2.051955     2.05388
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -646,11 +652,11 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 23 iterations)
 
 HDFE Linear regression                            Number of obs   =    780,213
-Absorbing 3 HDFE groups                           F(   1,     52) =       0.55
-Statistics robust to heteroskedasticity           Prob > F        =     0.4607
+Absorbing 3 HDFE groups                           F(   1,     52) =       0.21
+Statistics robust to heteroskedasticity           Prob > F        =     0.6506
                                                   R-squared       =     0.9984
                                                   Adj R-squared   =     0.9977
-                                                  Within R-sq.    =     0.0001
+                                                  Within R-sq.    =     0.0000
 Number of clusters (month)   =         53         Root MSE        =     0.0884
 
                                  (Std. err. adjusted for 53 clusters in month)
@@ -658,8 +664,8 @@ Number of clusters (month)   =         53         Root MSE        =     0.0884
              |               Robust
 lending_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |   .0038402   .0051666     0.74   0.461    -.0065272    .0142077
-       _cons |   1.861633   .0000573  3.2e+04   0.000     1.861518    1.861748
+        fexp |  -.0006699   .0014703    -0.46   0.651    -.0036202    .0022804
+       _cons |   1.861438   .0003343  5568.83   0.000     1.860768    1.862109
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -678,8 +684,8 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 14 iterations)
 
 HDFE Linear regression                            Number of obs   =  5,167,329
-Absorbing 3 HDFE groups                           F(   1,    271) =       0.02
-Statistics robust to heteroskedasticity           Prob > F        =     0.8792
+Absorbing 3 HDFE groups                           F(   1,    271) =       2.14
+Statistics robust to heteroskedasticity           Prob > F        =     0.1448
                                                   R-squared       =     0.1869
                                                   Adj R-squared   =     0.1020
                                                   Within R-sq.    =     0.0000
@@ -690,8 +696,8 @@ Number of clusters (fund_n)  =        272         Root MSE        =     0.1638
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |  -.0001388    .000913    -0.15   0.879    -.0019364    .0016587
-       _cons |  -.0074593   .0000383  -194.96   0.000    -.0075346    -.007384
+        fexp |  -.0010782   .0007372    -1.46   0.145    -.0025296    .0003733
+       _cons |  -.0077072   .0001735   -44.43   0.000    -.0080487   -.0073657
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -709,11 +715,11 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 14 iterations)
 
 HDFE Linear regression                            Number of obs   =  5,167,329
-Absorbing 3 HDFE groups                           F(   1,     54) =       0.16
-Statistics robust to heteroskedasticity           Prob > F        =     0.6875
-                                                  R-squared       =     0.1869
-                                                  Adj R-squared   =     0.1011
-                                                  Within R-sq.    =     0.0000
+Absorbing 3 HDFE groups                           F(   1,     54) =      21.24
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.1870
+                                                  Adj R-squared   =     0.1012
+                                                  Within R-sq.    =     0.0002
 Number of clusters (month)   =         55         Root MSE        =     0.1639
 
                                  (Std. err. adjusted for 55 clusters in month)
@@ -721,8 +727,8 @@ Number of clusters (month)   =         55         Root MSE        =     0.1639
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-       efexp |   .0005894   .0014576     0.40   0.688     -.002333    .0035118
-       _cons |  -.0074577   .0000105  -709.08   0.000    -.0074788   -.0074367
+       efexp |  -.0044353   .0009625    -4.61   0.000    -.0063649   -.0025056
+       _cons |  -.0080645   .0001326   -60.82   0.000    -.0083304   -.0077987
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -754,23 +760,23 @@ Absorbed degrees of freedom:
 
 .         reghdfe net_long fexp, a(fund_n date) vce(cluster month)
 (dropped 7 singleton observations)
-(MWFE estimator converged in 7 iterations)
+(MWFE estimator converged in 8 iterations)
 
 HDFE Linear regression                            Number of obs   =    150,987
-Absorbing 2 HDFE groups                           F(   1,     54) =       1.61
-Statistics robust to heteroskedasticity           Prob > F        =     0.2094
-                                                  R-squared       =     0.2784
-                                                  Adj R-squared   =     0.2715
-                                                  Within R-sq.    =     0.0003
-Number of clusters (month)   =         55         Root MSE        =     2.0223
+Absorbing 2 HDFE groups                           F(   1,     54) =       0.03
+Statistics robust to heteroskedasticity           Prob > F        =     0.8662
+                                                  R-squared       =     0.2782
+                                                  Adj R-squared   =     0.2713
+                                                  Within R-sq.    =     0.0000
+Number of clusters (month)   =         55         Root MSE        =     2.0226
 
                                  (Std. err. adjusted for 55 clusters in month)
 ------------------------------------------------------------------------------
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |   .0411161   .0323624     1.27   0.209    -.0237666    .1059987
-       _cons |  -.2477456    .002942   -84.21   0.000    -.2536439   -.2418472
+        fexp |   -.009528   .0562772    -0.17   0.866    -.1223569     .103301
+       _cons |  -.2558356   .0257066    -9.95   0.000    -.3073743   -.2042969
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -790,5 +796,5 @@ Absorbed degrees of freedom:
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.l
 > og
   log type:  text
- closed on:  11 Aug 2026, 11:39:05
+ closed on:  11 Aug 2026, 14:24:33
 -------------------------------------------------------------------------------------------
