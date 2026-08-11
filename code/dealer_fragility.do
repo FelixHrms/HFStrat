@@ -177,6 +177,8 @@ tab multi_fund if !missing(fund_exposure_other)
 
 reghdfe net_position dealer_exposure home_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
 reghdfe log_total_volume dealer_exposure home_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
+reghdfe net_position dealer_exposure home_exposure if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day bond_day dealer_num) vce(cluster month) /*EA dealers only*/
+reghdfe log_total_volume dealer_exposure home_exposure if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day bond_day dealer_num) vce(cluster month)
 
 **# Part 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
@@ -195,6 +197,8 @@ egen dealer_num = group(dealer_id)
 
 reghdfe net_position dealer_exposure home_exposure, a(fund_country_day dealer_num) vce(cluster month)
 reghdfe log_total_volume dealer_exposure home_exposure, a(fund_country_day dealer_num) vce(cluster month)
+reghdfe net_position dealer_exposure home_exposure if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day dealer_num) vce(cluster month) /*EA dealers only*/
+reghdfe log_total_volume dealer_exposure home_exposure if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day dealer_num) vce(cluster month)
 reghdfe net_position fund_exposure_other, a(dealer_country_day fund_num) vce(cluster month)
 reghdfe log_total_volume fund_exposure_other, a(dealer_country_day fund_num) vce(cluster month)
 
