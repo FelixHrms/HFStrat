@@ -530,47 +530,48 @@
 \end{frame}
 
 \begin{frame}{The dealer fragility test, ingredients}
-  \textbf{Country specific CDS shock}\quad{\small\color{slate} the relative move against the other three sovereigns, in bp}
+  \textbf{Country specific CDS shock}\quad{\small\color{slate} relative move against the other three sovereigns, in bp}
+  \vspace{-0.4em}
   \[
     s_{c,t} = \Big( \Delta \log \mathrm{CDS}_{c,t} - \tfrac{1}{3}\textstyle\sum_{c' \neq c} \Delta \log \mathrm{CDS}_{c',t} \Big)\, \mathrm{CDS}_{c,t-1}
-    \qquad\qquad
+    \qquad
     S_{c,t} = \textstyle\sum_{\tau = t-19}^{t} s_{c,\tau}
   \]
-  \begin{itemize}
-    \item Demeaning in relative space strips the common euro area factor, rescaling by the lagged own level puts the shock back into bp.
-    \item $S_{c,t}$ cumulates 20 business days because positions are stocks that adjust over weeks, not returns in an event window.
-    \item The tail variant keeps only days beyond two standard deviations of the relative move, so it is zero except around events.
+  \vspace{-1.1em}
+  \begin{itemize}\small
+    \item Demeaning in relative space strips the common factor, the lagged own level puts the shock back into bp.
+    \item Cumulating 20 days fits a stock outcome. The tail variant keeps only days beyond two standard deviations.
   \end{itemize}
-  \medskip
+  \smallskip
   \textbf{Exposures}\quad{\small\color{slate} weights from the previous quarter, so books are predetermined}
+  \vspace{-0.4em}
   \[
     E_{d,t} = \sum_{c\, \neq\, c(b)} w_{d,c}\, S_{c,t}
-    \qquad\qquad
+    \qquad
     F^{-d}_{f,t} = \sum_{d' \neq d} \omega_{f,d'} \sum_{c} w_{d',c}\, S_{c,t}
   \]
-  \begin{itemize}
-    \item $w_{d,c}$ is the share of country $c$ collateral in dealer $d$'s full repo book. The bond's own country $c(b)$ is excluded so collateral repricing cannot masquerade as a dealer funding shock.
-    \item $\omega_{f,d'}$ is dealer $d'$'s share in fund $f$'s total repo activity. The own dealer $d$ is left out so the second test does not remeasure the first.
+  \vspace{-1.1em}
+  \begin{itemize}\small
+    \item $w_{d,c}$ is country $c$'s share in dealer $d$'s repo book. The bond's own country $c(b)$ is excluded so collateral repricing cannot pose as a funding shock.
+    \item $\omega_{f,d'}$ is dealer $d'$'s share in fund $f$'s repo activity. The own dealer is left out so hop two does not remeasure hop one.
   \end{itemize}
 \end{frame}
 
 \begin{frame}{The dealer fragility test, regressions}
-  \textbf{Hop one}\quad{\small\color{slate} does the fund pull back from the exposed dealer}
+  \textbf{Hop one}\quad{\small\color{slate} same fund, same country, same day, across its dealers, so fund demand is absorbed}
+  \vspace{-0.4em}
   \[
     \mathrm{NetPos}_{f,d,b,t} = \beta_1\, E_{d,t} + \alpha_{f \times c \times t} + \alpha_{b \times t} + \alpha_{d} + \varepsilon
   \]
-  {\small Same fund, same country, same day, compared across its dealers. Fund demand is absorbed, so $\beta_1$ is financing supply.\par}
-  \smallskip
-  \textbf{Hop two}\quad{\small\color{slate} does anything arrive at the fund's other dealers}
+  \vspace{-1.3em}
+  \par\textbf{Hop two}\quad{\small\color{slate} same dealer, same day, across its funds, the dealer's own shock is held fixed}
+  \vspace{-0.4em}
   \[
     \mathrm{NetPos}_{f,d,b,t} = \beta_2\, F^{-d}_{f,t} + \alpha_{d \times c \times t} + \alpha_{b \times t} + \alpha_{f} + \varepsilon
   \]
-  {\small Same dealer, same day, compared across its funds. The dealer's own shock is held fixed by the fixed effect.\par}
-  \smallskip
-  \textbf{Aggregate}\quad{\small\color{slate} does the shock reach the fund's total book}
-  \[
-    \mathrm{NetPos}_{f,t} = \gamma\, F_{f,t} + \alpha_f + \alpha_t + \varepsilon
-  \]
+  \vspace{-1.3em}
+  \par\textbf{Aggregate}\quad{\small\color{slate} does the shock reach the fund's total book,\ }
+  {\small $\mathrm{NetPos}_{f,t} = \gamma\, F_{f,t} + \alpha_f + \alpha_t + \varepsilon$}
   \smallskip
   \begin{center}\small
   \begin{tabular}{lccc}
@@ -582,7 +583,7 @@
     \bottomrule
   \end{tabular}
   \end{center}
-  \takeaway{The sign pattern across the three regressions separates rerouting from contagion, no single cell can.}
+  \takeaway{The sign pattern separates rerouting from contagion, no single cell can.}
 \end{frame}
 
 % ===========================================================================
