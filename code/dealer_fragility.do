@@ -1,16 +1,16 @@
 clear all
 snapshot erase _all
 
-global key "C:\Users\hermesf\Projects\HF_Strategies\key dataframe"
-global data "C:\Users\hermesf\Projects\HF_Strategies\Data"
-global tab "C:\Users\hermesf\Projects\HF_Strategies\Tables"
+global key "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
+global data "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Data"
+global tab "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Tables"
 
 **# CDS country-specific shocks
 
 tempfile cds
 local first = 1
 foreach c in Germany France Italy Spain {
-	import delimited "$data/`c'_CDS.csv", varnames(1) clear
+	import delimited "$key\\`c'_CDS.csv", varnames(1) clear
 	capture drop v3
 	gen country = cond("`c'"=="Germany","DE", cond("`c'"=="France","FR", cond("`c'"=="Italy","IT","ES")))
 	if `first' == 0 append using `cds'
@@ -33,7 +33,7 @@ save `shocks'
 
 **# Dealer collateral weights, lagged quarter
 
-import delimited "$key/dealer_country_day.csv", varnames(1) clear
+import delimited "$key\\dealer_country_day.csv", varnames(1) clear
 capture drop v1
 keep if inlist(collateral_country, "DE", "FR", "IT", "ES")
 foreach v in borrowing_volume lending_volume {
@@ -65,7 +65,7 @@ save `dealershock'
 
 **# Fund funding weights across dealers, lagged quarter
 
-import delimited "$key/fund_dealer_isin_day.csv", varnames(1) clear
+import delimited "$key\\fund_dealer_isin_day.csv", varnames(1) clear
 capture drop v1
 replace borrowing_volume = 0 if missing(borrowing_volume)
 gen date = date(business_date, "YMD")
@@ -89,7 +89,7 @@ save `fundexp'
 
 **# Panel
 
-import delimited "$key/fund_dealer_isin_day.csv", varnames(1) clear
+import delimited "$key\\fund_dealer_isin_day.csv", varnames(1) clear
 capture drop v1
 gen date = date(business_date, "YMD")
 format date %td
