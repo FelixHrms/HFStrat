@@ -21,15 +21,17 @@ foreach c in Germany France Italy Spain {
 gen date = date(period, "DMY")
 format date %td
 sort country date
-by country: gen dcds = cds - cds[_n-1]
-drop if missing(dcds)
-bysort date: egen totdcds = total(dcds)
+by country: gen dlcds = log(cds) - log(cds[_n-1])
+by country: gen lagcds = cds[_n-1]
+drop if missing(dlcds)
+bysort date: egen totdl = total(dlcds)
 bysort date: gen ncds = _N
 keep if ncds == 4
-gen shock = dcds - (totdcds - dcds)/3 /*minus leave-one-out mean = country-specific component*/
+gen relshock = dlcds - (totdl - dlcds)/3 /*LOO-demeaned log change = country-specific, scale-free*/
+gen shock = relshock*lagcds /*rescaled to bp by lagged own level*/
 local W = 20 /*business-day window for cumulated shocks*/
-bysort country: egen sdshock = sd(shock)
-gen eshock = shock*(abs(shock) > 2*sdshock) /*tail shocks only*/
+bysort country: egen sdrel = sd(relshock)
+gen eshock = shock*(abs(relshock) > 2*sdrel) /*tail shocks only, tail defined in relative space*/
 sort country date
 by country: gen runs = sum(shock)
 by country: gen rune = sum(eshock)
