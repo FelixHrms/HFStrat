@@ -123,8 +123,10 @@ gen quarter = qofd(date)
 merge m:1 date using `country_shocks', keep(match) nogen
 merge m:1 dealer_id quarter using `dealer_weights', keep(match) nogen
 gen dealer_exposure = 0
+gen dealer_exposure_tail = 0
 foreach c in DE FR IT ES {
 	replace dealer_exposure = dealer_exposure + dealer_share`c'*shock_cum`c' if country != "`c'" /*exclude the collateral country of the bond*/
+	replace dealer_exposure_tail = dealer_exposure_tail + dealer_share`c'*tail_cum`c' if country != "`c'"
 }
 
 merge m:1 fund_id date using `fund_exposures', keep(master match) nogen
@@ -149,6 +151,7 @@ egen fund_num = group(fund_id)
 egen dealer_num = group(dealer_id)
 
 label var dealer_exposure "Dealer exposure (20d cum.)"
+label var dealer_exposure_tail "Dealer exposure (>2sd)"
 label var fund_exposure_other "Fund exposure via other dealers (20d cum.)"
 label var fund_exposure_other_tail "Fund exposure via other dealers (>2sd)"
 
@@ -163,6 +166,7 @@ tab multi_fund if !missing(fund_exposure_other)
 
 reghdfe net_position dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
 reghdfe log_total_volume dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
+reghdfe net_position dealer_exposure_tail, a(fund_country_day bond_day dealer_num) vce(cluster month) /*tail robustness*/
 
 **# Hop 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
