@@ -172,5 +172,19 @@ reghdfe log_total_volume dealer_exposure, a(fund_country_day bond_day dealer_num
 reghdfe net_position fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
 reghdfe log_total_volume fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
 
+**# Country level: same tests on the fund x dealer x country x day panel
+
+collapse (sum) net_position borrowing_volume lending_volume (mean) dealer_exposure dealer_exposure_tail fund_exposure_other fund_exposure_other_tail, by(fund_id dealer_id country date month)
+gen log_total_volume = log(borrowing_volume + lending_volume)
+
+egen fund_country_day = group(fund_id country date)
+egen dealer_country_day = group(dealer_id country date)
+egen fund_num = group(fund_id)
+egen dealer_num = group(dealer_id)
+
+reghdfe net_position dealer_exposure, a(fund_country_day dealer_num) vce(cluster month)
+reghdfe log_total_volume dealer_exposure, a(fund_country_day dealer_num) vce(cluster month)
+reghdfe net_position fund_exposure_other, a(dealer_country_day fund_num) vce(cluster month)
+reghdfe log_total_volume fund_exposure_other, a(dealer_country_day fund_num) vce(cluster month)
 
 log close
