@@ -529,7 +529,7 @@
   \takeaway{With three dealers supplying half the capital, a shock to one dealer is a shock to the market, not a rounding error.}
 \end{frame}
 
-\begin{frame}{The dealer fragility test, ingredients}
+\begin{frame}{The dealer fragility test, shock and treatment}
   \textbf{Country specific CDS shock}\quad{\small\color{slate} relative move against the other three sovereigns, in bp}
   \vspace{-0.4em}
   \[
@@ -539,55 +539,76 @@
   \]
   \vspace{-1.1em}
   \begin{itemize}\small
-    \item Demeaning in relative space strips the common factor, the lagged own level puts the shock back into bp.
-    \item Cumulating 20 business days fits a stock outcome that adjusts over weeks.
+    \item Log changes make countries comparable, the leave one out mean strips the common euro area factor, the lagged own level converts back to bp.
+    \item The 20 business day sum fits positions, which are stocks that adjust over weeks, not returns in an event window.
   \end{itemize}
   \smallskip
-  \textbf{Exposures}\quad{\small\color{slate} the dealer's home country, zero for the six US and JP dealers}
+  \textbf{Treatment, home country stress of the dealer}\quad{\small\color{slate} zero for the six US and JP dealers}
   \vspace{-0.4em}
   \[
-    H_{d,t} = S_{h(d),t}
+    H^{\mathrm{other}}_{d,b,t} = S_{h(d),t}\,\mathbf{1}\{h(d) \neq c(b)\}
     \qquad
-    F^{-d}_{f,t} = \sum_{d' \neq d} \omega_{f,d'}\, H_{d',t}
+    H^{\mathrm{home}}_{d,b,t} = S_{h(d),t}\,\mathbf{1}\{h(d) = c(b)\}
   \]
   \vspace{-1.1em}
   \begin{itemize}\small
-    \item $H_{d,t}$ enters separately for home collateral and for other collateral, so counterparty effects are read off bonds unrelated to the stress.
-    \item $\omega_{f,d'}$ is dealer $d'$'s lagged share in fund $f$'s repo activity. The own dealer is left out so part two does not remeasure part one.
-    \item The dealer's collateral book exposure is a control throughout.
+    \item $h(d)$ is dealer $d$'s home country, $c(b)$ the bond's country. The home collateral cell mixes counterparty and collateral risk, the other collateral cell isolates pure counterparty effects.
   \end{itemize}
 \end{frame}
 
-\begin{frame}{The dealer fragility test, regressions and results}
-  \textbf{Part one}\quad{\small\color{slate} same fund, same country, same day, across its dealers, so fund demand is absorbed}
+\begin{frame}{The dealer fragility test, control, spillover exposure and outcomes}
+  \textbf{Control, collateral book exposure}\quad{\small\color{slate} weights from the previous quarter, so books are predetermined}
   \vspace{-0.4em}
   \[
-    y_{f,d,b,t} = \beta_1\, H_{d,t} + \alpha_{f \times c \times t} + \alpha_{b \times t} + \alpha_{d} + \varepsilon
-    \qquad y \in \{\mathrm{Borrowing},\ \mathrm{Lending}\}
+    E_{d,b,t} = \sum_{c\, \neq\, c(b)} w_{d,c}\, S_{c,t}
   \]
-  \vspace{-1.3em}
-  \par\textbf{Part two}\quad{\small\color{slate} same dealer, same day, across its funds, the dealer's own shock is held fixed}
-  \vspace{-0.4em}
-  \[
-    y_{f,d,b,t} = \beta_2\, F^{-d}_{f,t} + \alpha_{d \times c \times t} + \alpha_{b \times t} + \alpha_{f} + \varepsilon
-  \]
+  \vspace{-1.1em}
+  \begin{itemize}\small
+    \item $w_{d,c}$ is country $c$'s share in dealer $d$'s full repo book. Home banks warehouse home paper, so home stress and book exposure are correlated and their effects have opposite signs, omitting the control would bias the home coefficients toward zero.
+  \end{itemize}
   \smallskip
-  \begin{center}\small
-  \begin{tabular}{lcc}
+  \textbf{Part two treatment, home stress of the fund's other dealers}
+  \vspace{-0.4em}
+  \[
+    F^{-d}_{f,t} = \sum_{d' \neq d} \omega_{f,d'}\, S_{h(d'),t}
+  \]
+  \vspace{-1.1em}
+  \begin{itemize}\small
+    \item $\omega_{f,d'}$ is dealer $d'$'s lagged share in fund $f$'s total repo activity. The own dealer is left out so part two does not remeasure part one. The book based analogue is again the control.
+  \end{itemize}
+  \smallskip
+  \textbf{Outcomes}\quad{\small\color{slate} fund $\times$ dealer $\times$ bond $\times$ day, in mn EUR}
+  \begin{itemize}\small
+    \item Borrowing, cash the fund raises against bonds, financing of long positions. Lending, cash the fund places against bonds, the leg that sources securities for shorts.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The dealer fragility test, results}
+  \begin{center}\footnotesize
+  \begin{tabular}{lcccc}
     \toprule
-    Home country stress of the dealer & Borrowing & Lending \\
+    & \multicolumn{2}{c}{Part one} & \multicolumn{2}{c}{Part two} \\
+    \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+    & Borrowing & Lending & Borrowing & Lending \\
     \midrule
-    Other collateral & $0$ & $-0.72$ \ (t $= -3.2$) \\
-    Home collateral & $0$ & $-0.97$ \ (t $= -2.3$) \\
+    Home stress, other collateral & 0.06 (0.42) & $-0.72$ ($-3.15$) & & \\
+    Home stress, home collateral & 0.15 (0.96) & $-0.97$ ($-2.31$) & & \\
+    Book exposure, control & $-0.41$ ($-0.93$) & 1.14 (2.26) & & \\
+    Other dealers home stress & & & $-0.33$ ($-0.84$) & $-0.53$ ($-1.21$) \\
+    Other dealers book exposure, control & & & 0.67 (2.08) & 0.69 (1.89) \\
+    \midrule
+    Fund $\times$ country $\times$ day FE & Yes & Yes & & \\
+    Dealer $\times$ country $\times$ day FE & & & Yes & Yes \\
+    Bond $\times$ day FE & Yes & Yes & Yes & Yes \\
+    Dealer FE & Yes & Yes & & \\
+    Fund FE & & & Yes & Yes \\
+    Observations & 3,762,944 & 3,762,944 & 3,798,468 & 3,798,468 \\
     \bottomrule
   \end{tabular}
+  \par\smallskip
+  {\scriptsize\color{slate} Coefficients in mn EUR per bp of 20 day cumulated stress, t statistics in parentheses, standard errors clustered by month (55 clusters). Aggregating bonds to the collateral country gives the same pattern.}
   \end{center}
-  \smallskip
-  \begin{itemize}\small
-    \item Financing of longs never moves. The response is cash lending withdrawn from the stressed dealer, in mn EUR per bp of cumulated home stress, on all collateral alike.
-    \item Uniformity across collateral points to counterparty risk, not collateral risk. Part two spillovers to other dealers stay imprecise.
-  \end{itemize}
-  \takeaway{Funds do not lose their financing when a dealer's sovereign is stressed, they pull the cash they entrust to it.}
+  \takeaway{Funds do not lose financing when a dealer's sovereign is stressed, they withdraw the cash they lend to it, on all collateral alike.}
 \end{frame}
 
 % ===========================================================================
