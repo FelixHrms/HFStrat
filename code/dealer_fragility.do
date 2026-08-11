@@ -162,25 +162,15 @@ bysort dealer_country_day (fund_num): gen multi_fund = fund_num[1] != fund_num[_
 tab multi_dealer if !missing(dealer_exposure)
 tab multi_fund if !missing(fund_exposure_other)
 
-**# Hop 1: shock -> dealer -> fund, within fund x country x day
+**# Part 1: shock -> dealer -> fund, within fund x country x day
 
 reghdfe net_position dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
 reghdfe log_total_volume dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
-reghdfe net_position dealer_exposure_tail, a(fund_country_day bond_day dealer_num) vce(cluster month) /*tail robustness*/
 
-**# Hop 2: shocked dealers -> fund -> other dealer, within dealer x country x day
+**# Part 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
 reghdfe net_position fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
 reghdfe log_total_volume fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
-reghdfe net_position fund_exposure_other_tail, a(dealer_country_day bond_day fund_num) vce(cluster month) /*tail robustness*/
 
-**# Fund aggregate: does the shock reach the fund's total book
-
-preserve
-	collapse (sum) net_position, by(fund_id date month)
-	merge m:1 fund_id date using `fund_exposures', keep(match) nogen
-	egen fund_num = group(fund_id)
-	reghdfe net_position fund_exposure_all, a(fund_num date) vce(cluster month)
-restore
 
 log close
