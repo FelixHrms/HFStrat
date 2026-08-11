@@ -3,7 +3,7 @@
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.l
 > og
   log type:  text
- opened on:  11 Aug 2026, 10:20:30
+ opened on:  11 Aug 2026, 10:33:33
 
 . 
 . **# CDS country-specific shocks
@@ -334,6 +334,8 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000006.tmp saved as .dta format
 (2,733,791 missing values generated)
 
 . 
+. gen month = mofd(date)
+
 . egen fcd = group(fund_id country date)
 
 . egen dcd = group(dealer_id country date)
@@ -382,29 +384,31 @@ multidealer |      Freq.     Percent        Cum.
 . **# Hop 1: shock -> dealer -> fund, within fund x country x day
 . 
 . foreach x in dexp edexp {
-  2.         reghdfe borrowing_rate `x' if borrowing_term <= 2, a(fcd bond_day) vce(cluster
->  dealer_n date) /*fresh rates: stock is ON/open, reprices daily*/
-  3.         reghdfe lvol `x', a(fcd bond_day) vce(cluster dealer_n date)
-  4.         reghdfe net_long `x', a(fcd bond_day) vce(cluster dealer_n date)
+  2.         reghdfe borrowing_rate `x' if borrowing_term <= 2, a(fcd bond_day dealer_n) vc
+> e(cluster dealer_n month) /*fresh rates: stock is ON/open, reprices daily*/
+  3.         reghdfe lvol `x', a(fcd bond_day dealer_n) vce(cluster dealer_n month)
+  4.         reghdfe net_long `x', a(fcd bond_day dealer_n) vce(cluster dealer_n month)
   5. }
-(dropped 134289 singleton observations)
+(dropped 134290 singleton observations)
 (MWFE estimator converged in 32 iterations)
+Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gelbach & Mill
+> er applied.
 
-HDFE Linear regression                            Number of obs   =    754,626
-Absorbing 2 HDFE groups                           F(   1,     25) =       2.39
-Statistics robust to heteroskedasticity           Prob > F        =     0.1347
+HDFE Linear regression                            Number of obs   =    754,625
+Absorbing 3 HDFE groups                           F(   1,     24) =       1.57
+Statistics robust to heteroskedasticity           Prob > F        =     0.2229
                                                   R-squared       =     0.9989
                                                   Adj R-squared   =     0.9985
-Number of clusters (dealer_n) =         26        Within R-sq.    =     0.0000
-Number of clusters (date)    =      1,054         Root MSE        =     0.0695
+Number of clusters (dealer_n) =         25        Within R-sq.    =     0.0000
+Number of clusters (month)   =         53         Root MSE        =     0.0694
 
-                         (Std. err. adjusted for 26 clusters in dealer_n date)
+                        (Std. err. adjusted for 25 clusters in dealer_n month)
 ------------------------------------------------------------------------------
              |               Robust
 borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        dexp |   .0001965   .0001271     1.55   0.135    -.0000653    .0004582
-       _cons |   2.047787   .0007658  2674.21   0.000      2.04621    2.049364
+        dexp |    .000244    .000195     1.25   0.223    -.0001585    .0006465
+       _cons |   2.047791   3.76e-06  5.5e+05   0.000     2.047783    2.047799
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -413,26 +417,30 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
          fcd |     36115       36115           0    *|
     bond_day |    201411      201411           0    *|
+    dealer_n |        25          25           0    *|
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
-(dropped 133771 singleton observations)
+(dropped 133772 singleton observations)
 (MWFE estimator converged in 29 iterations)
+Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gelbach & Mill
+> er applied.
+warning: variance matrix is nonsymmetric or highly singular.
 
-HDFE Linear regression                            Number of obs   =  2,358,013
-Absorbing 2 HDFE groups                           F(   1,     28) =       1.07
-Statistics robust to heteroskedasticity           Prob > F        =     0.3097
-                                                  R-squared       =     0.6658
-                                                  Adj R-squared   =     0.5625
-Number of clusters (dealer_n) =         29        Within R-sq.    =     0.0000
-Number of clusters (date)    =      1,155         Root MSE        =     1.2988
+HDFE Linear regression                            Number of obs   =  2,358,012
+Absorbing 3 HDFE groups                           F(   1,     27) =       2.53
+Statistics robust to heteroskedasticity           Prob > F        =     0.1236
+                                                  R-squared       =     0.6764
+                                                  Adj R-squared   =     0.5764
+Number of clusters (dealer_n) =         28        Within R-sq.    =     0.0000
+Number of clusters (month)   =         55         Root MSE        =     1.2780
 
-                         (Std. err. adjusted for 29 clusters in dealer_n date)
+                        (Std. err. adjusted for 28 clusters in dealer_n month)
 ------------------------------------------------------------------------------
              |               Robust
         lvol | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        dexp |  -.0080458   .0077772    -1.03   0.310    -.0239767    .0078851
-       _cons |   16.84298    .025687   655.70   0.000     16.79036     16.8956
+        dexp |   -.008817          .        .       .            .           .
+       _cons |   16.84297          .        .       .            .           .
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -441,26 +449,29 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
          fcd |    209217      209217           0    *|
     bond_day |    347721      347721           0    *|
+    dealer_n |        28          28           0    *|
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
 (dropped 93611 singleton observations)
 (MWFE estimator converged in 21 iterations)
+Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gelbach & Mill
+> er applied.
 
 HDFE Linear regression                            Number of obs   =  5,131,964
-Absorbing 2 HDFE groups                           F(   1,     31) =       4.26
-Statistics robust to heteroskedasticity           Prob > F        =     0.0475
-                                                  R-squared       =     0.2212
-                                                  Adj R-squared   =     0.0912
+Absorbing 3 HDFE groups                           F(   1,     31) =       8.15
+Statistics robust to heteroskedasticity           Prob > F        =     0.0076
+                                                  R-squared       =     0.2221
+                                                  Adj R-squared   =     0.0923
 Number of clusters (dealer_n) =         32        Within R-sq.    =     0.0000
-Number of clusters (date)    =      1,155         Root MSE        =     0.1652
+Number of clusters (month)   =         55         Root MSE        =     0.1651
 
-                         (Std. err. adjusted for 32 clusters in dealer_n date)
+                        (Std. err. adjusted for 32 clusters in dealer_n month)
 ------------------------------------------------------------------------------
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        dexp |  -.0004365   .0002115    -2.06   0.048    -.0008679   -5.12e-06
-       _cons |  -.0074739   .0012331    -6.06   0.000    -.0099888    -.004959
+        dexp |  -.0005019   .0001759    -2.85   0.008    -.0008606   -.0001432
+       _cons |  -.0074751   3.15e-06 -2373.26   0.000    -.0074815   -.0074687
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -469,26 +480,29 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
          fcd |    306295      306295           0    *|
     bond_day |    427475      427475           0    *|
+    dealer_n |        32          32           0    *|
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
-(dropped 134289 singleton observations)
+(dropped 134290 singleton observations)
 (MWFE estimator converged in 32 iterations)
+Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gelbach & Mill
+> er applied.
 
-HDFE Linear regression                            Number of obs   =    754,626
-Absorbing 2 HDFE groups                           F(   1,     25) =       0.36
-Statistics robust to heteroskedasticity           Prob > F        =     0.5514
+HDFE Linear regression                            Number of obs   =    754,625
+Absorbing 3 HDFE groups                           F(   1,     24) =       0.51
+Statistics robust to heteroskedasticity           Prob > F        =     0.4836
                                                   R-squared       =     0.9989
                                                   Adj R-squared   =     0.9985
-Number of clusters (dealer_n) =         26        Within R-sq.    =     0.0000
-Number of clusters (date)    =      1,054         Root MSE        =     0.0695
+Number of clusters (dealer_n) =         25        Within R-sq.    =     0.0000
+Number of clusters (month)   =         53         Root MSE        =     0.0694
 
-                         (Std. err. adjusted for 26 clusters in dealer_n date)
+                        (Std. err. adjusted for 25 clusters in dealer_n month)
 ------------------------------------------------------------------------------
              |               Robust
 borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-       edexp |  -.0000953   .0001578    -0.60   0.551    -.0004203    .0002297
-       _cons |   2.047783   .0007644  2678.84   0.000     2.046209    2.049358
+       edexp |    .000093   .0001308     0.71   0.484    -.0001768    .0003629
+       _cons |   2.047789   2.28e-06  9.0e+05   0.000     2.047785    2.047794
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -497,26 +511,29 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
          fcd |     36115       36115           0    *|
     bond_day |    201411      201411           0    *|
+    dealer_n |        25          25           0    *|
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
-(dropped 133771 singleton observations)
+(dropped 133772 singleton observations)
 (MWFE estimator converged in 29 iterations)
+Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gelbach & Mill
+> er applied.
 
-HDFE Linear regression                            Number of obs   =  2,358,013
-Absorbing 2 HDFE groups                           F(   1,     28) =       0.05
-Statistics robust to heteroskedasticity           Prob > F        =     0.8271
-                                                  R-squared       =     0.6658
-                                                  Adj R-squared   =     0.5625
-Number of clusters (dealer_n) =         29        Within R-sq.    =     0.0000
-Number of clusters (date)    =      1,155         Root MSE        =     1.2988
+HDFE Linear regression                            Number of obs   =  2,358,012
+Absorbing 3 HDFE groups                           F(   1,     27) =       0.28
+Statistics robust to heteroskedasticity           Prob > F        =     0.6027
+                                                  R-squared       =     0.6764
+                                                  Adj R-squared   =     0.5764
+Number of clusters (dealer_n) =         28        Within R-sq.    =     0.0000
+Number of clusters (month)   =         55         Root MSE        =     1.2780
 
-                         (Std. err. adjusted for 29 clusters in dealer_n date)
+                        (Std. err. adjusted for 28 clusters in dealer_n month)
 ------------------------------------------------------------------------------
              |               Robust
         lvol | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-       edexp |   .0021986   .0099723     0.22   0.827    -.0182287     .022626
-       _cons |   16.84306   .0256443   656.80   0.000     16.79053    16.89559
+       edexp |  -.0029193   .0055422    -0.53   0.603    -.0142909    .0084523
+       _cons |   16.84304   .0001054  1.6e+05   0.000     16.84282    16.84325
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -525,26 +542,30 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
          fcd |    209217      209217           0    *|
     bond_day |    347721      347721           0    *|
+    dealer_n |        28          28           0    *|
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
 (dropped 93611 singleton observations)
 (MWFE estimator converged in 21 iterations)
+Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gelbach & Mill
+> er applied.
+warning: variance matrix is nonsymmetric or highly singular.
 
 HDFE Linear regression                            Number of obs   =  5,131,964
-Absorbing 2 HDFE groups                           F(   1,     31) =       2.35
-Statistics robust to heteroskedasticity           Prob > F        =     0.1353
-                                                  R-squared       =     0.2212
-                                                  Adj R-squared   =     0.0912
+Absorbing 3 HDFE groups                           F(   1,     31) =       0.00
+Statistics robust to heteroskedasticity           Prob > F        =     0.9554
+                                                  R-squared       =     0.2221
+                                                  Adj R-squared   =     0.0923
 Number of clusters (dealer_n) =         32        Within R-sq.    =     0.0000
-Number of clusters (date)    =      1,155         Root MSE        =     0.1652
+Number of clusters (month)   =         55         Root MSE        =     0.1651
 
-                         (Std. err. adjusted for 32 clusters in dealer_n date)
+                        (Std. err. adjusted for 32 clusters in dealer_n month)
 ------------------------------------------------------------------------------
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-       edexp |  -.0003266    .000213    -1.53   0.135    -.0007609    .0001077
-       _cons |  -.0074649   .0012328    -6.06   0.000    -.0099792   -.0049506
+       edexp |  -5.93e-06          .        .       .            .           .
+       _cons |  -.0074659          .        .       .            .           .
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -553,6 +574,7 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
          fcd |    306295      306295           0    *|
     bond_day |    427475      427475           0    *|
+    dealer_n |        32          32           0    *|
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
 
@@ -561,9 +583,9 @@ Absorbed degrees of freedom:
 . 
 . foreach x in fexp efexp {
   2.         reghdfe borrowing_rate `x' if borrowing_term <= 2, a(dcd bond_day fund_n) vce(
-> cluster fund_n date)
-  3.         reghdfe lvol `x', a(dcd bond_day fund_n) vce(cluster fund_n date)
-  4.         reghdfe net_long `x', a(dcd bond_day fund_n) vce(cluster fund_n date)
+> cluster fund_n month)
+  3.         reghdfe lvol `x', a(dcd bond_day fund_n) vce(cluster fund_n month)
+  4.         reghdfe net_long `x', a(dcd bond_day fund_n) vce(cluster fund_n month)
   5. }
 (dropped 111139 singleton observations)
 (MWFE estimator converged in 24 iterations)
@@ -571,20 +593,20 @@ Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gel
 > er applied.
 
 HDFE Linear regression                            Number of obs   =    777,331
-Absorbing 3 HDFE groups                           F(   1,    139) =       4.06
-Statistics robust to heteroskedasticity           Prob > F        =     0.0458
+Absorbing 3 HDFE groups                           F(   1,     52) =       0.82
+Statistics robust to heteroskedasticity           Prob > F        =     0.3683
                                                   R-squared       =     0.9986
                                                   Adj R-squared   =     0.9980
 Number of clusters (fund_n)  =        140         Within R-sq.    =     0.0001
-Number of clusters (date)    =      1,054         Root MSE        =     0.0794
+Number of clusters (month)   =         53         Root MSE        =     0.0794
 
-                          (Std. err. adjusted for 140 clusters in fund_n date)
+                          (Std. err. adjusted for 53 clusters in fund_n month)
 ------------------------------------------------------------------------------
              |               Robust
 borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |   .0028084   .0013933     2.02   0.046     .0000536    .0055632
-       _cons |    2.05313   .0000199  1.0e+05   0.000      2.05309    2.053169
+        fexp |   .0028084   .0030943     0.91   0.368    -.0034008    .0090176
+       _cons |    2.05313   .0000501  4.1e+04   0.000     2.053029     2.05323
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -600,22 +622,23 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 20 iterations)
 Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gelbach & Mill
 > er applied.
+warning: variance matrix is nonsymmetric or highly singular.
 
 HDFE Linear regression                            Number of obs   =  2,407,137
-Absorbing 3 HDFE groups                           F(   1,    233) =       2.92
-Statistics robust to heteroskedasticity           Prob > F        =     0.0887
+Absorbing 3 HDFE groups                           F(   1,     54) =       0.58
+Statistics robust to heteroskedasticity           Prob > F        =     0.4506
                                                   R-squared       =     0.6289
                                                   Adj R-squared   =     0.5531
 Number of clusters (fund_n)  =        234         Within R-sq.    =     0.0000
-Number of clusters (date)    =      1,155         Root MSE        =     1.3136
+Number of clusters (month)   =         55         Root MSE        =     1.3136
 
-                          (Std. err. adjusted for 234 clusters in fund_n date)
+                          (Std. err. adjusted for 55 clusters in fund_n month)
 ------------------------------------------------------------------------------
              |               Robust
         lvol | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |   .0232109   .0135785     1.71   0.089    -.0035415    .0499633
-       _cons |   16.84113   .0005967  2.8e+04   0.000     16.83996    16.84231
+        fexp |   .0232109          .        .       .            .           .
+       _cons |   16.84113          .        .       .            .           .
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -631,23 +654,22 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 14 iterations)
 Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gelbach & Mill
 > er applied.
-warning: variance matrix is nonsymmetric or highly singular.
 
 HDFE Linear regression                            Number of obs   =  5,167,329
-Absorbing 3 HDFE groups                           F(   1,    271) =       0.11
-Statistics robust to heteroskedasticity           Prob > F        =     0.7399
+Absorbing 3 HDFE groups                           F(   1,     54) =       0.09
+Statistics robust to heteroskedasticity           Prob > F        =     0.7664
                                                   R-squared       =     0.1869
                                                   Adj R-squared   =     0.1011
 Number of clusters (fund_n)  =        272         Within R-sq.    =     0.0000
-Number of clusters (date)    =      1,155         Root MSE        =     0.1639
+Number of clusters (month)   =         55         Root MSE        =     0.1639
 
-                          (Std. err. adjusted for 272 clusters in fund_n date)
+                          (Std. err. adjusted for 55 clusters in fund_n month)
 ------------------------------------------------------------------------------
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |   .0002823          .        .       .            .           .
-       _cons |   -.007441          .        .       .            .           .
+        fexp |   .0002823   .0009456     0.30   0.766    -.0016134    .0021781
+       _cons |   -.007441   .0000506  -147.15   0.000    -.0075424   -.0073397
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -666,14 +688,14 @@ Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gel
 warning: variance matrix is nonsymmetric or highly singular.
 
 HDFE Linear regression                            Number of obs   =    777,331
-Absorbing 3 HDFE groups                           F(   1,    139) =       6.23
-Statistics robust to heteroskedasticity           Prob > F        =     0.0137
+Absorbing 3 HDFE groups                           F(   1,     52) =       1.56
+Statistics robust to heteroskedasticity           Prob > F        =     0.2170
                                                   R-squared       =     0.9986
                                                   Adj R-squared   =     0.9980
 Number of clusters (fund_n)  =        140         Within R-sq.    =     0.0001
-Number of clusters (date)    =      1,054         Root MSE        =     0.0794
+Number of clusters (month)   =         53         Root MSE        =     0.0794
 
-                          (Std. err. adjusted for 140 clusters in fund_n date)
+                          (Std. err. adjusted for 53 clusters in fund_n month)
 ------------------------------------------------------------------------------
              |               Robust
 borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
@@ -698,14 +720,14 @@ Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gel
 warning: variance matrix is nonsymmetric or highly singular.
 
 HDFE Linear regression                            Number of obs   =  2,407,137
-Absorbing 3 HDFE groups                           F(   1,    233) =      15.17
-Statistics robust to heteroskedasticity           Prob > F        =     0.0001
+Absorbing 3 HDFE groups                           F(   1,     54) =       3.95
+Statistics robust to heteroskedasticity           Prob > F        =     0.0519
                                                   R-squared       =     0.6289
                                                   Adj R-squared   =     0.5531
 Number of clusters (fund_n)  =        234         Within R-sq.    =     0.0001
-Number of clusters (date)    =      1,155         Root MSE        =     1.3136
+Number of clusters (month)   =         55         Root MSE        =     1.3136
 
-                          (Std. err. adjusted for 234 clusters in fund_n date)
+                          (Std. err. adjusted for 55 clusters in fund_n month)
 ------------------------------------------------------------------------------
              |               Robust
         lvol | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
@@ -729,20 +751,20 @@ Warning: VCV matrix was non-positive semi-definite; adjustment from Cameron, Gel
 > er applied.
 
 HDFE Linear regression                            Number of obs   =  5,167,329
-Absorbing 3 HDFE groups                           F(   1,    271) =       0.19
-Statistics robust to heteroskedasticity           Prob > F        =     0.6602
+Absorbing 3 HDFE groups                           F(   1,     54) =       0.16
+Statistics robust to heteroskedasticity           Prob > F        =     0.6868
                                                   R-squared       =     0.1869
                                                   Adj R-squared   =     0.1011
 Number of clusters (fund_n)  =        272         Within R-sq.    =     0.0000
-Number of clusters (date)    =      1,155         Root MSE        =     0.1639
+Number of clusters (month)   =         55         Root MSE        =     0.1639
 
-                          (Std. err. adjusted for 272 clusters in fund_n date)
+                          (Std. err. adjusted for 55 clusters in fund_n month)
 ------------------------------------------------------------------------------
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-       efexp |   .0003842   .0008728     0.44   0.660    -.0013342    .0021026
-       _cons |  -.0074567   5.47e-06 -1362.50   0.000    -.0074674   -.0074459
+       efexp |   .0003842   .0009478     0.41   0.687     -.001516    .0022844
+       _cons |  -.0074567   .0000161  -461.79   0.000     -.007489   -.0074243
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -761,5 +783,5 @@ Absorbed degrees of freedom:
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.l
 > og
   log type:  text
- closed on:  11 Aug 2026, 10:25:19
+ closed on:  11 Aug 2026, 10:41:00
 -------------------------------------------------------------------------------------------
