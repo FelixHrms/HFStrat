@@ -70,14 +70,26 @@ foreach c in DE FR IT ES {
 tempfile dealer_weights
 save `dealer_weights'
 
+**# Dealer nationality
+
+import delimited "$key\\dealer_nationality.csv", varnames(1) clear
+tempfile dealer_nat
+save `dealer_nat'
+
 **# Dealer shock = portfolio-weighted CDS shock, dealer x day
+* home shock = the cumulated shock of the dealer's home country, zero for non EA dealers
 
 use `country_shocks', clear
 gen quarter = qofd(date)
 joinby quarter using `dealer_weights'
+merge m:1 dealer_id using `dealer_nat', keep(master match) nogen
 gen dealer_shock = dealer_shareDE*shock_cumDE + dealer_shareFR*shock_cumFR + dealer_shareIT*shock_cumIT + dealer_shareES*shock_cumES
 gen dealer_shock_tail = dealer_shareDE*tail_cumDE + dealer_shareFR*tail_cumFR + dealer_shareIT*tail_cumIT + dealer_shareES*tail_cumES
-keep dealer_id date dealer_shock dealer_shock_tail
+gen dealer_home_shock = 0
+foreach c in DE FR IT ES {
+	replace dealer_home_shock = shock_cum`c' if nationality == "`c'"
+}
+keep dealer_id date dealer_shock dealer_shock_tail dealer_home_shock
 tempfile dealer_shocks
 save `dealer_shocks'
 
@@ -106,15 +118,10 @@ gen quarter = qofd(date)
 joinby dealer_id quarter using `fund_weights'
 gen product = wallet_share*dealer_shock
 gen product_tail = wallet_share*dealer_shock_tail
-collapse (sum) fund_exposure_all = product fund_exposure_all_tail = product_tail, by(fund_id date)
+gen product_home = wallet_share*dealer_home_shock
+collapse (sum) fund_exposure_all = product fund_exposure_all_tail = product_tail fund_exposure_all_home = product_home, by(fund_id date)
 tempfile fund_exposures
 save `fund_exposures'
-
-**# Dealer nationality
-
-import delimited "$key\\dealer_nationality.csv", varnames(1) clear
-tempfile dealer_nat
-save `dealer_nat'
 
 **# Panel
 
@@ -145,6 +152,8 @@ gen fund_exposure_other = fund_exposure_all
 replace fund_exposure_other = fund_exposure_all - wallet_share*dealer_shock if !missing(fund_exposure_all, wallet_share, dealer_shock) /*leave out the own dealer*/
 gen fund_exposure_other_tail = fund_exposure_all_tail
 replace fund_exposure_other_tail = fund_exposure_all_tail - wallet_share*dealer_shock_tail if !missing(fund_exposure_all_tail, wallet_share, dealer_shock_tail)
+gen fund_exposure_other_home = fund_exposure_all_home
+replace fund_exposure_other_home = fund_exposure_all_home - wallet_share*dealer_home_shock if !missing(fund_exposure_all_home, wallet_share, dealer_home_shock)
 
 foreach v in borrowing_volume lending_volume {
 	replace `v' = 0 if missing(`v')
@@ -164,6 +173,7 @@ label var home_exposure "Home country exposure (20d cum.)"
 label var dealer_exposure_tail "Dealer exposure (>2sd)"
 label var fund_exposure_other "Fund exposure via other dealers (20d cum.)"
 label var fund_exposure_other_tail "Fund exposure via other dealers (>2sd)"
+label var fund_exposure_other_home "Fund exposure via other dealers' home countries (20d cum.)"
 
 **# Support: multi-dealer / multi-fund cells, both-sided pairs
 
@@ -182,12 +192,12 @@ reghdfe log_total_volume dealer_exposure home_exposure if inlist(nationality, "D
 
 **# Part 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
-reghdfe net_position fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
-reghdfe log_total_volume fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
+reghdfe net_position fund_exposure_other fund_exposure_other_home, a(dealer_country_day bond_day fund_num) vce(cluster month)
+reghdfe log_total_volume fund_exposure_other fund_exposure_other_home, a(dealer_country_day bond_day fund_num) vce(cluster month)
 
 **# Country level: same tests on the fund x dealer x country x day panel
 
-collapse (sum) net_position borrowing_volume lending_volume (mean) dealer_exposure dealer_exposure_tail home_exposure fund_exposure_other fund_exposure_other_tail, by(fund_id dealer_id country date month)
+collapse (sum) net_position borrowing_volume lending_volume (mean) dealer_exposure dealer_exposure_tail home_exposure fund_exposure_other fund_exposure_other_tail fund_exposure_other_home, by(fund_id dealer_id country date month nationality)
 gen log_total_volume = log(borrowing_volume + lending_volume)
 
 egen fund_country_day = group(fund_id country date)
@@ -199,7 +209,7 @@ reghdfe net_position dealer_exposure home_exposure, a(fund_country_day dealer_nu
 reghdfe log_total_volume dealer_exposure home_exposure, a(fund_country_day dealer_num) vce(cluster month)
 reghdfe net_position dealer_exposure home_exposure if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day dealer_num) vce(cluster month) /*EA dealers only*/
 reghdfe log_total_volume dealer_exposure home_exposure if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day dealer_num) vce(cluster month)
-reghdfe net_position fund_exposure_other, a(dealer_country_day fund_num) vce(cluster month)
-reghdfe log_total_volume fund_exposure_other, a(dealer_country_day fund_num) vce(cluster month)
+reghdfe net_position fund_exposure_other fund_exposure_other_home, a(dealer_country_day fund_num) vce(cluster month)
+reghdfe log_total_volume fund_exposure_other fund_exposure_other_home, a(dealer_country_day fund_num) vce(cluster month)
 
 log close
