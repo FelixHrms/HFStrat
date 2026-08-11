@@ -161,7 +161,8 @@ foreach v in borrowing_volume lending_volume {
 	replace `v' = 0 if missing(`v')
 }
 gen net_position = (borrowing_volume - lending_volume)/10^9 /*net long position in bn*/
-gen log_total_volume = log(borrowing_volume + lending_volume) /*intermediation volume*/
+gen borrowing_bn = borrowing_volume/10^9 /*financing of longs*/
+gen lending_bn = lending_volume/10^9 /*cash lending, the short side*/
 
 gen month = mofd(date)
 egen fund_country_day = group(fund_id country date)
@@ -188,31 +189,32 @@ tab multi_fund if !missing(fund_exposure_other)
 **# Part 1: shock -> dealer -> fund, within fund x country x day
 * home exposure is the liability side of the nexus, book exposure the asset side
 
-reghdfe net_position dealer_exposure home_exposure home_exposure_own, a(fund_country_day bond_day dealer_num) vce(cluster month)
-reghdfe log_total_volume dealer_exposure home_exposure home_exposure_own, a(fund_country_day bond_day dealer_num) vce(cluster month)
-reghdfe net_position dealer_exposure home_exposure home_exposure_own if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day bond_day dealer_num) vce(cluster month) /*EA dealers only*/
-reghdfe log_total_volume dealer_exposure home_exposure home_exposure_own if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day bond_day dealer_num) vce(cluster month)
+foreach y in net_position borrowing_bn lending_bn {
+	reghdfe `y' dealer_exposure home_exposure home_exposure_own, a(fund_country_day bond_day dealer_num) vce(cluster month)
+	reghdfe `y' dealer_exposure home_exposure home_exposure_own if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day bond_day dealer_num) vce(cluster month) /*EA dealers only*/
+}
 
 **# Part 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
-reghdfe net_position fund_exposure_other fund_exposure_other_home, a(dealer_country_day bond_day fund_num) vce(cluster month)
-reghdfe log_total_volume fund_exposure_other fund_exposure_other_home, a(dealer_country_day bond_day fund_num) vce(cluster month)
+foreach y in net_position borrowing_bn lending_bn {
+	reghdfe `y' fund_exposure_other fund_exposure_other_home, a(dealer_country_day bond_day fund_num) vce(cluster month)
+}
 
 **# Country level: same tests on the fund x dealer x country x day panel
 
-collapse (sum) net_position borrowing_volume lending_volume (mean) dealer_exposure dealer_exposure_tail home_exposure home_exposure_own fund_exposure_other fund_exposure_other_tail fund_exposure_other_home, by(fund_id dealer_id country date month nationality)
-gen log_total_volume = log(borrowing_volume + lending_volume)
+collapse (sum) net_position borrowing_bn lending_bn (mean) dealer_exposure dealer_exposure_tail home_exposure home_exposure_own fund_exposure_other fund_exposure_other_tail fund_exposure_other_home, by(fund_id dealer_id country date month nationality)
 
 egen fund_country_day = group(fund_id country date)
 egen dealer_country_day = group(dealer_id country date)
 egen fund_num = group(fund_id)
 egen dealer_num = group(dealer_id)
 
-reghdfe net_position dealer_exposure home_exposure home_exposure_own, a(fund_country_day dealer_num) vce(cluster month)
-reghdfe log_total_volume dealer_exposure home_exposure home_exposure_own, a(fund_country_day dealer_num) vce(cluster month)
-reghdfe net_position dealer_exposure home_exposure home_exposure_own if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day dealer_num) vce(cluster month) /*EA dealers only*/
-reghdfe log_total_volume dealer_exposure home_exposure home_exposure_own if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day dealer_num) vce(cluster month)
-reghdfe net_position fund_exposure_other fund_exposure_other_home, a(dealer_country_day fund_num) vce(cluster month)
-reghdfe log_total_volume fund_exposure_other fund_exposure_other_home, a(dealer_country_day fund_num) vce(cluster month)
+foreach y in net_position borrowing_bn lending_bn {
+	reghdfe `y' dealer_exposure home_exposure home_exposure_own, a(fund_country_day dealer_num) vce(cluster month)
+	reghdfe `y' dealer_exposure home_exposure home_exposure_own if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day dealer_num) vce(cluster month) /*EA dealers only*/
+}
+foreach y in net_position borrowing_bn lending_bn {
+	reghdfe `y' fund_exposure_other fund_exposure_other_home, a(dealer_country_day fund_num) vce(cluster month)
+}
 
 log close
