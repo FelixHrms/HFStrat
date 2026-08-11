@@ -7,8 +7,8 @@ cap log close
 log using "$key\\dealer_fragility.log", replace text
 
 **# Country-specific CDS shocks
-* daily bp changes, leave-one-out demeaned across the other three countries,
-* cumulated over a 20-day window
+* daily log changes, leave-one-out demeaned across the other three countries,
+* rescaled to bp by the lagged own level, cumulated over a 20-day window
 
 tempfile cds_all
 local first = 1
@@ -23,14 +23,16 @@ foreach c in Germany France Italy Spain {
 gen date = date(period, "DMY")
 format date %td
 sort country date
-by country: gen change = cds - cds[_n-1]
-drop if missing(change)
-bysort date: egen sum_change = total(change)
+by country: gen log_change = log(cds) - log(cds[_n-1])
+by country: gen cds_lag = cds[_n-1]
+drop if missing(log_change)
+bysort date: egen sum_log_change = total(log_change)
 bysort date: gen n_countries = _N
 keep if n_countries == 4
-gen shock_daily = change - (sum_change - change)/3 /*own move minus avg move of the other three, in bp*/
-bysort country: egen sd_shock = sd(shock_daily)
-gen tail_daily = shock_daily*(abs(shock_daily) > 2*sd_shock) /*only moves beyond 2 sd count*/
+gen shock_rel = log_change - (sum_log_change - log_change)/3 /*own move minus avg move of the other three*/
+gen shock_daily = shock_rel*cds_lag /*back to bp using own lagged level*/
+bysort country: egen sd_rel = sd(shock_rel)
+gen tail_daily = shock_daily*(abs(shock_rel) > 2*sd_rel) /*only moves beyond 2 sd count*/
 
 local W = 20 /*business-day window*/
 sort country date
