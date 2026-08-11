@@ -540,47 +540,54 @@
   \vspace{-1.1em}
   \begin{itemize}\small
     \item Demeaning in relative space strips the common factor, the lagged own level puts the shock back into bp.
-    \item Cumulating 20 days fits a stock outcome. The tail variant keeps only days beyond two standard deviations.
+    \item Cumulating 20 business days fits a stock outcome that adjusts over weeks.
   \end{itemize}
   \smallskip
-  \textbf{Exposures}\quad{\small\color{slate} weights from the previous quarter, so books are predetermined}
+  \textbf{Exposures}\quad{\small\color{slate} the dealer's home country, zero for the six US and JP dealers}
   \vspace{-0.4em}
   \[
-    E_{d,t} = \sum_{c\, \neq\, c(b)} w_{d,c}\, S_{c,t}
+    H_{d,t} = S_{h(d),t}
     \qquad
-    F^{-d}_{f,t} = \sum_{d' \neq d} \omega_{f,d'} \sum_{c} w_{d',c}\, S_{c,t}
+    F^{-d}_{f,t} = \sum_{d' \neq d} \omega_{f,d'}\, H_{d',t}
   \]
   \vspace{-1.1em}
   \begin{itemize}\small
-    \item $w_{d,c}$ is country $c$'s share in dealer $d$'s repo book. The bond's own country $c(b)$ is excluded so collateral repricing cannot pose as a funding shock.
-    \item $\omega_{f,d'}$ is dealer $d'$'s share in fund $f$'s repo activity. The own dealer is left out so part two does not remeasure part one.
+    \item $H_{d,t}$ enters separately for home collateral and for other collateral, so counterparty effects are read off bonds unrelated to the stress.
+    \item $\omega_{f,d'}$ is dealer $d'$'s lagged share in fund $f$'s repo activity. The own dealer is left out so part two does not remeasure part one.
+    \item The dealer's collateral book exposure is a control throughout.
   \end{itemize}
 \end{frame}
 
-\begin{frame}{The dealer fragility test, regressions}
+\begin{frame}{The dealer fragility test, regressions and results}
   \textbf{Part one}\quad{\small\color{slate} same fund, same country, same day, across its dealers, so fund demand is absorbed}
   \vspace{-0.4em}
   \[
-    \mathrm{NetPos}_{f,d,b,t} = \beta_1\, E_{d,t} + \alpha_{f \times c \times t} + \alpha_{b \times t} + \alpha_{d} + \varepsilon
+    y_{f,d,b,t} = \beta_1\, H_{d,t} + \alpha_{f \times c \times t} + \alpha_{b \times t} + \alpha_{d} + \varepsilon
+    \qquad y \in \{\mathrm{Borrowing},\ \mathrm{Lending}\}
   \]
   \vspace{-1.3em}
   \par\textbf{Part two}\quad{\small\color{slate} same dealer, same day, across its funds, the dealer's own shock is held fixed}
   \vspace{-0.4em}
   \[
-    \mathrm{NetPos}_{f,d,b,t} = \beta_2\, F^{-d}_{f,t} + \alpha_{d \times c \times t} + \alpha_{b \times t} + \alpha_{f} + \varepsilon
+    y_{f,d,b,t} = \beta_2\, F^{-d}_{f,t} + \alpha_{d \times c \times t} + \alpha_{b \times t} + \alpha_{f} + \varepsilon
   \]
-  \medskip
+  \smallskip
   \begin{center}\small
   \begin{tabular}{lcc}
     \toprule
-    & $\beta_1$ & $\beta_2$ \\
+    Home country stress of the dealer & Borrowing & Lending \\
     \midrule
-    Substitution, the fund reroutes and is insulated & $-$ & $+$ \\
-    Transmission, the shock travels through the fund & $-$ & $-$ \\
+    Other collateral & $0$ & $-0.72$ \ (t $= -3.2$) \\
+    Home collateral & $0$ & $-0.97$ \ (t $= -2.3$) \\
     \bottomrule
   \end{tabular}
   \end{center}
-  \takeaway{The sign pattern separates rerouting from contagion, no single cell can.}
+  \smallskip
+  \begin{itemize}\small
+    \item Financing of longs never moves. The response is cash lending withdrawn from the stressed dealer, in mn EUR per bp of cumulated home stress, on all collateral alike.
+    \item Uniformity across collateral points to counterparty risk, not collateral risk. Part two spillovers to other dealers stay imprecise.
+  \end{itemize}
+  \takeaway{Funds do not lose their financing when a dealer's sovereign is stressed, they pull the cash they entrust to it.}
 \end{frame}
 
 % ===========================================================================
