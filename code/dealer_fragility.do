@@ -2,8 +2,6 @@ clear all
 snapshot erase _all
 
 global key "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
-global data "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Data"
-global tab "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Tables"
 
 **# CDS country-specific shocks
 
@@ -120,38 +118,21 @@ egen dealer_n = group(dealer_id)
 label var dexp "Dealer exposure"
 label var fexp "Fund exposure (other dealers)"
 
+**# Support: share of obs in cells with >1 dealer (hop 1) / >1 fund (hop 2)
+
+bysort fcd (dealer_n): gen multidealer = dealer_n[1] != dealer_n[_N]
+bysort dcd (fund_n): gen multifund = fund_n[1] != fund_n[_N]
+tab multidealer if !missing(borrowing_rate, dexp)
+tab multifund if !missing(borrowing_rate, fexp)
+
 **# Hop 1: shock -> dealer -> fund, within fund x country x day
 
 reghdfe borrowing_rate dexp, a(fcd bond_day) vce(cluster dealer_n date)
-	estadd local fcdfe "Yes"
-	estadd local bdfe "Yes"
-	estadd local dcdfe "No"
-	estadd local ffe "No"
-	est sto h1
+reghdfe borrowing_rate dexp if borrowing_term <= 2, a(fcd bond_day) vce(cluster dealer_n date) /*fresh rates: stock is ON/open, reprices daily*/
 reghdfe lvol dexp, a(fcd bond_day) vce(cluster dealer_n date)
-	estadd local fcdfe "Yes"
-	estadd local bdfe "Yes"
-	estadd local dcdfe "No"
-	estadd local ffe "No"
-	est sto h2
 
 **# Hop 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
 reghdfe borrowing_rate fexp, a(dcd bond_day fund_n) vce(cluster fund_n date)
-	estadd local fcdfe "No"
-	estadd local bdfe "Yes"
-	estadd local dcdfe "Yes"
-	estadd local ffe "Yes"
-	est sto h3
+reghdfe borrowing_rate fexp if borrowing_term <= 2, a(dcd bond_day fund_n) vce(cluster fund_n date)
 reghdfe lvol fexp, a(dcd bond_day fund_n) vce(cluster fund_n date)
-	estadd local fcdfe "No"
-	estadd local bdfe "Yes"
-	estadd local dcdfe "Yes"
-	estadd local ffe "Yes"
-	est sto h4
-
-esttab h1 h2 h3 h4 using "$tab/dealer_fragility.tex", replace star(* 0.10 ** 0.05 *** 0.01) ///
-	b(3) t(3) label nogaps booktabs ar2 mtitles("Rate" "Log volume" "Rate" "Log volume") ///
-	stats(fcdfe bdfe dcdfe ffe r2_a N, label("Fund x Country x Day FE" "Bond x Day FE" "Dealer x Country x Day FE" "Fund FE" "Adj.\ R$^2$" "Obs") ///
-	fmt(0 0 0 0 3 %9.0gc) layout("\multicolumn{1}{c}{@}" "\multicolumn{1}{c}{@}" "\multicolumn{1}{c}{@}" "\multicolumn{1}{c}{@}" "@" "\multicolumn{1}{c}{@}")) ///
-	eqlabels(none) nonotes
