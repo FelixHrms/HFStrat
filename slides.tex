@@ -553,33 +553,30 @@
   \vspace{-1.1em}
   \begin{itemize}\small
     \item $w_{d,c}$ is country $c$'s share in dealer $d$'s repo book. The bond's own country $c(b)$ is excluded so collateral repricing cannot pose as a funding shock.
-    \item $\omega_{f,d'}$ is dealer $d'$'s share in fund $f$'s repo activity. The own dealer is left out so hop two does not remeasure hop one.
+    \item $\omega_{f,d'}$ is dealer $d'$'s share in fund $f$'s repo activity. The own dealer is left out so part two does not remeasure part one.
   \end{itemize}
 \end{frame}
 
 \begin{frame}{The dealer fragility test, regressions}
-  \textbf{Hop one}\quad{\small\color{slate} same fund, same country, same day, across its dealers, so fund demand is absorbed}
+  \textbf{Part one}\quad{\small\color{slate} same fund, same country, same day, across its dealers, so fund demand is absorbed}
   \vspace{-0.4em}
   \[
     \mathrm{NetPos}_{f,d,b,t} = \beta_1\, E_{d,t} + \alpha_{f \times c \times t} + \alpha_{b \times t} + \alpha_{d} + \varepsilon
   \]
   \vspace{-1.3em}
-  \par\textbf{Hop two}\quad{\small\color{slate} same dealer, same day, across its funds, the dealer's own shock is held fixed}
+  \par\textbf{Part two}\quad{\small\color{slate} same dealer, same day, across its funds, the dealer's own shock is held fixed}
   \vspace{-0.4em}
   \[
     \mathrm{NetPos}_{f,d,b,t} = \beta_2\, F^{-d}_{f,t} + \alpha_{d \times c \times t} + \alpha_{b \times t} + \alpha_{f} + \varepsilon
   \]
-  \vspace{-1.3em}
-  \par\textbf{Aggregate}\quad{\small\color{slate} does the shock reach the fund's total book,\ }
-  {\small $\mathrm{NetPos}_{f,t} = \gamma\, F_{f,t} + \alpha_f + \alpha_t + \varepsilon$}
-  \smallskip
+  \medskip
   \begin{center}\small
-  \begin{tabular}{lccc}
+  \begin{tabular}{lcc}
     \toprule
-    & $\beta_1$ & $\beta_2$ & $\gamma$ \\
+    & $\beta_1$ & $\beta_2$ \\
     \midrule
-    Substitution, the fund reroutes and is insulated & $-$ & $+$ & $0$ \\
-    Transmission, the shock travels through the fund & $-$ & $-$ & $-$ \\
+    Substitution, the fund reroutes and is insulated & $-$ & $+$ \\
+    Transmission, the shock travels through the fund & $-$ & $-$ \\
     \bottomrule
   \end{tabular}
   \end{center}
