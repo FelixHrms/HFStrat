@@ -191,7 +191,6 @@ tab multi_fund if !missing(fund_exposure_other)
 
 foreach y in borrowing_mn lending_mn {
 	reghdfe `y' home_exposure home_exposure_own dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month) /*book exposure kept as control*/
-	reghdfe `y' home_exposure home_exposure_own dealer_exposure if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day bond_day dealer_num) vce(cluster month) /*EA dealers only*/
 }
 
 **# Part 2: shocked dealers -> fund -> other dealer, within dealer x country x day
@@ -211,7 +210,6 @@ egen dealer_num = group(dealer_id)
 
 foreach y in borrowing_mn lending_mn {
 	reghdfe `y' home_exposure home_exposure_own dealer_exposure, a(fund_country_day dealer_num) vce(cluster month)
-	reghdfe `y' home_exposure home_exposure_own dealer_exposure if inlist(nationality, "DE", "FR", "IT", "ES"), a(fund_country_day dealer_num) vce(cluster month) /*EA dealers only*/
 }
 foreach y in borrowing_mn lending_mn {
 	reghdfe `y' fund_exposure_other_home fund_exposure_other, a(dealer_country_day fund_num) vce(cluster month)
