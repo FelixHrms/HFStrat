@@ -3,7 +3,7 @@
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.l
 > og
   log type:  text
- opened on:  11 Aug 2026, 10:46:38
+ opened on:  11 Aug 2026, 11:32:21
 
 . 
 . **# CDS country-specific shocks
@@ -176,7 +176,7 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000003.tmp saved as .dta format
 file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000004.tmp saved as .dta format
 
 . 
-. **# Fund funding weights across dealers, lagged quarter
+. **# Fund funding weights across dealers (two-sided), lagged quarter
 . 
 . import delimited "$key\\fund_dealer_isin_day.csv", varnames(1) clear
 (encoding automatically selected: UTF-8)
@@ -184,19 +184,23 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000004.tmp saved as .dta format
 
 . capture drop v1
 
-. replace borrowing_volume = 0 if missing(borrowing_volume)
+. foreach v in borrowing_volume lending_volume {
+  2.         replace `v' = 0 if missing(`v')
+  3. }
 (2,811,734 real changes made)
+(2,272,203 real changes made)
+
+. gen vol = borrowing_volume + lending_volume
 
 . gen date = date(business_date, "YMD")
 
 . gen qtr = qofd(date) + 1
 
-. collapse (sum) borrowing_volume, by(fund_id dealer_id qtr)
+. collapse (sum) vol, by(fund_id dealer_id qtr)
 
-. bysort fund_id qtr: egen tot = total(borrowing_volume)
+. bysort fund_id qtr: egen tot = total(vol)
 
-. gen fdshare = borrowing_volume/tot
-(650 missing values generated)
+. gen fdshare = vol/tot
 
 . keep fund_id dealer_id qtr fdshare
 
@@ -215,10 +219,8 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000005.tmp saved as .dta format
 . joinby dealer_id qtr using `fund_w'
 
 . gen prod = fdshare*dshock
-(42,358 missing values generated)
 
 . gen eprod = fdshare*edshock
-(42,358 missing values generated)
 
 . collapse (sum) fexp = prod efexp = eprod, by(fund_id date)
 
@@ -266,21 +268,14 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000006.tmp saved as .dta format
 
 . gen dexp = 0
 
-. gen edexp = 0
-
 . foreach c in DE FR IT ES {
   2.         replace dexp = dexp + share`c'*shock`c' if country != "`c'" /*exclude collater
 > al country*/
-  3.         replace edexp = edexp + share`c'*eshock`c' if country != "`c'"
-  4. }
+  3. }
 (3,995,732 real changes made)
-(1,856,244 real changes made)
 (3,863,945 real changes made)
-(1,701,674 real changes made)
 (3,453,656 real changes made)
-(1,568,794 real changes made)
 (4,282,895 real changes made)
-(2,402,185 real changes made)
 
 . 
 . merge m:1 fund_id date using `fundexp', keep(master match) nogen
@@ -315,11 +310,11 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000006.tmp saved as .dta format
 
 . replace fexp = fexp - fdshare*dshock if !missing(fexp) & !missing(fdshare) & !missing(dsh
 > ock) /*leave out own dealer*/
-(4,831,479 real changes made)
+(5,113,788 real changes made)
 
 . replace efexp = efexp - fdshare*edshock if !missing(efexp) & !missing(fdshare) & !missing
 > (edshock)
-(3,320,120 real changes made)
+(3,538,347 real changes made)
 
 . 
 . foreach v in borrowing_volume lending_volume {
@@ -330,8 +325,7 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000006.tmp saved as .dta format
 
 . gen net_long = (borrowing_volume - lending_volume)/10^9 /*net long position in bn*/
 
-. gen lvol = log(borrowing_volume)
-(2,733,791 missing values generated)
+. gen ltot = log(borrowing_volume + lending_volume) /*intermediation volume*/
 
 . 
 . gen month = mofd(date)
@@ -349,104 +343,50 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_6858_000006.tmp saved as .dta format
 . 
 . label var dexp "Dealer exposure (20d cum.)"
 
-. label var edexp "Dealer exposure (20d cum., >2sd)"
-
 . label var fexp "Fund exposure (other dealers, 20d cum.)"
 
 . label var efexp "Fund exposure (other dealers, >2sd)"
 
 . 
-. **# Support: share of obs in cells with >1 dealer (hop 1) / >1 fund (hop 2)
+. **# Support: multi-dealer / multi-fund cells, both-sided pairs
 . 
 . bysort fcd (dealer_n): gen multidealer = dealer_n[1] != dealer_n[_N]
 
 . bysort dcd (fund_n): gen multifund = fund_n[1] != fund_n[_N]
 
-. tab multidealer if !missing(borrowing_rate, dexp)
+. gen bothsides = borrowing_volume > 0 & lending_volume > 0
+
+. tab multidealer if !missing(dexp)
 
 multidealer |      Freq.     Percent        Cum.
 ------------+-----------------------------------
-          0 |    485,777       20.72       20.72
-          1 |  1,858,247       79.28      100.00
+          0 |  1,092,360       20.90       20.90
+          1 |  4,133,215       79.10      100.00
 ------------+-----------------------------------
-      Total |  2,344,024      100.00
+      Total |  5,225,575      100.00
 
-. tab multifund if !missing(borrowing_rate, fexp)
+. tab multifund if !missing(fexp)
 
   multifund |      Freq.     Percent        Cum.
 ------------+-----------------------------------
-          0 |     16,539        0.71        0.71
-          1 |  2,315,653       99.29      100.00
+          0 |     42,233        0.81        0.81
+          1 |  5,158,534       99.19      100.00
 ------------+-----------------------------------
-      Total |  2,332,192      100.00
+      Total |  5,200,767      100.00
+
+. tab bothsides
+
+  bothsides |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |  4,928,840       94.32       94.32
+          1 |    296,735        5.68      100.00
+------------+-----------------------------------
+      Total |  5,225,575      100.00
 
 . 
 . **# Hop 1: shock -> dealer -> fund, within fund x country x day
 . 
-. foreach x in dexp edexp {
-  2.         reghdfe borrowing_rate `x' if borrowing_term <= 2, a(fcd bond_day dealer_n) vc
-> e(cluster month) /*fresh rates: stock is ON/open, reprices daily*/
-  3.         reghdfe lvol `x', a(fcd bond_day dealer_n) vce(cluster month)
-  4.         reghdfe net_long `x', a(fcd bond_day dealer_n) vce(cluster month)
-  5. }
-(dropped 134290 singleton observations)
-(MWFE estimator converged in 32 iterations)
-
-HDFE Linear regression                            Number of obs   =    754,625
-Absorbing 3 HDFE groups                           F(   1,     52) =       1.40
-Statistics robust to heteroskedasticity           Prob > F        =     0.2414
-                                                  R-squared       =     0.9989
-                                                  Adj R-squared   =     0.9985
-                                                  Within R-sq.    =     0.0000
-Number of clusters (month)   =         53         Root MSE        =     0.0694
-
-                                 (Std. err. adjusted for 53 clusters in month)
-------------------------------------------------------------------------------
-             |               Robust
-borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-        dexp |    .000244   .0002059     1.18   0.241    -.0001692    .0006572
-       _cons |   2.047791   2.62e-06  7.8e+05   0.000     2.047786    2.047796
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-         fcd |     36115       36115           0    *|
-    bond_day |    201411      201411           0    *|
-    dealer_n |        25           1          24     |
------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 133772 singleton observations)
-(MWFE estimator converged in 29 iterations)
-
-HDFE Linear regression                            Number of obs   =  2,358,012
-Absorbing 3 HDFE groups                           F(   1,     54) =       4.26
-Statistics robust to heteroskedasticity           Prob > F        =     0.0438
-                                                  R-squared       =     0.6764
-                                                  Adj R-squared   =     0.5764
-                                                  Within R-sq.    =     0.0000
-Number of clusters (month)   =         55         Root MSE        =     1.2780
-
-                                 (Std. err. adjusted for 55 clusters in month)
-------------------------------------------------------------------------------
-             |               Robust
-        lvol | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-        dexp |   -.008817   .0042703    -2.06   0.044    -.0173786   -.0002555
-       _cons |   16.84297   .0000365  4.6e+05   0.000      16.8429    16.84305
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-         fcd |    209217      209217           0    *|
-    bond_day |    347721      347721           0    *|
-    dealer_n |        28           1          27     |
------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
+. reghdfe net_long dexp, a(fcd bond_day dealer_n) vce(cluster month)
 (dropped 93611 singleton observations)
 (MWFE estimator converged in 21 iterations)
 
@@ -476,82 +416,26 @@ Absorbed degrees of freedom:
     dealer_n |        32           1          31     |
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
-(dropped 134290 singleton observations)
-(MWFE estimator converged in 32 iterations)
 
-HDFE Linear regression                            Number of obs   =    754,625
-Absorbing 3 HDFE groups                           F(   1,     52) =       0.19
-Statistics robust to heteroskedasticity           Prob > F        =     0.6670
-                                                  R-squared       =     0.9989
-                                                  Adj R-squared   =     0.9985
-                                                  Within R-sq.    =     0.0000
-Number of clusters (month)   =         53         Root MSE        =     0.0694
-
-                                 (Std. err. adjusted for 53 clusters in month)
-------------------------------------------------------------------------------
-             |               Robust
-borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-       edexp |    .000093    .000215     0.43   0.667    -.0003384    .0005245
-       _cons |   2.047789   2.98e-06  6.9e+05   0.000     2.047783    2.047795
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-         fcd |     36115       36115           0    *|
-    bond_day |    201411      201411           0    *|
-    dealer_n |        25           1          24     |
------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 133772 singleton observations)
-(MWFE estimator converged in 29 iterations)
-
-HDFE Linear regression                            Number of obs   =  2,358,012
-Absorbing 3 HDFE groups                           F(   1,     54) =       0.18
-Statistics robust to heteroskedasticity           Prob > F        =     0.6745
-                                                  R-squared       =     0.6764
-                                                  Adj R-squared   =     0.5764
-                                                  Within R-sq.    =     0.0000
-Number of clusters (month)   =         55         Root MSE        =     1.2780
-
-                                 (Std. err. adjusted for 55 clusters in month)
-------------------------------------------------------------------------------
-             |               Robust
-        lvol | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-       edexp |  -.0029193   .0069132    -0.42   0.675    -.0167794    .0109409
-       _cons |   16.84304    .000031  5.4e+05   0.000     16.84297     16.8431
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-         fcd |    209217      209217           0    *|
-    bond_day |    347721      347721           0    *|
-    dealer_n |        28           1          27     |
------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
+. reghdfe ltot dexp, a(fcd bond_day dealer_n) vce(cluster month)
 (dropped 93611 singleton observations)
 (MWFE estimator converged in 21 iterations)
 
 HDFE Linear regression                            Number of obs   =  5,131,964
-Absorbing 3 HDFE groups                           F(   1,     54) =       0.00
-Statistics robust to heteroskedasticity           Prob > F        =     0.9840
-                                                  R-squared       =     0.2221
-                                                  Adj R-squared   =     0.0923
+Absorbing 3 HDFE groups                           F(   1,     54) =       2.48
+Statistics robust to heteroskedasticity           Prob > F        =     0.1212
+                                                  R-squared       =     0.7015
+                                                  Adj R-squared   =     0.6517
                                                   Within R-sq.    =     0.0000
-Number of clusters (month)   =         55         Root MSE        =     0.1651
+Number of clusters (month)   =         55         Root MSE        =     1.2868
 
                                  (Std. err. adjusted for 55 clusters in month)
 ------------------------------------------------------------------------------
              |               Robust
-    net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+        ltot | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-       edexp |  -5.93e-06   .0002946    -0.02   0.984    -.0005965    .0005846
-       _cons |  -.0074659   8.98e-07 -8313.29   0.000    -.0074677   -.0074641
+        dexp |   -.003509   .0022284    -1.57   0.121    -.0079766    .0009585
+       _cons |   16.74167   .0000408  4.1e+05   0.000     16.74159    16.74175
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -564,8 +448,72 @@ Absorbed degrees of freedom:
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
 
-. reghdfe net_long dexp, a(fcd bond_day dealer_n) vce(cluster dealer_n) /*headline cell, un
-> it-clustered check*/
+. reghdfe borrowing_rate dexp if borrowing_term <= 2, a(fcd bond_day dealer_n) vce(cluster 
+> month) /*fresh rates: stock is ON/open*/
+(dropped 134290 singleton observations)
+(MWFE estimator converged in 32 iterations)
+
+HDFE Linear regression                            Number of obs   =    754,625
+Absorbing 3 HDFE groups                           F(   1,     52) =       1.40
+Statistics robust to heteroskedasticity           Prob > F        =     0.2414
+                                                  R-squared       =     0.9989
+                                                  Adj R-squared   =     0.9985
+                                                  Within R-sq.    =     0.0000
+Number of clusters (month)   =         53         Root MSE        =     0.0694
+
+                                 (Std. err. adjusted for 53 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        dexp |    .000244   .0002059     1.18   0.241    -.0001692    .0006572
+       _cons |   2.047791   2.62e-06  7.8e+05   0.000     2.047786    2.047796
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         fcd |     36115       36115           0    *|
+    bond_day |    201411      201411           0    *|
+    dealer_n |        25           1          24     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe lending_rate dexp if lending_term <= 2, a(fcd bond_day dealer_n) vce(cluster mont
+> h)
+(dropped 131004 singleton observations)
+(MWFE estimator converged in 29 iterations)
+
+HDFE Linear regression                            Number of obs   =    757,721
+Absorbing 3 HDFE groups                           F(   1,     52) =       0.27
+Statistics robust to heteroskedasticity           Prob > F        =     0.6064
+                                                  R-squared       =     0.9987
+                                                  Adj R-squared   =     0.9981
+                                                  Within R-sq.    =     0.0000
+Number of clusters (month)   =         53         Root MSE        =     0.0805
+
+                                 (Std. err. adjusted for 53 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+lending_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        dexp |   .0001254   .0002419     0.52   0.606    -.0003601    .0006109
+       _cons |    1.85091   .0000139  1.3e+05   0.000     1.850882    1.850938
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         fcd |     34264       34264           0    *|
+    bond_day |    203824      203824           0    *|
+    dealer_n |        26           1          25     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe net_long dexp, a(fcd bond_day dealer_n) vce(cluster dealer_n) /*headline, unit-cl
+> ustered*/
 (dropped 93611 singleton observations)
 (MWFE estimator converged in 21 iterations)
 
@@ -599,76 +547,13 @@ Absorbed degrees of freedom:
 . 
 . **# Hop 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 . 
-. foreach x in fexp efexp {
-  2.         reghdfe borrowing_rate `x' if borrowing_term <= 2, a(dcd bond_day fund_n) vce(
-> cluster month)
-  3.         reghdfe lvol `x', a(dcd bond_day fund_n) vce(cluster month)
-  4.         reghdfe net_long `x', a(dcd bond_day fund_n) vce(cluster month)
-  5. }
-(dropped 111139 singleton observations)
-(MWFE estimator converged in 24 iterations)
-
-HDFE Linear regression                            Number of obs   =    777,331
-Absorbing 3 HDFE groups                           F(   1,     52) =       0.72
-Statistics robust to heteroskedasticity           Prob > F        =     0.3989
-                                                  R-squared       =     0.9986
-                                                  Adj R-squared   =     0.9980
-                                                  Within R-sq.    =     0.0001
-Number of clusters (month)   =         53         Root MSE        =     0.0794
-
-                                 (Std. err. adjusted for 53 clusters in month)
-------------------------------------------------------------------------------
-             |               Robust
-borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-        fexp |   .0028084   .0033016     0.85   0.399    -.0038168    .0094336
-       _cons |    2.05313   .0000417  4.9e+04   0.000     2.053046    2.053214
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-         dcd |     45801       45801           0    *|
-    bond_day |    204314      204314           0    *|
-      fund_n |       140           1         139     |
------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 71803 singleton observations)
-(MWFE estimator converged in 20 iterations)
-
-HDFE Linear regression                            Number of obs   =  2,407,137
-Absorbing 3 HDFE groups                           F(   1,     54) =       0.55
-Statistics robust to heteroskedasticity           Prob > F        =     0.4606
-                                                  R-squared       =     0.6289
-                                                  Adj R-squared   =     0.5531
-                                                  Within R-sq.    =     0.0000
-Number of clusters (month)   =         55         Root MSE        =     1.3136
-
-                                 (Std. err. adjusted for 55 clusters in month)
-------------------------------------------------------------------------------
-             |               Robust
-        lvol | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-        fexp |   .0232109   .0312299     0.74   0.461    -.0394014    .0858231
-       _cons |   16.84113   .0014033  1.2e+04   0.000     16.83832    16.84395
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-         dcd |     59127       59127           0    *|
-    bond_day |    348824      348824           0    *|
-      fund_n |       234           1         233     |
------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
+. reghdfe net_long fexp, a(dcd bond_day fund_n) vce(cluster month)
 (dropped 33438 singleton observations)
 (MWFE estimator converged in 14 iterations)
 
 HDFE Linear regression                            Number of obs   =  5,167,329
-Absorbing 3 HDFE groups                           F(   1,     54) =       0.08
-Statistics robust to heteroskedasticity           Prob > F        =     0.7730
+Absorbing 3 HDFE groups                           F(   1,     54) =       0.02
+Statistics robust to heteroskedasticity           Prob > F        =     0.8852
                                                   R-squared       =     0.1869
                                                   Adj R-squared   =     0.1011
                                                   Within R-sq.    =     0.0000
@@ -679,95 +564,8 @@ Number of clusters (month)   =         55         Root MSE        =     0.1639
              |               Robust
     net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |   .0002823   .0009741     0.29   0.773    -.0016706    .0022353
-       _cons |   -.007441    .000043  -173.15   0.000    -.0075272   -.0073549
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-         dcd |     65339       65339           0    *|
-    bond_day |    427583      427583           0    *|
-      fund_n |       272           1         271     |
------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 111139 singleton observations)
-(MWFE estimator converged in 24 iterations)
-
-HDFE Linear regression                            Number of obs   =    777,331
-Absorbing 3 HDFE groups                           F(   1,     52) =       1.35
-Statistics robust to heteroskedasticity           Prob > F        =     0.2507
-                                                  R-squared       =     0.9986
-                                                  Adj R-squared   =     0.9980
-                                                  Within R-sq.    =     0.0001
-Number of clusters (month)   =         53         Root MSE        =     0.0794
-
-                                 (Std. err. adjusted for 53 clusters in month)
-------------------------------------------------------------------------------
-             |               Robust
-borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-       efexp |  -.0031945     .00275    -1.16   0.251    -.0087127    .0023238
-       _cons |   2.053141   .0000401  5.1e+04   0.000      2.05306    2.053221
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-         dcd |     45801       45801           0    *|
-    bond_day |    204314      204314           0    *|
-      fund_n |       140           1         139     |
------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 71803 singleton observations)
-(MWFE estimator converged in 20 iterations)
-
-HDFE Linear regression                            Number of obs   =  2,407,137
-Absorbing 3 HDFE groups                           F(   1,     54) =       3.84
-Statistics robust to heteroskedasticity           Prob > F        =     0.0552
-                                                  R-squared       =     0.6289
-                                                  Adj R-squared   =     0.5531
-                                                  Within R-sq.    =     0.0001
-Number of clusters (month)   =         55         Root MSE        =     1.3136
-
-                                 (Std. err. adjusted for 55 clusters in month)
-------------------------------------------------------------------------------
-             |               Robust
-        lvol | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-       efexp |   .0504549   .0257516     1.96   0.055    -.0011739    .1020837
-       _cons |   16.83987   .0001127  1.5e+05   0.000     16.83964     16.8401
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-         dcd |     59127       59127           0    *|
-    bond_day |    348824      348824           0    *|
-      fund_n |       234           1         233     |
------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 33438 singleton observations)
-(MWFE estimator converged in 14 iterations)
-
-HDFE Linear regression                            Number of obs   =  5,167,329
-Absorbing 3 HDFE groups                           F(   1,     54) =       0.14
-Statistics robust to heteroskedasticity           Prob > F        =     0.7078
-                                                  R-squared       =     0.1869
-                                                  Adj R-squared   =     0.1011
-                                                  Within R-sq.    =     0.0000
-Number of clusters (month)   =         55         Root MSE        =     0.1639
-
-                                 (Std. err. adjusted for 55 clusters in month)
-------------------------------------------------------------------------------
-             |               Robust
-    net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-       efexp |   .0003842   .0010197     0.38   0.708    -.0016602    .0024286
-       _cons |  -.0074567   8.43e-06  -884.56   0.000    -.0074736   -.0074398
+        fexp |  -.0001388   .0009571    -0.15   0.885    -.0020577      .00178
+       _cons |  -.0074593   .0000401  -185.99   0.000    -.0075397   -.0073789
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -780,37 +578,211 @@ Absorbed degrees of freedom:
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
 
-. reghdfe lvol fexp, a(dcd bond_day fund_n) vce(cluster fund_n) /*headline cell, unit-clust
-> ered check*/
-(dropped 71803 singleton observations)
-(MWFE estimator converged in 20 iterations)
+. reghdfe ltot fexp, a(dcd bond_day fund_n) vce(cluster month)
+(dropped 33438 singleton observations)
+(MWFE estimator converged in 15 iterations)
 
-HDFE Linear regression                            Number of obs   =  2,407,137
-Absorbing 3 HDFE groups                           F(   1,    233) =       3.60
-Statistics robust to heteroskedasticity           Prob > F        =     0.0590
-                                                  R-squared       =     0.6289
-                                                  Adj R-squared   =     0.5541
-                                                  Within R-sq.    =     0.0000
-Number of clusters (fund_n)  =        234         Root MSE        =     1.3121
+HDFE Linear regression                            Number of obs   =  5,167,329
+Absorbing 3 HDFE groups                           F(   1,     54) =       0.96
+Statistics robust to heteroskedasticity           Prob > F        =     0.3325
+                                                  R-squared       =     0.6584
+                                                  Adj R-squared   =     0.6224
+                                                  Within R-sq.    =     0.0001
+Number of clusters (month)   =         55         Root MSE        =     1.3435
 
-                               (Std. err. adjusted for 234 clusters in fund_n)
+                                 (Std. err. adjusted for 55 clusters in month)
 ------------------------------------------------------------------------------
              |               Robust
-        lvol | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+        ltot | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        fexp |   .0232109   .0122319     1.90   0.059    -.0008883    .0473101
-       _cons |   16.84113   .0005496  3.1e+04   0.000     16.84005    16.84222
+        fexp |    .029692   .0303635     0.98   0.332    -.0311833    .0905672
+       _cons |   16.73784   .0012724  1.3e+04   0.000     16.73529    16.74039
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-         dcd |     59127           1       59126     |
-    bond_day |    348824        4620      344204     |
-      fund_n |       234         234           0    *|
+         dcd |     65339       65339           0    *|
+    bond_day |    427583      427583           0    *|
+      fund_n |       272           1         271     |
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe borrowing_rate fexp if borrowing_term <= 2, a(dcd bond_day fund_n) vce(cluster mo
+> nth)
+(dropped 111139 singleton observations)
+(MWFE estimator converged in 24 iterations)
+
+HDFE Linear regression                            Number of obs   =    777,331
+Absorbing 3 HDFE groups                           F(   1,     52) =       0.76
+Statistics robust to heteroskedasticity           Prob > F        =     0.3876
+                                                  R-squared       =     0.9986
+                                                  Adj R-squared   =     0.9980
+                                                  Within R-sq.    =     0.0001
+Number of clusters (month)   =         53         Root MSE        =     0.0794
+
+                                 (Std. err. adjusted for 53 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+borrowing~te | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        fexp |    .003615   .0041491     0.87   0.388    -.0047109    .0119408
+       _cons |   2.053123   .0000328  6.3e+04   0.000     2.053057    2.053189
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         dcd |     45801       45801           0    *|
+    bond_day |    204314      204314           0    *|
+      fund_n |       140           1         139     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe lending_rate fexp if lending_term <= 2, a(dcd bond_day fund_n) vce(cluster month)
+(dropped 107622 singleton observations)
+(MWFE estimator converged in 23 iterations)
+
+HDFE Linear regression                            Number of obs   =    780,213
+Absorbing 3 HDFE groups                           F(   1,     52) =       0.55
+Statistics robust to heteroskedasticity           Prob > F        =     0.4607
+                                                  R-squared       =     0.9984
+                                                  Adj R-squared   =     0.9977
+                                                  Within R-sq.    =     0.0001
+Number of clusters (month)   =         53         Root MSE        =     0.0884
+
+                                 (Std. err. adjusted for 53 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+lending_rate | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        fexp |   .0038402   .0051666     0.74   0.461    -.0065272    .0142077
+       _cons |   1.861633   .0000573  3.2e+04   0.000     1.861518    1.861748
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         dcd |     41966       41966           0    *|
+    bond_day |    207645      207645           0    *|
+      fund_n |       170           1         169     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe net_long fexp, a(dcd bond_day fund_n) vce(cluster fund_n) /*headline, unit-cluste
+> red*/
+(dropped 33438 singleton observations)
+(MWFE estimator converged in 14 iterations)
+
+HDFE Linear regression                            Number of obs   =  5,167,329
+Absorbing 3 HDFE groups                           F(   1,    271) =       0.02
+Statistics robust to heteroskedasticity           Prob > F        =     0.8792
+                                                  R-squared       =     0.1869
+                                                  Adj R-squared   =     0.1020
+                                                  Within R-sq.    =     0.0000
+Number of clusters (fund_n)  =        272         Root MSE        =     0.1638
+
+                               (Std. err. adjusted for 272 clusters in fund_n)
+------------------------------------------------------------------------------
+             |               Robust
+    net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        fexp |  -.0001388    .000913    -0.15   0.879    -.0019364    .0016587
+       _cons |  -.0074593   .0000383  -194.96   0.000    -.0075346    -.007384
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         dcd |     65339           1       65338     |
+    bond_day |    427583        4620      422963     |
+      fund_n |       272         272           0    *|
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe net_long efexp, a(dcd bond_day fund_n) vce(cluster month) /*tail robustness*/
+(dropped 33438 singleton observations)
+(MWFE estimator converged in 14 iterations)
+
+HDFE Linear regression                            Number of obs   =  5,167,329
+Absorbing 3 HDFE groups                           F(   1,     54) =       0.16
+Statistics robust to heteroskedasticity           Prob > F        =     0.6875
+                                                  R-squared       =     0.1869
+                                                  Adj R-squared   =     0.1011
+                                                  Within R-sq.    =     0.0000
+Number of clusters (month)   =         55         Root MSE        =     0.1639
+
+                                 (Std. err. adjusted for 55 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+    net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       efexp |   .0005894   .0014576     0.40   0.688     -.002333    .0035118
+       _cons |  -.0074577   .0000105  -709.08   0.000    -.0074788   -.0074367
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+         dcd |     65339       65339           0    *|
+    bond_day |    427583      427583           0    *|
+      fund_n |       272           1         271     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. 
+. **# Fund aggregate: does the shock reach the fund's total book
+. 
+. preserve
+
+.         collapse (sum) net_long, by(fund_id date month)
+
+.         merge m:1 fund_id date using `fundexp', keep(match) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                           150,994  
+    -----------------------------------------
+
+.         egen fund_n = group(fund_id)
+
+.         reghdfe net_long fexp, a(fund_n date) vce(cluster month)
+(dropped 7 singleton observations)
+(MWFE estimator converged in 7 iterations)
+
+HDFE Linear regression                            Number of obs   =    150,987
+Absorbing 2 HDFE groups                           F(   1,     54) =       1.61
+Statistics robust to heteroskedasticity           Prob > F        =     0.2094
+                                                  R-squared       =     0.2784
+                                                  Adj R-squared   =     0.2715
+                                                  Within R-sq.    =     0.0003
+Number of clusters (month)   =         55         Root MSE        =     2.0223
+
+                                 (Std. err. adjusted for 55 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+    net_long | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        fexp |   .0411161   .0323624     1.27   0.209    -.0237666    .1059987
+       _cons |  -.2477456    .002942   -84.21   0.000    -.2536439   -.2418472
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+      fund_n |       268           1         267     |
+        date |      1155        1155           0    *|
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. restore
 
 . 
 . log close
@@ -818,5 +790,5 @@ Absorbed degrees of freedom:
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.l
 > og
   log type:  text
- closed on:  11 Aug 2026, 10:53:25
+ closed on:  11 Aug 2026, 11:39:05
 -------------------------------------------------------------------------------------------
