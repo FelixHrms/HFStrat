@@ -130,6 +130,7 @@ foreach v in borrowing_volume lending_volume {
 gen net_long = (borrowing_volume - lending_volume)/10^9 /*net long position in bn*/
 gen lvol = log(borrowing_volume)
 
+gen month = mofd(date)
 egen fcd = group(fund_id country date)
 egen dcd = group(dealer_id country date)
 egen bond_day = group(security_isin date)
@@ -151,17 +152,17 @@ tab multifund if !missing(borrowing_rate, fexp)
 **# Hop 1: shock -> dealer -> fund, within fund x country x day
 
 foreach x in dexp edexp {
-	reghdfe borrowing_rate `x' if borrowing_term <= 2, a(fcd bond_day) vce(cluster dealer_n date) /*fresh rates: stock is ON/open, reprices daily*/
-	reghdfe lvol `x', a(fcd bond_day) vce(cluster dealer_n date)
-	reghdfe net_long `x', a(fcd bond_day) vce(cluster dealer_n date)
+	reghdfe borrowing_rate `x' if borrowing_term <= 2, a(fcd bond_day dealer_n) vce(cluster dealer_n month) /*fresh rates: stock is ON/open, reprices daily*/
+	reghdfe lvol `x', a(fcd bond_day dealer_n) vce(cluster dealer_n month)
+	reghdfe net_long `x', a(fcd bond_day dealer_n) vce(cluster dealer_n month)
 }
 
 **# Hop 2: shocked dealers -> fund -> other dealer, within dealer x country x day
 
 foreach x in fexp efexp {
-	reghdfe borrowing_rate `x' if borrowing_term <= 2, a(dcd bond_day fund_n) vce(cluster fund_n date)
-	reghdfe lvol `x', a(dcd bond_day fund_n) vce(cluster fund_n date)
-	reghdfe net_long `x', a(dcd bond_day fund_n) vce(cluster fund_n date)
+	reghdfe borrowing_rate `x' if borrowing_term <= 2, a(dcd bond_day fund_n) vce(cluster fund_n month)
+	reghdfe lvol `x', a(dcd bond_day fund_n) vce(cluster fund_n month)
+	reghdfe net_long `x', a(dcd bond_day fund_n) vce(cluster fund_n month)
 }
 
 log close
