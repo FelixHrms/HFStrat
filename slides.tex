@@ -1,176 +1,630 @@
-clear all
-snapshot erase _all
+% !TEX program = pdflatex
+% ---------------------------------------------------------------------------
+% Slide deck — first structural draft, oriented on Outline.tex
+% Minimal skeleton: one section per outline section, frames to be populated
+% step by step. Figures live in Figures/, table fragments in Tables/.
+% Style rule: no dashes, colons, or semicolons as sentence breaks in
+% rendered text.
+% ---------------------------------------------------------------------------
+\documentclass[aspectratio=169,11pt]{beamer}
 
-global key "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
+% --- Clean, low-color look ------------------------------------------------
+\usetheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{caption}{\insertcaption}
+\setbeamersize{text margin left=1.6em, text margin right=1.6em}
 
-cap log close
-log using "$key\\dealer_fragility.log", replace text
+\definecolor{ink}{RGB}{35,38,45}     % near-black text
+\definecolor{slate}{RGB}{90,97,110}  % muted gray accent
+\definecolor{faint}{RGB}{175,180,188}% light gray rules
+\definecolor{wine}{RGB}{130,60,60}   % desaturated red for \alert only
 
-**# Country-specific CDS shocks
-* daily log changes, leave-one-out demeaned across the other three countries,
-* rescaled to bp by the lagged own level, cumulated over a 20-day window
+\setbeamercolor{normal text}{fg=ink,bg=white}
+\setbeamercolor{structure}{fg=ink}
+\setbeamercolor{alerted text}{fg=wine}
+\setbeamercolor{frametitle}{fg=ink,bg=white}
+\setbeamercolor{title}{fg=ink}
+\setbeamercolor{itemize item}{fg=slate}
+\setbeamercolor{itemize subitem}{fg=slate}
+\setbeamercolor{enumerate item}{fg=slate}
+\setbeamercolor{section in toc}{fg=ink}
+\setbeamercolor{page number in head/foot}{fg=slate}
 
-tempfile cds_all
-local first = 1
-foreach c in Germany France Italy Spain {
-	import delimited "$key\\`c'_CDS.csv", varnames(1) clear
-	capture drop v3
-	gen country = cond("`c'"=="Germany","DE", cond("`c'"=="France","FR", cond("`c'"=="Italy","IT","ES")))
-	if `first' == 0 append using `cds_all'
-	local first = 0
-	save `cds_all', replace
-}
-gen date = date(period, "DMY")
-format date %td
-sort country date
-by country: gen log_change = log(cds) - log(cds[_n-1])
-by country: gen cds_lag = cds[_n-1]
-drop if missing(log_change)
-bysort date: egen sum_log_change = total(log_change)
-bysort date: gen n_countries = _N
-keep if n_countries == 4
-gen shock_rel = log_change - (sum_log_change - log_change)/3 /*own move minus avg move of the other three*/
-gen shock_daily = shock_rel*cds_lag /*back to bp using own lagged level*/
-bysort country: egen sd_rel = sd(shock_rel)
-gen tail_daily = shock_daily*(abs(shock_rel) > 2*sd_rel) /*only moves beyond 2 sd count*/
+\setbeamerfont{title}{series=\bfseries,size=\Large}
+\setbeamerfont{frametitle}{series=\bfseries,size=\large}
+\setbeamerfont{author}{size=\normalsize}
+\setbeamerfont{date}{size=\small}
+\setbeamerfont{framesubtitle}{size=\small}
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{footline}[frame number]
 
-local W = 20 /*business-day window*/
-sort country date
-by country: gen running_sum = sum(shock_daily)
-by country: gen running_sum_tail = sum(tail_daily)
-by country: gen shock_cum = running_sum - running_sum[_n-`W']
-by country: gen tail_cum = running_sum_tail - running_sum_tail[_n-`W']
-drop if missing(shock_cum)
-keep country date shock_cum tail_cum
-reshape wide shock_cum tail_cum, i(date) j(country) string
-tempfile country_shocks
-save `country_shocks'
+% Compact table of contents (default spacing overflows the Roadmap frame)
+\setbeamerfont{section in toc}{size=\small}
+\setbeamertemplate{section in toc}{%
+  {\color{slate}\inserttocsectionnumber.}\hspace{0.5em}\inserttocsection\par}
 
-**# Dealer collateral-country weights, lagged quarter
-* share of each country's collateral in the dealer's full repo book,
-* time-averaged over the previous quarter
+% Beamer hard-codes \vskip1.5em between TOC section entries, outside any
+% template — patch it down so the entries sit closer together.
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd{\beamer@sectionintoc}{\vskip1.5em}{\vskip0.5em}{}{}
+\makeatother
 
-import delimited "$key\\dealer_country_day.csv", varnames(1) clear
-capture drop v1
-keep if inlist(collateral_country, "DE", "FR", "IT", "ES")
-foreach v in borrowing_volume lending_volume {
-	replace `v' = 0 if missing(`v')
-}
-gen volume = borrowing_volume + lending_volume
-gen date = date(business_date, "YMD")
-gen quarter = qofd(date) + 1 /*weights used one quarter later*/
-collapse (sum) volume, by(dealer_id collateral_country quarter)
-bysort dealer_id quarter: egen total = total(volume)
-gen dealer_share = volume/total
-drop volume total
-reshape wide dealer_share, i(dealer_id quarter) j(collateral_country) string
-foreach c in DE FR IT ES {
-	replace dealer_share`c' = 0 if missing(dealer_share`c')
-}
-tempfile dealer_weights
-save `dealer_weights'
-
-**# Dealer shock = portfolio-weighted CDS shock, dealer x day
-
-use `country_shocks', clear
-gen quarter = qofd(date)
-joinby quarter using `dealer_weights'
-gen dealer_shock = dealer_shareDE*shock_cumDE + dealer_shareFR*shock_cumFR + dealer_shareIT*shock_cumIT + dealer_shareES*shock_cumES
-gen dealer_shock_tail = dealer_shareDE*tail_cumDE + dealer_shareFR*tail_cumFR + dealer_shareIT*tail_cumIT + dealer_shareES*tail_cumES
-keep dealer_id date dealer_shock dealer_shock_tail
-tempfile dealer_shocks
-save `dealer_shocks'
-
-**# Fund wallet weights across dealers (two-sided), lagged quarter
-* share of each dealer in the fund's total repo activity
-
-import delimited "$key\\fund_dealer_isin_day.csv", varnames(1) clear
-capture drop v1
-foreach v in borrowing_volume lending_volume {
-	replace `v' = 0 if missing(`v')
-}
-gen volume = borrowing_volume + lending_volume
-gen date = date(business_date, "YMD")
-gen quarter = qofd(date) + 1
-collapse (sum) volume, by(fund_id dealer_id quarter)
-bysort fund_id quarter: egen total = total(volume)
-gen wallet_share = volume/total
-keep fund_id dealer_id quarter wallet_share
-tempfile fund_weights
-save `fund_weights'
-
-**# Fund exposure = wallet-weighted dealer shocks, fund x day
-
-use `dealer_shocks', clear
-gen quarter = qofd(date)
-joinby dealer_id quarter using `fund_weights'
-gen product = wallet_share*dealer_shock
-gen product_tail = wallet_share*dealer_shock_tail
-collapse (sum) fund_exposure_all = product fund_exposure_all_tail = product_tail, by(fund_id date)
-tempfile fund_exposures
-save `fund_exposures'
-
-**# Panel
-
-import delimited "$key\\fund_dealer_isin_day.csv", varnames(1) clear
-capture drop v1
-gen date = date(business_date, "YMD")
-format date %td
-gen country = substr(security_isin, 1, 2)
-keep if inlist(country, "DE", "FR", "IT", "ES")
-gen quarter = qofd(date)
-
-merge m:1 date using `country_shocks', keep(match) nogen
-merge m:1 dealer_id quarter using `dealer_weights', keep(match) nogen
-gen dealer_exposure = 0
-gen dealer_exposure_tail = 0
-foreach c in DE FR IT ES {
-	replace dealer_exposure = dealer_exposure + dealer_share`c'*shock_cum`c' if country != "`c'" /*exclude the collateral country of the bond*/
-	replace dealer_exposure_tail = dealer_exposure_tail + dealer_share`c'*tail_cum`c' if country != "`c'"
+% Frame title with an optional gray subtitle and a thin rule underneath
+\setbeamertemplate{frametitle}{%
+  \vskip1.2ex
+  {\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle\strut\par}%
+  \ifx\insertframesubtitle\empty\else
+    {\usebeamerfont{framesubtitle}\color{slate}\insertframesubtitle\strut\par}%
+  \fi
+  \vskip0.4ex
+  {\color{faint}\hrule height 0.4pt}%
+  \vskip1.2ex
 }
 
-merge m:1 fund_id date using `fund_exposures', keep(master match) nogen
-merge m:1 fund_id dealer_id quarter using `fund_weights', keep(master match) nogen
-merge m:1 dealer_id date using `dealer_shocks', keep(master match) nogen
-gen fund_exposure_other = fund_exposure_all
-replace fund_exposure_other = fund_exposure_all - wallet_share*dealer_shock if !missing(fund_exposure_all, wallet_share, dealer_shock) /*leave out the own dealer*/
-gen fund_exposure_other_tail = fund_exposure_all_tail
-replace fund_exposure_other_tail = fund_exposure_all_tail - wallet_share*dealer_shock_tail if !missing(fund_exposure_all_tail, wallet_share, dealer_shock_tail)
+\usepackage{booktabs}
+\usepackage{siunitx}   % needed by the estout table fragments (S columns)
+\usepackage{graphicx}
+\graphicspath{{Figures/}}
 
-foreach v in borrowing_volume lending_volume {
-	replace `v' = 0 if missing(`v')
-}
-gen net_position = (borrowing_volume - lending_volume)/10^9 /*net long position in bn*/
-gen log_total_volume = log(borrowing_volume + lending_volume) /*intermediation volume*/
+% Yellow marker for unresolved placeholders
+\newcommand{\todohl}[1]{\colorbox{yellow!45}{\strut #1}}
 
-gen month = mofd(date)
-egen fund_country_day = group(fund_id country date)
-egen dealer_country_day = group(dealer_id country date)
-egen bond_day = group(security_isin date)
-egen fund_num = group(fund_id)
-egen dealer_num = group(dealer_id)
+% Light gray takeaway box
+\definecolor{mist}{RGB}{242,243,246}
+\setbeamercolor{takeawaybox}{bg=mist,fg=ink}
+\newcommand{\takeaway}[1]{%
+  \begin{beamercolorbox}[sep=0.6em,wd=\textwidth]{takeawaybox}
+    \textbf{Takeaway.} #1
+  \end{beamercolorbox}}
 
-label var dealer_exposure "Dealer exposure (20d cum.)"
-label var dealer_exposure_tail "Dealer exposure (>2sd)"
-label var fund_exposure_other "Fund exposure via other dealers (20d cum.)"
-label var fund_exposure_other_tail "Fund exposure via other dealers (>2sd)"
+% Key point box leading each literature slide
+\newcommand{\keypoint}[1]{%
+  \begin{beamercolorbox}[sep=0.6em,wd=\textwidth]{takeawaybox}
+    \textbf{Key point.} #1
+  \end{beamercolorbox}}
 
-**# Support: multi-dealer / multi-fund cells, both-sided pairs
+% --- Title and authors as in main.tex --------------------------------------
+\title{Hedge Funds Strategies}
+\author{Felix Hermes \and Davide Tomio}
+\date{\today}
 
-bysort fund_country_day (dealer_num): gen multi_dealer = dealer_num[1] != dealer_num[_N]
-bysort dealer_country_day (fund_num): gen multi_fund = fund_num[1] != fund_num[_N]
-tab multi_dealer if !missing(dealer_exposure)
-tab multi_fund if !missing(fund_exposure_other)
+\begin{document}
 
-**# Part 1: shock -> dealer -> fund, within fund x country x day
+% ---------------------------------------------------------------------------
+\begin{frame}
+  \titlepage
+\end{frame}
 
-reghdfe net_position dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
-reghdfe log_total_volume dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month)
+% ---------------------------------------------------------------------------
+\begin{frame}{This paper}
+  \begin{itemize}
+    \item \textbf{Fact 1.} Hedge funds are the marginal intermediaries between sovereign cash and futures markets, and the trade they run is not the modeled basis trade.
+    \item \textbf{Fact 2.} The trade concentrates in cheap off-the-run bonds and is duration neutral but convexity exposed.
+    \item \textbf{Fact 3.} Three dealers finance more than half of it.
+    \item \textbf{Experiment.} Dealer funding shocks and the April 2025 volatility shock reveal the fragility.
+  \end{itemize}
+\end{frame}
 
-**# Part 2: shocked dealers -> fund -> other dealer, within dealer x country x day
+% ---------------------------------------------------------------------------
+\begin{frame}{Roadmap}
+  \tableofcontents[hideallsubsections]
+\end{frame}
 
-reghdfe net_position fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
-reghdfe log_total_volume fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month)
+% ===========================================================================
+\section{Literature}
+
+\begin{frame}{Literature}{Can the Treasury kill the basis trade? Steven Kelly, Blog post, February 2024}
+  \footnotesize
+  \keypoint{Tilting issuance toward bills (short-term instruments) would serve the money demand that funds the basis trade and crowd the trade out, no regulatory crackdown needed.}
+  \medskip
+  \textbf{The basis trade connects three players with different preferences.}
+  \begin{itemize}
+    \item Money market funds want short safe money like assets. They would prefer bills but bills are scarce, so they lend cash in repo instead.
+    \item Asset managers want long duration without funding bond purchases. They close their duration gap to a Treasury heavy benchmark with long futures.
+    \item Hedge funds buy the Treasury and split it. They use the bond in repo which satisfies MMFs. Then they use that cash to go long more Treasuries which they can use tto deliver into the futures.
+  \end{itemize}
+  \smallskip
+  \textbf{More bills unwind both legs at once.}
+  \begin{itemize}
+    \item Bills serve the money demand  of MMFs directly, so cash migrates from repo to bills and the funding and carry of the trade dry up.
+    \item A bill heavier index has less duration, so the benchmark gap and the futures demand of asset managers shrink with it.
+    \item The cost to the Treasury is small since rollover risk is limited for the safest issuer and bills already absorb crisis issuance.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Literature}{Improving the standing repo facility. Steven Kelly, Blog post, August 2022}
+  \footnotesize
+  \keypoint{The SRF backstops lost repo funding but not falling collateral prices, so the Fed should lend against the hedged cash and futures package to keep basis traders in their positions during a dash for cash.}
+  \medskip
+  \textbf{The SRF only fixes one of the two ways funding can break.}
+  \begin{itemize}
+    \item If repo refuses to roll or rolls at worse terms, the SRF substitutes well. It lends at the top of the policy rate range with a normal haircut.
+    \item If a dash for cash pushes down the price of the bond itself, the SRF lends against that lower market price. The funding gap stays open and the Fed ends up buying Treasuries outright, as in March 2020.
+    \item Access is limited to 35 dealers and banks. Everyone else depends on those members passing liquidity through their finite balance sheets.
+  \end{itemize}
+  \smallskip
+  \textbf{This matters for hedge funds because they are the marginal liquidity providers.}
+  \begin{itemize}
+    \item In 2020 basis traders were long off the run Treasuries and short futures. The dash for cash pushed cash prices down while futures rallied, so both legs demanded liquidity at once.
+    \item Forced liquidation by these funds works against monetary policy. Keeping them in their positions can be policy optimal.
+    \item A matched position is safer collateral than the bond alone, and the two converge at the end, so the Fed could lend more with less risk. 
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Literature}{Margin leverage and vulnerabilities in US Treasury futures, Avalos and Sushko, BIS Quarterly Review Box, September 2023}
+  \footnotesize
+  \keypoint{The futures leg adds a second layer of leverage through initial margin. Margin hikes mechanically force deleveraging, so futures leverage is also worth monitoring.}
+  \medskip
+  \textbf{The futures leg carries its own leverage.}
+  \begin{itemize}
+    \item Futures positions require initial margin at the clearinghouse. Leverage is the contract value over the margin, so 100 dollars of futures on 20 dollars of margin means five times leverage.
+    \item This leverage stood near 175 times for five year and 120 times for ten year futures before the pandemic.
+    \item When volatility rises the clearinghouse raises margins. Traders must post more cash or close positions, so deleveraging is mechanical.
+  \end{itemize}
+  \smallskip
+  \textbf{Margin hikes preceded both Treasury stress episodes.}
+  \begin{itemize}
+    \item Margins were hiked shortly before September 2019 and March 2020. 
+    \item Cash prices then outpaced futures and the basis inverted, which rewarded further unwinding. The spiral fed itself.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Literature}{Financial stability report Section 5, Bank of England, December 2023}
+  \footnotesize
+  \keypoint{The UST basis trade is among the key leverage vulnerabilities in market based finance, and the channel to the UK runs through the same hedge funds being active in Treasuries and gilts.}
+  \medskip
+  \textbf{The basis trade sits on the FPC vulnerability list.}
+  \begin{itemize}
+    \item In normal times the trade keeps cash and futures aligned and improves liquidity. The concern is only the leveraged unwind in stress.
+    \item The list also names jump to illiquidity risk. Liquidity rests on finite intermediation capacity, so in stress it does not fade gradually but gaps once that capacity is exhausted.
+  \end{itemize}
+  \smallskip
+  \textbf{The UK angle is spillovers, not a domestic copy of the trade.}
+  \begin{itemize}
+    \item There is no direct counterpart in the gilt market. UK asset managers lever through repo and swaps directly rather than through futures.
+    \item Spillovers can still reach the UK through the same hedge funds trading both Treasuries and gilts and through disruption of the UST market itself.
+    \item The Bank prefers backstop lending to NBFIs against good collateral over asset purchases, but the 2022 gilt episode showed lending can be too slow to stop a fire sale.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Literature}{Infamous hedge fund trade draws fresh scrutiny as debt battle rages on, Bloomberg, May 2023}
+  \footnotesize
+  \keypoint{The debt ceiling adds a stress channel. A default or downgrade impairs the Treasury collateral itself, and brinkmanship alone can push up repo rates against crowded one way positions.}
+  \medskip
+  \textbf{The trade rests on its collateral being risk free.}
+  \begin{itemize}
+    \item Repo funding is secured by the Treasuries. A default or downgrade lowers collateral values, which raises margins and cuts borrowing capacity across the market plumbing.
+    \item Even without a default, prolonged brinkmanship can surge repo rates and squeeze carry.
+    \item Much of the repo is bilateral and outside any CCP, which the OFR calls a regulatory blind spot.
+  \end{itemize}
+  \smallskip
+  \textbf{The players and the counterpoint.}
+  \begin{itemize}
+    \item The active funds are largely the same as in 2020, Citadel, Millennium, ExodusPoint and Capula.
+    \item The counterpoint in the article is that funds absorb the futures demand of asset managers and buy cash bonds while the Fed shrinks its portfolio, so they provide liquidity someone has to supply.
+  \end{itemize}
+\end{frame}
 
 
-log close
+\begin{frame}{Literature}{Griffin says scrutiny of the basis trade is utterly beyond me, Bloomberg, October 2023}
+  \footnotesize
+  \keypoint{The industry defense. Basis traders provide liquidity and fund the Treasury market efficiently, saving taxpayers tens of basis points, which is billions of dollars a year.}
+  \medskip
+  \textbf{The argument and its counterpoint in the same article.}
+  \begin{itemize}
+    \item Griffin says the systemic risk framing of the SEC and the Fed misses the funding cost the trade saves the taxpayer.
+    \item Gensler replies that the generous prime brokerage funding behind such trades is the biggest source of risk in the financial system.
+    \item Citadel ran a large basis portfolio that lost money in March 2020. Paul Tudor Jones says his basis book was in extreme duress and the entrance of the Fed into the market bailed it out.
+    \item The defense therefore comes with a caveat. The liquidity provision held up in 2020 only because the Fed stepped in.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Literature}{Treasury futures positions across investor types I, TBAC presentation, January 2024}
+  \footnotesize
+  \keypoint{\textit{Asset managers} are structurally long futures because futures finance credit overweights while keeping benchmark duration. Regulation and accounting push them toward futures instead of repo.}
+  \medskip
+  \textbf{The long futures position is not a rate view.}
+  \begin{itemize}
+    \item Active managers are judged against an index that is heavy in Treasuries. Credit yields more than Treasuries, so they overweight credit to beat the index.
+    \item They fund the credit by selling Treasuries. That leaves the portfolio with less interest rate risk than the index, so they buy Treasury futures to restore the duration. Futures need no cash.
+    \item The lower the duration of the credit, the more futures are needed. A floating rate CLO has none at all, so its full Treasury replacement is bought in futures.
+    \item Repo would be more precise. The manager would keep the exact bond and borrow cash against it. But 40 Act rules cap repo, most separate accounts ban it, and repo interest inflates published expense ratios, so futures win.
+    \item With so many managers long, futures trade rich to cash bonds. Holding them costs about 45 basis points per year. Every major credit sector earns more, so managers pay it willingly.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Literature}{Treasury futures positions across investor types II, TBAC presentation, January 2024}
+  \footnotesize
+  \keypoint{\textit{Hedge fund} shorts are the mirror of asset manager longs. The basis premium is the fee asset managers pay for their futures demand, and hedge funds implement the trade well beyond the CTD.}
+  \medskip
+  \textbf{The short side is structural facilitation, not a view.}
+  \begin{itemize}
+    \item Opposing directional views cannot explain positions that track each other this closely. Hedge funds accommodate the structural futures demand of asset managers.
+  \end{itemize}
+  \smallskip
+  \textbf{Implementation reaches beyond the cheapest to deliver.}
+  \begin{itemize}
+    \item CTD bonds usually yield less than the fitted curve implies. Their delivery role and liquidity make them expensive, just like on the run bonds, so funds implement the trade with cheaper off the run bonds.
+    \item Dealers reported large off the run liquidations by relative value funds in March 2020, confirming the broader implementation.
+    \item The proposed monitoring list includes term repo spreads, margin changes and the concentration of funding sources in bilateral repo.
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Literature}{Hedge fund Treasury exposures, repo and margining, Banegas and Monin, Fed note, September 2023}
+  \footnotesize
+  \keypoint{Treasury exposures and repo borrowing concentrate in about 50 highly leveraged funds that mostly borrow at zero haircut. A 200 basis point haircut floor would cut their leverage significantly.}
+  \medskip
+  \textbf{Concentration and zero haircuts go together.}
+  \begin{itemize}
+    \item The top 50 funds hold 83 percent of hedge fund Treasury exposure and 89 percent of repo borrowing. Their balance sheet leverage is three times that of the average fund.
+    \item 74 percent of repo borrowing carries a zero or negative haircut, so lenders finance the full position and funds put up almost no capital. 
+  \end{itemize}
+  \smallskip
+  \textbf{A haircut floor bites through profitability, not feasibility.}
+  \begin{itemize}
+    \item A 200 basis point floor would require 12 billion of extra capital. Most funds could cover it from cash, so the trade would not stop.
+    \item But leverage halves, so cash-futures spreads must double to keep returns the same, or funds cut borrowing.
+    \item The tradeoff is more loss absorption in stress against wider spreads and thinner liquidity in normal times.
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Literature}{Hedge funds favorite US bond trade is sputtering, Bloomberg, July 2026}
+  \footnotesize
+  \keypoint{The basis trade is shrinking because the forces that create the premium are reversing. Futures demand cools, dealers return as competitors, issuance tilts toward bills and the Fed stopped shrinking its balance sheet.}
+  \medskip
+  \textbf{Each driver reverses a mechanism from the earlier slides.}
+  \begin{itemize}
+    \item Asset managers trimmed their long futures as the rate outlook flipped toward hikes, so the futures premium the trade harvests shrinks.
+    \item Deregulation eased the supplementary leverage ratio and dealers rebuilt Treasury holdings. A dealer long bonds and short futures runs the same economics and competes the spread away.
+    \item Issuance tilts toward bills and the Fed no longer shrinks its balance sheet, so less long duration needs private absorption.
+  \end{itemize}
+  \smallskip
+  \textbf{The stability reading cuts both ways.}
+  \begin{itemize}
+    \item With less hedge fund leverage and more diverse participants, a simultaneous unwind becomes less likely.
+    \item But the market has leaned on funds for liquidity, so their retreat tests who provides it instead.
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Literature}{Hedge funds and the Treasury cash futures basis trade, Barth and Kahn, JME, 2025}
+  \footnotesize
+  \keypoint{Hedge funds are warehouses for Treasuries. They hold bonds that dealers do not want and pass the risk to asset managers, and the basis is the warehousing fee.}
+  \medskip
+  \textbf{The warehousing mechanism.}
+  \begin{itemize}
+    \item Dealers carry Treasury inventory at a balance sheet cost and asset managers want duration through futures. Hedge funds buy the bonds from dealers, short the futures and fund in repo.
+    \item The more risk the funds warehouse, the higher the fee they require, so a growing trade widens the basis. Textbook arbitrage would predict the opposite, wide spreads and little trading.
+    \item Empirically the trade grows with dealer net Treasury exposure, with mutual fund futures demand and with repo spreads. Warehousing matters most when dealer balance sheets are loaded.
+  \end{itemize}
+  \smallskip
+  \textbf{Warehouses are imperfect and empty out in stress.}
+  \begin{itemize}
+    \item Repo costs rise with volume and margins cap capacity, so funds never warehouse perfectly and dealers keep more inventory than is optimal.
+    \item When margins and repo spreads rose in March 2020 the warehouses emptied. Basis traders accounted for about half of hedge fund Treasury sales.
+    \item Funds borrow through intermediaries without direct access to central bank facilities, so their funding spreads widen precisely when stress hits.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Literature}{LTCM redux? Hedge fund Treasury trading, funding fragility and risk constraints, Kruttli, Monin, Petrasek and Watugala, JFE, 2025}
+  \footnotesize
+  \keypoint{Volatility limits basis trades through internal risk constraints, not only through margin calls.}
+  \medskip
+  \textbf{The binding constraint sat inside the funds.}
+  \begin{itemize}
+    \item Convergence risk grows with volatility. When spreads can widen further before they close, measured value at risk rises and internal limits leave less room for positions.
+    \item March 2020 losses far exceeded the value at risk funds had reported. Funds cut long and short exposures and raised cash as a precaution.
+    \item Funds with tighter limits before the crisis sold more and provided less liquidity. Risk appetite, not funding access, separated sellers from liquidity providers.
+  \end{itemize}
+  \smallskip
+  \textbf{External funding held up, with a relationship pattern.}
+  \begin{itemize}
+    \item Creditor constraints did not pass through repo. More regulated dealers lent more and important clients received disproportionately more funding.
+    \item Stress can shut the trade down even when financing is resilient, so monitoring funding alone misses the internal channel.
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Literature}{Treasury market dysfunction and the role of the central bank, Kashyap, Stein, Wallen and Younger, Brookings Papers, 2025}
+  \footnotesize
+  \keypoint{In severe stress the Fed should buy Treasuries and short futures against them, taking over the basis trade in a duration neutral way that separates market function operations from monetary policy.}
+  \medskip
+  \textbf{An unwind moves three prices at once.}
+  \begin{itemize}
+    \item When funds fire sell, dealers absorb the bonds. Their balance sheets are capped, so they pull back market making and repo intermediation to make room.
+    \item The basis widens, trading costs spike and repo intermediation spreads rise together.
+  \end{itemize}
+  \smallskip
+  \textbf{Why hedged purchases.}
+  \begin{itemize}
+    \item Unhedged purchases in March 2020 removed duration and morphed into QE, blurring the line to monetary policy and creating a Fed put on rates.
+    \item The short futures leg makes the intervention duration neutral.
+    \item SLR relief, broad repo facility access, margin floors and central clearing help but are no panacea when the unwind is powerful.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Literature}{How exposed are hedge funds to prime broker risk, Dahlquist, Rottke and Sokolovski, Working paper, 2025}
+  \footnotesize
+  \keypoint{Diversifying across dealers insures a fund against one broker failing but not against the sector. Prime brokerage is so concentrated that shocks to it are systematic, and funds carry more intermediary risk than their holdings imply.}
+  \medskip
+  \textbf{Idiosyncratic dealer shocks are diversifiable.}
+  \begin{itemize}
+    \item Large shocks to a single prime broker hurt only the funds that use that broker exclusively. Funds with several brokers show no effect.
+    \item Funds act accordingly. Since 2008 more funds use multiple brokers, and funds with more brokers obtain lower haircuts through bargaining power.
+  \end{itemize}
+  \smallskip
+  \textbf{Sector shocks are not.}
+  \begin{itemize}
+    \item A few primary dealers serve about 85 percent of hedge fund assets, so there is nowhere to run when the sector is hit.
+    \item The average fund's exposure to intermediary shocks exceeds the intermediary risk of its holdings, and the excess appears only on the downside. Mutual funds show nothing similar.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Literature}{Synthesis}
+  \footnotesize
+  \textbf{Stress enters through three doors.}
+  \begin{itemize}
+    \item The repo leg. Haircuts are low, so little absorption capacity, and funding rolls daily against collateral whose value can itself come into question.
+    \item The futures leg. Volatility raises initial margins and deleveraging is mechanical.
+    \item The funds themselves. When spreads widen, convergence risk raises value at risk and internal limits cut positions even while funding still flows.
+  \end{itemize}
+  \smallskip
+  \textbf{Concentration and capped dealers amplify.}
+  \begin{itemize}
+    \item A handful of funds and dealers carry the trade.
+    \item Fire sales land on capped dealer balance sheets, which pull back market making and repo intermediation. The basis, trading costs and repo spreads blow out together, and liquidity disappears.
+    \item The same funds run books in several markets, so stress crosses borders through common funds and common dealers.
+  \end{itemize}
+  \smallskip
+  \textbf{The exits are policy.}
+  \begin{itemize}
+    \item In 2020 the exit was a Fed bailout. The choice since is between shrinking the trade through issuance, haircuts and clearing, or backstopping it through hedged lending and purchases.
+  \end{itemize}
+\end{frame}
+
+% ===========================================================================
+\section{Data and setting}
+\begin{frame}{Data and setting}
+  \textbf{One dataset per leg of the trade}
+  \begin{itemize}
+    \item \textbf{Cash leg}\quad \todohl{do we need this? MTS?}
+    \item \textbf{Repo leg}\quad SFTDS transaction data
+    \item \textbf{Futures leg}\quad EMIR transaction data
+  \end{itemize}
+  \bigskip
+  \textbf{Coverage}
+  \begin{itemize}
+    \item SFTDS and EMIR report every transaction that involves at least one euro area established entity.
+    \item Euro area dealers are global banks, so the data cover both parts of EUR and USD markets.
+    \item US coverage is naturally thinner. A trade between two non euro area entities, for example a US dealer facing an offshore fund, never enters the data.
+  \end{itemize}
+\end{frame}
+
+% ===========================================================================
+\section{Measuring basis positions}
+\begin{frame}{Measuring basis positions}
+  \textbf{Three building blocks}
+  \begin{itemize}
+    \item \textbf{Bond day panel}\quad fitted yields, pricing errors, duration and convexity, with CTD, deliverable and on the run flags
+    \item \textbf{Repo panel}\quad SFTDS positions by fund, bond and day
+    \item \textbf{Futures panel}\quad EMIR positions by fund, contract and day, linked to bonds through the deliverable set
+  \end{itemize}
+  \smallskip
+  The panels merge in any combination of fund, bond and date.
+  \medskip
+
+  \textbf{Classifying positions}
+  \begin{itemize}
+    \item A fund that is long the future and short the bond, or the reverse, runs a basis trade.
+    \item Bond positions without an offsetting futures leg are directional.
+  \end{itemize}
+  \medskip
+  \textbf{Validation}
+  \begin{itemize}
+    \item Compare positions and captured market share with the OFR hedge fund monitor.
+    \item \todohl{not sure what do use for ECB numbers as the benchmark for the euro leg}
+  \end{itemize}
+\end{frame}
+
+% ===========================================================================
+\section{Anatomy of the trade}
+\begin{frame}{Anatomy of the trade}
+  \begin{itemize}
+    \item Positions are concentrated in a handful of funds.
+    \item Three dealers finance more than half of the trade.
+    \item The bonds are neither cheapest to deliver nor on the run and show positive pricing errors in both jurisdictions.
+  \end{itemize}
+  \bigskip
+  \takeaway{Funds are paid to hold what curve sensitive investors and dealers do not want, providing liquidity and convergence in the illiquid segment.}
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{Positions are concentrated in a handful of funds}
+  \centering
+  \includegraphics[width=.72\textwidth,height=.68\textheight,keepaspectratio]{frac_top5_funds.png}\\
+  {\small\color{slate} Each day the five largest funds are ranked by the absolute value of their net repo position, the chart shows their share in the total across all funds trading directly}
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{Three dealers finance more than half of the trade}
+  \centering
+  \todohl{dealer share figure to be produced}
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{The bonds are not the cheapest to deliver}
+  \centering
+  \includegraphics[width=.88\textwidth,height=.7\textheight,keepaspectratio]{ctd.png}\\
+  {\small\color{slate} Daily net positions summed across funds, cheapest to deliver bonds against all others}
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{The bonds are not the on the run issues}
+  \centering
+  \includegraphics[width=.88\textwidth,height=.7\textheight,keepaspectratio]{otr.png}\\
+  {\small\color{slate} Daily net positions summed across funds, first and second on the run issues against all others}
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{Positive Svensson pricing errors}
+  \begin{columns}[T]
+    \begin{column}{.5\textwidth}\centering
+      \includegraphics[width=\linewidth,height=.55\textheight,keepaspectratio]{EA_perror.png}\\
+      {\small\color{slate} Euro area}
+    \end{column}
+    \begin{column}{.5\textwidth}\centering
+      \includegraphics[width=\linewidth,height=.55\textheight,keepaspectratio]{US_perror.png}\\
+      {\small\color{slate} US}
+    \end{column}
+  \end{columns}
+  \medskip
+  \centering
+  {\small\color{slate} Bonds grouped into one hundred bins of net fund positions, each dot shows the bin average deviation of the bond yield from the fitted Svensson curve}
+\end{frame}
+
+
+
+% ===========================================================================
+\section{Risk and return of the trade}
+\begin{frame}{Risk and return of the trade}
+  \begin{itemize}
+    \item Positions are duration matched but leave a convexity gap that widens with rate volatility and the term premium. \todohl{show this graphically}
+    \item Returns decompose into convergence, carry and specialness net of financing and margin costs.
+    \item If convexity is an unpriced residual, this yields an ex ante exposure measure at the fund and bond level, the treatment intensity for the fragility tests.
+  \end{itemize}
+\end{frame}
+
+% ===========================================================================
+\section{The funding architecture}
+\begin{frame}{The funding architecture - \todohl{create the descriptives}}
+  \begin{itemize}
+    \item Repo terms by fund$\times$dealer pair
+    \begin{itemize}
+      \item rates
+      \item haircuts
+      \item tenor
+      \item rollover frequency
+    \end{itemize}
+    \item Relationship stability over time
+  \end{itemize}
+  \bigskip
+  \takeaway{Funding is concentrated, short term and relationship based.}
+\end{frame}
+
+% ===========================================================================
+\section{Fragility through the dealer funding channel}
+\begin{frame}{Fragility through the dealer funding channel}
+  \textbf{Hypothesis}
+  \begin{itemize}
+    \item Changes in basis positions are caused by the supply of dealer financing, not by the funds' own capital or views.
+    \item The identification problem is that a fund cutting positions looks the same whether the fund chose to or its dealer pulled the financing.
+  \end{itemize}
+  \medskip
+  \textbf{Test}\quad{\small\color{slate} the Khwaja and Mian design}
+  \begin{itemize}
+    \item We observe the same fund borrowing from several dealers at the same time.
+    \item Take a shock that hits one dealer and not the others, recurring year end balance sheet contractions for power and April 2025 for salience.
+    \item Fund$\times$time fixed effects absorb the fund's capital, beliefs and redemptions, so a differential contraction at the shocked dealer is financing supply.
+    \item Trace it forward. Does the fund replace the financing elsewhere or does the position get cut, and which bonds go first?
+  \end{itemize}
+  \medskip
+  \takeaway{With three dealers supplying half the capital, a shock to one dealer is a shock to the market, not a rounding error.}
+\end{frame}
+
+\begin{frame}{The dealer fragility test, ingredients}
+  \textbf{Country specific CDS shock}\quad{\small\color{slate} relative move against the other three sovereigns, in bp}
+  \vspace{-0.4em}
+  \[
+    s_{c,t} = \Big( \Delta \log \mathrm{CDS}_{c,t} - \tfrac{1}{3}\textstyle\sum_{c' \neq c} \Delta \log \mathrm{CDS}_{c',t} \Big)\, \mathrm{CDS}_{c,t-1}
+    \qquad
+    S_{c,t} = \textstyle\sum_{\tau = t-19}^{t} s_{c,\tau}
+  \]
+  \vspace{-1.1em}
+  \begin{itemize}\small
+    \item Demeaning in relative space strips the common factor, the lagged own level puts the shock back into bp.
+    \item Cumulating 20 days fits a stock outcome. The tail variant keeps only days beyond two standard deviations.
+  \end{itemize}
+  \smallskip
+  \textbf{Exposures}\quad{\small\color{slate} weights from the previous quarter, so books are predetermined}
+  \vspace{-0.4em}
+  \[
+    E_{d,t} = \sum_{c\, \neq\, c(b)} w_{d,c}\, S_{c,t}
+    \qquad
+    F^{-d}_{f,t} = \sum_{d' \neq d} \omega_{f,d'} \sum_{c} w_{d',c}\, S_{c,t}
+  \]
+  \vspace{-1.1em}
+  \begin{itemize}\small
+    \item $w_{d,c}$ is country $c$'s share in dealer $d$'s repo book. The bond's own country $c(b)$ is excluded so collateral repricing cannot pose as a funding shock.
+    \item $\omega_{f,d'}$ is dealer $d'$'s share in fund $f$'s repo activity. The own dealer is left out so part two does not remeasure part one.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The dealer fragility test, regressions}
+  \textbf{Part one}\quad{\small\color{slate} same fund, same country, same day, across its dealers, so fund demand is absorbed}
+  \vspace{-0.4em}
+  \[
+    \mathrm{NetPos}_{f,d,b,t} = \beta_1\, E_{d,t} + \alpha_{f \times c \times t} + \alpha_{b \times t} + \alpha_{d} + \varepsilon
+  \]
+  \vspace{-1.3em}
+  \par\textbf{Part two}\quad{\small\color{slate} same dealer, same day, across its funds, the dealer's own shock is held fixed}
+  \vspace{-0.4em}
+  \[
+    \mathrm{NetPos}_{f,d,b,t} = \beta_2\, F^{-d}_{f,t} + \alpha_{d \times c \times t} + \alpha_{b \times t} + \alpha_{f} + \varepsilon
+  \]
+  \medskip
+  \begin{center}\small
+  \begin{tabular}{lcc}
+    \toprule
+    & $\beta_1$ & $\beta_2$ \\
+    \midrule
+    Substitution, the fund reroutes and is insulated & $-$ & $+$ \\
+    Transmission, the shock travels through the fund & $-$ & $-$ \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  \takeaway{The sign pattern separates rerouting from contagion, no single cell can.}
+\end{frame}
+
+% ===========================================================================
+\section{Fragility through the volatility shock}
+\begin{frame}{Fragility through the volatility shock}{Cross market transmission, a fund level test in quantities}
+  \textbf{Hypothesis}
+  \begin{itemize}
+    \item The same funds run both a UST and an EGB basis book, so losses in one book force adjustment in the other through shared capital and margin.
+    \item April 2025 is the natural experiment, the tariff shock realized the convexity gap in the UST book.
+  \end{itemize}
+  \medskip
+  \textbf{Test}
+  \begin{itemize}
+    \item The unit is the fund. Treatment is the fund's ex ante UST exposure and the outcome is how its European positions change.
+    \item Did exposed funds cut more than other funds in the same bond and week, with bond$\times$time fixed effects?
+  \end{itemize}
+  \medskip
+  \takeaway{Same logic as the dealer channel with the fund as the node, separating contagion through common funds from contagion through common dealers.}
+\end{frame}
+
+\begin{frame}{Fragility through the volatility shock}{The spillover result, a bond level test in prices}
+  \textbf{Hypothesis}
+  \begin{itemize}
+    \item What funds sell at the fund level matters only if it aggregates into bond level prices, the step from funds sold to prices moved.
+  \end{itemize}
+  \medskip
+  \textbf{Test}
+  \begin{itemize}
+    \item The unit is the bond. Treatment is the bond's pre shock exposure to affected funds and the outcome is its price and liquidity.
+    \item Did exposed bonds show wider bases, higher yields or worse liquidity than otherwise similar bonds?
+    \item If funds adjusted but prices did not move, amplification is a null and a paragraph rather than a section.
+  \end{itemize}
+\end{frame}
+
+
+
+% ===========================================================================
+\section{Implications}
+\begin{frame}{Implications}
+  \begin{itemize}
+    \item The risk is not just directional exposure but convexity and funding concentration in illiquid bonds.
+    \item Current NBFI monitoring does not measure this, with consequences for the transparency and leverage debates.
+  \end{itemize}
+\end{frame}
+
+
+\end{document}
