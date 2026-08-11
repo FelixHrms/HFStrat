@@ -584,18 +584,18 @@
 \end{frame}
 
 \begin{frame}{The dealer fragility test, results}
-  \begin{center}\footnotesize
+  \begin{center}\scriptsize
   \begin{tabular}{lcccc}
     \toprule
     & \multicolumn{2}{c}{Part one} & \multicolumn{2}{c}{Part two} \\
     \cmidrule(lr){2-3}\cmidrule(lr){4-5}
     & Borrowing & Lending & Borrowing & Lending \\
     \midrule
-    Home stress, other collateral & 0.06 (0.42) & $-0.72$ ($-3.15$) & & \\
-    Home stress, home collateral & 0.15 (0.96) & $-0.97$ ($-2.31$) & & \\
-    Book exposure, control & $-0.41$ ($-0.93$) & 1.14 (2.26) & & \\
+    Home stress, other collateral & 0.06 (0.42) & $-0.72^{***}$ ($-3.15$) & & \\
+    Home stress, home collateral & 0.15 (0.96) & $-0.97^{**}$ ($-2.31$) & & \\
+    Book exposure, control & $-0.41$ ($-0.93$) & $1.14^{**}$ (2.26) & & \\
     Other dealers home stress & & & $-0.33$ ($-0.84$) & $-0.53$ ($-1.21$) \\
-    Other dealers book exposure, control & & & 0.67 (2.08) & 0.69 (1.89) \\
+    Other dealers book exposure, control & & & $0.67^{**}$ (2.08) & $0.69^{*}$ (1.89) \\
     \midrule
     Fund $\times$ country $\times$ day FE & Yes & Yes & & \\
     Dealer $\times$ country $\times$ day FE & & & Yes & Yes \\
@@ -606,7 +606,7 @@
     \bottomrule
   \end{tabular}
   \par\smallskip
-  {\scriptsize\color{slate} Coefficients in mn EUR per bp of 20 day cumulated stress, t statistics in parentheses, standard errors clustered by month (55 clusters). Aggregating bonds to the collateral country gives the same pattern.}
+  {\tiny\color{slate} Coefficients in mn EUR per bp of 20 day cumulated stress, t statistics in parentheses, standard errors clustered by month (55 clusters). $^{*}$, $^{**}$, $^{***}$ denote significance at the 10, 5 and 1 percent level. Aggregating bonds to the collateral country gives the same pattern.}
   \end{center}
   \takeaway{Funds do not lose financing when a dealer's sovereign is stressed, they withdraw the cash they lend to it, on all collateral alike.}
 \end{frame}
