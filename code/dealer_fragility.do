@@ -90,10 +90,11 @@ foreach y in log_borrowing log_lending {
 	reghdfe `y' home_shock, a(fund_day pair) vce(cluster month)
 }
 
-**# Step 5: substitution, within dealer x day across funds
-* does a fund hit through its other dealers bring more business to this
-* dealer, exposure = wallet-weighted home shock of the fund's other dealers,
-* wallet shares from the lagged quarter
+**# Step 5: fund level, can funds offset the shock in total
+* exposure = wallet-weighted home shock across the fund's dealers, wallet
+* shares from the lagged quarter, outcome = the fund's total positions
+* step 4 coefficient = step 5 coefficient means full pass-through, step 5
+* near zero means funds offset the shock elsewhere
 
 preserve
 	foreach v in borrowing_volume lending_volume {
@@ -112,21 +113,21 @@ preserve
 	gen quarter = qofd(date)
 	joinby dealer_id quarter using `fund_weights'
 	gen product = wallet_share*home_shock
-	collapse (sum) fund_exposure_all = product, by(fund_id date)
+	collapse (sum) fund_exposure = product, by(fund_id date)
 	tempfile fund_exposures
 	save `fund_exposures'
 restore
 
-gen quarter = qofd(date)
-merge m:1 fund_id date using `fund_exposures', keep(master match) nogen
-merge m:1 fund_id dealer_id quarter using `fund_weights', keep(master match) nogen
-gen other_exposure = fund_exposure_all
-replace other_exposure = fund_exposure_all - wallet_share*home_shock if !missing(wallet_share) /*leave out the own dealer*/
-label var other_exposure "Wallet-weighted home shock of the fund's other dealers"
-
-egen dealer_day = group(dealer_id date)
-foreach y in log_borrowing log_lending {
-	reghdfe `y' other_exposure wallet_share, a(dealer_day pair) vce(cluster month)
-}
+preserve
+	collapse (sum) borrowing_volume lending_volume, by(fund_id date month)
+	merge m:1 fund_id date using `fund_exposures', keep(match) nogen
+	gen log_borrowing = log(borrowing_volume)
+	gen log_lending = log(lending_volume)
+	egen fund_num = group(fund_id)
+	label var fund_exposure "Wallet-weighted home shock of the fund's dealers"
+	foreach y in log_borrowing log_lending {
+		reghdfe `y' fund_exposure, a(fund_num date) vce(cluster month)
+	}
+restore
 
 log close
