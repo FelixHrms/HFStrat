@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.log
   log type:  text
- opened on:   1 Sep 2026, 12:04:26
+ opened on:   1 Sep 2026, 12:10:19
 
 . 
 . **# Country-specific CDS shocks
@@ -305,133 +305,127 @@ multi_deale |
 
 . 
 . **# Part 1: bank lending channel, within fund x day across dealers
-. * home_shock = effect on the shocked dealer, other_exposure = substitution toward this dealer
+. * home_shock = effect on the shocked dealer relative to the fund's other dealers
 . 
 . foreach y in log_borrowing log_lending {
-  2.         reghdfe `y' home_shock other_exposure, a(fund_day pair) vce(cluster month)
+  2.         reghdfe `y' home_shock, a(fund_day pair) vce(cluster month)
   3. }
-(dropped 58249 singleton observations)
+(dropped 63759 singleton observations)
 (MWFE estimator converged in 12 iterations)
 
-HDFE Linear regression                            Number of obs   =    160,302
-Absorbing 2 HDFE groups                           F(   2,     54) =       4.38
-Statistics robust to heteroskedasticity           Prob > F        =     0.0173
-                                                  R-squared       =     0.8761
-                                                  Adj R-squared   =     0.8069
-                                                  Within R-sq.    =     0.0016
-Number of clusters (month)   =         55         Root MSE        =     0.9040
+HDFE Linear regression                            Number of obs   =    164,594
+Absorbing 2 HDFE groups                           F(   1,     56) =       3.45
+Statistics robust to heteroskedasticity           Prob > F        =     0.0687
+                                                  R-squared       =     0.8769
+                                                  Adj R-squared   =     0.8073
+                                                  Within R-sq.    =     0.0005
+Number of clusters (month)   =         57         Root MSE        =     0.9069
 
-                                   (Std. err. adjusted for 55 clusters in month)
---------------------------------------------------------------------------------
-               |               Robust
- log_borrowing | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
----------------+----------------------------------------------------------------
-    home_shock |  -.0291105    .011021    -2.64   0.011    -.0512064   -.0070147
-other_exposure |  -.0600519   .0418704    -1.43   0.157     -.143997    .0238932
-         _cons |   18.94237   .0086258  2196.01   0.000     18.92508    18.95967
---------------------------------------------------------------------------------
+                                 (Std. err. adjusted for 57 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+log_borrow~g | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+  home_shock |  -.0118056   .0063601    -1.86   0.069    -.0245465    .0009353
+       _cons |   18.90784   .0017205  1.1e+04   0.000      18.9044    18.91129
+------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-    fund_day |     56979       56979           0    *|
-        pair |       443           1         442     |
+    fund_day |     58973       58973           0    *|
+        pair |       445           1         444     |
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
-(dropped 62410 singleton observations)
+(dropped 69229 singleton observations)
 (MWFE estimator converged in 11 iterations)
 
-HDFE Linear regression                            Number of obs   =    180,552
-Absorbing 2 HDFE groups                           F(   2,     54) =       3.62
-Statistics robust to heteroskedasticity           Prob > F        =     0.0335
-                                                  R-squared       =     0.9188
-                                                  Adj R-squared   =     0.8715
-                                                  Within R-sq.    =     0.0024
-Number of clusters (month)   =         55         Root MSE        =     0.8670
+HDFE Linear regression                            Number of obs   =    183,219
+Absorbing 2 HDFE groups                           F(   1,     56) =       5.15
+Statistics robust to heteroskedasticity           Prob > F        =     0.0270
+                                                  R-squared       =     0.9185
+                                                  Adj R-squared   =     0.8706
+                                                  Within R-sq.    =     0.0011
+Number of clusters (month)   =         57         Root MSE        =     0.8682
 
-                                   (Std. err. adjusted for 55 clusters in month)
---------------------------------------------------------------------------------
-               |               Robust
-   log_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
----------------+----------------------------------------------------------------
-    home_shock |  -.0032386   .0102396    -0.32   0.753    -.0237677    .0172905
-other_exposure |   .0611891   .0355603     1.72   0.091    -.0101049    .1324832
-         _cons |    18.7294   .0081421  2300.30   0.000     18.71308    18.74572
---------------------------------------------------------------------------------
+                                 (Std. err. adjusted for 57 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+ log_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+  home_shock |  -.0173385   .0076366    -2.27   0.027    -.0326366   -.0020405
+       _cons |   18.74723   .0023135  8103.24   0.000      18.7426    18.75186
+------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-    fund_day |     66107       66107           0    *|
-        pair |       447           1         446     |
+    fund_day |     67393       67393           0    *|
+        pair |       454           1         453     |
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
 
 . 
 . **# Extensive margin: relationship activity on the balanced grid
-. * negative home_shock = relationships with shocked dealers go dormant,
-. * positive other_exposure = relationships with healthy dealers get activated
+. * negative home_shock = relationships with shocked dealers go dormant
 . 
-. reghdfe active home_shock other_exposure, a(fund_day pair) vce(cluster month)
-(dropped 65 singleton observations)
+. reghdfe active home_shock, a(fund_day pair) vce(cluster month)
 (MWFE estimator converged in 2 iterations)
 
-HDFE Linear regression                            Number of obs   =  2,286,414
-Absorbing 2 HDFE groups                           F(   2,     54) =       0.57
-Statistics robust to heteroskedasticity           Prob > F        =     0.5686
-                                                  R-squared       =     0.7440
-                                                  Adj R-squared   =     0.7222
-                                                  Within R-sq.    =     0.0002
-Number of clusters (month)   =         55         Root MSE        =     0.1728
+HDFE Linear regression                            Number of obs   =  4,462,276
+Absorbing 2 HDFE groups                           F(   1,     56) =       0.00
+Statistics robust to heteroskedasticity           Prob > F        =     0.9558
+                                                  R-squared       =     0.6641
+                                                  Adj R-squared   =     0.6358
+                                                  Within R-sq.    =     0.0000
+Number of clusters (month)   =         57         Root MSE        =     0.1497
 
-                                   (Std. err. adjusted for 55 clusters in month)
---------------------------------------------------------------------------------
-               |               Robust
-        active | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
----------------+----------------------------------------------------------------
-    home_shock |  -.0001331   .0001935    -0.69   0.495    -.0005211    .0002549
-other_exposure |   -.004668   .0045891    -1.02   0.314    -.0138687    .0045327
-         _cons |   .1237128   .0011982   103.25   0.000     .1213107     .126115
---------------------------------------------------------------------------------
+                                 (Std. err. adjusted for 57 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+      active | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+  home_shock |   7.30e-06   .0001311     0.06   0.956    -.0002554      .00027
+       _cons |   .0659137   .0000247  2672.65   0.000     .0658643    .0659631
+------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-    fund_day |    175878      175878           0    *|
-        pair |      3666           1        3665     |
+    fund_day |    343252      343252           0    *|
+        pair |      3731           1        3730     |
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
 
 . 
-. **# Reconciliation: does the effect live in small relationships?
-. * weighted version is comparable to Part 2, the interaction tests core protection
+. **# Size decomposition: weighted version comparable to Part 2, interaction tests
+. * whether core or satellite relationships bear the cut
 . 
 . foreach y in log_borrowing log_lending {
-  2.         reghdfe `y' home_shock other_exposure [aw=wallet_share], a(fund_day pair) vce(cluster month)
+  2.         reghdfe `y' home_shock [aw=wallet_share], a(fund_day pair) vce(cluster month)
   3. }
 (dropped 59167 singleton observations)
 (MWFE estimator converged in 19 iterations)
 
 HDFE Linear regression                            Number of obs   =    152,111
-Absorbing 2 HDFE groups                           F(   2,     54) =       3.77
-Statistics robust to heteroskedasticity           Prob > F        =     0.0292
-                                                  R-squared       =     0.9263
-                                                  Adj R-squared   =     0.8844
-                                                  Within R-sq.    =     0.0020
-Number of clusters (month)   =         55         Root MSE        =     0.7145
+Absorbing 2 HDFE groups                           F(   1,     54) =       1.53
+Statistics robust to heteroskedasticity           Prob > F        =     0.2210
+                                                  R-squared       =     0.9262
+                                                  Adj R-squared   =     0.8842
+                                                  Within R-sq.    =     0.0003
+Number of clusters (month)   =         55         Root MSE        =     0.7151
 
-                                   (Std. err. adjusted for 55 clusters in month)
---------------------------------------------------------------------------------
-               |               Robust
- log_borrowing | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
----------------+----------------------------------------------------------------
-    home_shock |  -.0450034   .0163866    -2.75   0.008    -.0778565   -.0121503
-other_exposure |  -.0999852   .0422018    -2.37   0.021    -.1845947   -.0153757
-         _cons |   19.05385   .0090471  2106.07   0.000     19.03571    19.07199
---------------------------------------------------------------------------------
+                                 (Std. err. adjusted for 55 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+log_borrow~g | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+  home_shock |  -.0099201   .0080121    -1.24   0.221    -.0259834    .0061432
+       _cons |   19.03267    .002055  9261.85   0.000     19.02855    19.03679
+------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
@@ -445,22 +439,21 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 14 iterations)
 
 HDFE Linear regression                            Number of obs   =    168,699
-Absorbing 2 HDFE groups                           F(   2,     54) =       1.75
-Statistics robust to heteroskedasticity           Prob > F        =     0.1841
+Absorbing 2 HDFE groups                           F(   1,     54) =       1.79
+Statistics robust to heteroskedasticity           Prob > F        =     0.1866
                                                   R-squared       =     0.9583
-                                                  Adj R-squared   =     0.9336
-                                                  Within R-sq.    =     0.0010
-Number of clusters (month)   =         55         Root MSE        =     0.6712
+                                                  Adj R-squared   =     0.9335
+                                                  Within R-sq.    =     0.0003
+Number of clusters (month)   =         55         Root MSE        =     0.6714
 
-                                   (Std. err. adjusted for 55 clusters in month)
---------------------------------------------------------------------------------
-               |               Robust
-   log_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
----------------+----------------------------------------------------------------
-    home_shock |   .0109999   .0140945     0.78   0.439    -.0172579    .0392578
-other_exposure |   .0583639   .0388809     1.50   0.139    -.0195877    .1363154
-         _cons |   18.75861   .0105319  1781.12   0.000     18.73749    18.77972
---------------------------------------------------------------------------------
+                                 (Std. err. adjusted for 55 clusters in month)
+------------------------------------------------------------------------------
+             |               Robust
+ log_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+  home_shock |   -.009267   .0069279    -1.34   0.187    -.0231565    .0046226
+       _cons |   18.77461   .0023734  7910.36   0.000     18.76986    18.77937
+------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
@@ -472,11 +465,10 @@ Absorbed degrees of freedom:
 * = FE nested within cluster; treated as redundant for DoF computation
 
 . foreach y in log_borrowing log_lending {
-  2.         reghdfe `y' c.home_shock##c.wallet_share other_exposure, a(fund_day pair) vce(cluster month)
+  2.         reghdfe `y' c.home_shock##c.wallet_share, a(fund_day pair) vce(cluster month)
   3. }
 (dropped 59167 singleton observations)
 (MWFE estimator converged in 13 iterations)
-note: other_exposure omitted because of collinearity
 
 HDFE Linear regression                            Number of obs   =    152,111
 Absorbing 2 HDFE groups                           F(   3,     54) =     109.88
@@ -496,7 +488,6 @@ Number of clusters (month)   =         55         Root MSE        =     0.8458
                             |
 c.home_shock#c.wallet_share |  -.0304669   .0297966    -1.02   0.311    -.0902055    .0292718
                             |
-             other_exposure |          0  (omitted)
                       _cons |   18.43011   .0300093   614.15   0.000     18.36994    18.49027
 ---------------------------------------------------------------------------------------------
 
@@ -510,7 +501,6 @@ Absorbed degrees of freedom:
 * = FE nested within cluster; treated as redundant for DoF computation
 (dropped 65254 singleton observations)
 (MWFE estimator converged in 12 iterations)
-note: other_exposure omitted because of collinearity
 
 HDFE Linear regression                            Number of obs   =    168,699
 Absorbing 2 HDFE groups                           F(   3,     54) =      25.09
@@ -530,7 +520,6 @@ Number of clusters (month)   =         55         Root MSE        =     0.8337
                             |
 c.home_shock#c.wallet_share |  -.1357339    .048856    -2.78   0.008    -.2336843   -.0377835
                             |
-             other_exposure |          0  (omitted)
                       _cons |    18.4463   .0541365   340.74   0.000     18.33776    18.55483
 ---------------------------------------------------------------------------------------------
 
@@ -540,6 +529,105 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
     fund_day |     62342       62342           0    *|
         pair |       415           1         414     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. 
+. **# Substitution: within dealer x day across funds
+. * positive other_exposure = funds whose other dealers are shocked bring more
+. * business to this dealer, wallet_share controls for the mechanical size link
+. 
+. egen dealer_day = group(dealer_id date)
+
+. foreach y in log_borrowing log_lending {
+  2.         reghdfe `y' other_exposure wallet_share, a(dealer_day pair) vce(cluster month)
+  3. }
+(dropped 2558 singleton observations)
+(MWFE estimator converged in 17 iterations)
+
+HDFE Linear regression                            Number of obs   =    208,720
+Absorbing 2 HDFE groups                           F(   2,     54) =      60.11
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.7980
+                                                  Adj R-squared   =     0.7912
+                                                  Within R-sq.    =     0.0197
+Number of clusters (month)   =         55         Root MSE        =     1.0168
+
+                                   (Std. err. adjusted for 55 clusters in month)
+--------------------------------------------------------------------------------
+               |               Robust
+ log_borrowing | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+---------------+----------------------------------------------------------------
+other_exposure |  -.0449141   .0240493    -1.87   0.067      -.09313    .0033018
+  wallet_share |   .8440345   .0851622     9.91   0.000     .6732946    1.014774
+         _cons |   18.05958   .0430106   419.89   0.000     17.97335    18.14581
+--------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+  dealer_day |      6279        6279           0    *|
+        pair |       517           1         516     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+(dropped 2577 singleton observations)
+(MWFE estimator converged in 13 iterations)
+
+HDFE Linear regression                            Number of obs   =    231,376
+Absorbing 2 HDFE groups                           F(   2,     54) =      18.78
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.8208
+                                                  Adj R-squared   =     0.8155
+                                                  Within R-sq.    =     0.0137
+Number of clusters (month)   =         55         Root MSE        =     1.0949
+
+                                   (Std. err. adjusted for 55 clusters in month)
+--------------------------------------------------------------------------------
+               |               Robust
+   log_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+---------------+----------------------------------------------------------------
+other_exposure |    .010333   .0385908     0.27   0.790    -.0670369    .0877028
+  wallet_share |   .7483442   .1235525     6.06   0.000     .5006364     .996052
+         _cons |   17.88936   .0640385   279.35   0.000     17.76097    18.01775
+--------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+  dealer_day |      6164        6164           0    *|
+        pair |       538           1         537     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. reghdfe active other_exposure, a(dealer_day pair) vce(cluster month)
+(dropped 65 singleton observations)
+(MWFE estimator converged in 7 iterations)
+
+HDFE Linear regression                            Number of obs   =  2,286,414
+Absorbing 2 HDFE groups                           F(   1,     54) =       3.37
+Statistics robust to heteroskedasticity           Prob > F        =     0.0717
+                                                  R-squared       =     0.7447
+                                                  Adj R-squared   =     0.7426
+                                                  Within R-sq.    =     0.0001
+Number of clusters (month)   =         55         Root MSE        =     0.1663
+
+                                   (Std. err. adjusted for 55 clusters in month)
+--------------------------------------------------------------------------------
+               |               Robust
+        active | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+---------------+----------------------------------------------------------------
+other_exposure |  -.0012567   .0006841    -1.84   0.072    -.0026282    .0001148
+         _cons |   .1228348   .0001803   681.35   0.000     .1224734    .1231963
+--------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+  dealer_day |     15015       15015           0    *|
+        pair |      3666           1        3665     |
 -----------------------------------------------------+
 * = FE nested within cluster; treated as redundant for DoF computation
 
@@ -630,5 +718,5 @@ Absorbed degrees of freedom:
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.log
   log type:  text
- closed on:   1 Sep 2026, 12:05:28
+ closed on:   1 Sep 2026, 12:11:14
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
