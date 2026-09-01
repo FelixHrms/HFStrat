@@ -31,18 +31,14 @@ bysort date: gen n_countries = _N
 keep if n_countries == 4
 gen shock_rel = log_change - (sum_log_change - log_change)/3 /*own move minus avg move of the other three*/
 gen shock_daily = shock_rel*cds_lag /*back to bp using own lagged level*/
-bysort country: egen sd_rel = sd(shock_rel)
-gen tail_daily = shock_daily*(abs(shock_rel) > 2*sd_rel) /*only moves beyond 2 sd count*/
 
-local W = 20 /*business-day window*/
+local W = 20 /*business-day window, robustness at 5 10 40*/
 sort country date
 by country: gen running_sum = sum(shock_daily)
-by country: gen running_sum_tail = sum(tail_daily)
 by country: gen shock_cum = running_sum - running_sum[_n-`W']
-by country: gen tail_cum = running_sum_tail - running_sum_tail[_n-`W']
 drop if missing(shock_cum)
-keep country date shock_cum tail_cum
-reshape wide shock_cum tail_cum, i(date) j(country) string
+keep country date shock_cum
+reshape wide shock_cum, i(date) j(country) string
 tempfile country_shocks
 save `country_shocks'
 
