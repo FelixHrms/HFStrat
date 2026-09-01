@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.log
   log type:  text
- opened on:   1 Sep 2026, 12:00:32
+ opened on:   1 Sep 2026, 12:04:26
 
 . 
 . **# Country-specific CDS shocks
@@ -406,6 +406,144 @@ Absorbed degrees of freedom:
 * = FE nested within cluster; treated as redundant for DoF computation
 
 . 
+. **# Reconciliation: does the effect live in small relationships?
+. * weighted version is comparable to Part 2, the interaction tests core protection
+. 
+. foreach y in log_borrowing log_lending {
+  2.         reghdfe `y' home_shock other_exposure [aw=wallet_share], a(fund_day pair) vce(cluster month)
+  3. }
+(dropped 59167 singleton observations)
+(MWFE estimator converged in 19 iterations)
+
+HDFE Linear regression                            Number of obs   =    152,111
+Absorbing 2 HDFE groups                           F(   2,     54) =       3.77
+Statistics robust to heteroskedasticity           Prob > F        =     0.0292
+                                                  R-squared       =     0.9263
+                                                  Adj R-squared   =     0.8844
+                                                  Within R-sq.    =     0.0020
+Number of clusters (month)   =         55         Root MSE        =     0.7145
+
+                                   (Std. err. adjusted for 55 clusters in month)
+--------------------------------------------------------------------------------
+               |               Robust
+ log_borrowing | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+---------------+----------------------------------------------------------------
+    home_shock |  -.0450034   .0163866    -2.75   0.008    -.0778565   -.0121503
+other_exposure |  -.0999852   .0422018    -2.37   0.021    -.1845947   -.0153757
+         _cons |   19.05385   .0090471  2106.07   0.000     19.03571    19.07199
+--------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+    fund_day |     54695       54695           0    *|
+        pair |       413           1         412     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+(dropped 65254 singleton observations)
+(MWFE estimator converged in 14 iterations)
+
+HDFE Linear regression                            Number of obs   =    168,699
+Absorbing 2 HDFE groups                           F(   2,     54) =       1.75
+Statistics robust to heteroskedasticity           Prob > F        =     0.1841
+                                                  R-squared       =     0.9583
+                                                  Adj R-squared   =     0.9336
+                                                  Within R-sq.    =     0.0010
+Number of clusters (month)   =         55         Root MSE        =     0.6712
+
+                                   (Std. err. adjusted for 55 clusters in month)
+--------------------------------------------------------------------------------
+               |               Robust
+   log_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+---------------+----------------------------------------------------------------
+    home_shock |   .0109999   .0140945     0.78   0.439    -.0172579    .0392578
+other_exposure |   .0583639   .0388809     1.50   0.139    -.0195877    .1363154
+         _cons |   18.75861   .0105319  1781.12   0.000     18.73749    18.77972
+--------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+    fund_day |     62342       62342           0    *|
+        pair |       415           1         414     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. foreach y in log_borrowing log_lending {
+  2.         reghdfe `y' c.home_shock##c.wallet_share other_exposure, a(fund_day pair) vce(cluster month)
+  3. }
+(dropped 59167 singleton observations)
+(MWFE estimator converged in 13 iterations)
+note: other_exposure omitted because of collinearity
+
+HDFE Linear regression                            Number of obs   =    152,111
+Absorbing 2 HDFE groups                           F(   3,     54) =     109.88
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.8916
+                                                  Adj R-squared   =     0.8300
+                                                  Within R-sq.    =     0.1041
+Number of clusters (month)   =         55         Root MSE        =     0.8458
+
+                                                (Std. err. adjusted for 55 clusters in month)
+---------------------------------------------------------------------------------------------
+                            |               Robust
+              log_borrowing | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+----------------------------+----------------------------------------------------------------
+                 home_shock |   .0040619   .0078627     0.52   0.608    -.0117018    .0198256
+               wallet_share |   1.553013   .0861012    18.04   0.000     1.380391    1.725636
+                            |
+c.home_shock#c.wallet_share |  -.0304669   .0297966    -1.02   0.311    -.0902055    .0292718
+                            |
+             other_exposure |          0  (omitted)
+                      _cons |   18.43011   .0300093   614.15   0.000     18.36994    18.49027
+---------------------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+    fund_day |     54695       54695           0    *|
+        pair |       413           1         412     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+(dropped 65254 singleton observations)
+(MWFE estimator converged in 12 iterations)
+note: other_exposure omitted because of collinearity
+
+HDFE Linear regression                            Number of obs   =    168,699
+Absorbing 2 HDFE groups                           F(   3,     54) =      25.09
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.9260
+                                                  Adj R-squared   =     0.8821
+                                                  Within R-sq.    =     0.0465
+Number of clusters (month)   =         55         Root MSE        =     0.8337
+
+                                                (Std. err. adjusted for 55 clusters in month)
+---------------------------------------------------------------------------------------------
+                            |               Robust
+                log_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+----------------------------+----------------------------------------------------------------
+                 home_shock |   .0246345   .0139238     1.77   0.083    -.0032811      .05255
+               wallet_share |   .9886384   .1499157     6.59   0.000     .6880756    1.289201
+                            |
+c.home_shock#c.wallet_share |  -.1357339    .048856    -2.78   0.008    -.2336843   -.0377835
+                            |
+             other_exposure |          0  (omitted)
+                      _cons |    18.4463   .0541365   340.74   0.000     18.33776    18.55483
+---------------------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+    fund_day |     62342       62342           0    *|
+        pair |       415           1         414     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. 
 . **# Part 2: fund borrowing channel, fund x day totals
 . 
 . collapse (sum) borrowing_volume lending_volume, by(fund_id fund_num date month)
@@ -492,5 +630,5 @@ Absorbed degrees of freedom:
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.log
   log type:  text
- closed on:   1 Sep 2026, 12:01:03
+ closed on:   1 Sep 2026, 12:05:28
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
