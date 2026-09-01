@@ -68,7 +68,7 @@ save `dealer_shocks'
 **# Fund wallet weights across dealers (two-sided), lagged quarter
 * share of each dealer in the fund's total repo activity
 
-import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
+import delimited "$key\\fund_dealer_country_day.csv", varnames(1) clear
 capture drop v1
 foreach v in borrowing_volume lending_volume {
 	replace `v' = 0 if missing(`v')
@@ -93,12 +93,36 @@ collapse (sum) fund_exposure_all = product, by(fund_id date)
 tempfile fund_exposures
 save `fund_exposures'
 
-**# Panel, fund x dealer x day
+**# Panel, fund x dealer x collateral country x day
+* the non-home collateral split, fund x country x day effects absorb the demand
+* for each collateral market, so supply shows up in other countries' collateral
 
-import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
+import delimited "$key\\fund_dealer_country_day.csv", varnames(1) clear
 capture drop v1
 gen date = date(business_date, "YMD")
 format date %td
+gen month = mofd(date)
+
+merge m:1 dealer_id date using `dealer_shocks', keep(match) nogen
+gen home_shock_own = home_shock*(collateral_country == nationality) /*shock hits the dealer and the bond's own market*/
+gen home_shock_other = home_shock*(collateral_country != nationality) /*shock hits the dealer only*/
+
+gen log_borrowing = log(borrowing_volume)
+gen log_lending = log(lending_volume)
+
+egen fund_country_day = group(fund_id collateral_country date)
+egen pair_country = group(fund_id dealer_id collateral_country)
+
+label var home_shock_own "Home shock, home collateral"
+label var home_shock_other "Home shock, other collateral"
+
+foreach y in log_borrowing log_lending {
+	reghdfe `y' home_shock_other home_shock_own, a(fund_country_day pair_country) vce(cluster month)
+}
+
+**# Panel, fund x dealer x day
+
+collapse (sum) borrowing_volume lending_volume, by(fund_id dealer_id date)
 fillin fund_id dealer_id date /*balanced grid, no relationship = zero*/
 foreach v in borrowing_volume lending_volume {
 	replace `v' = 0 if missing(`v')
