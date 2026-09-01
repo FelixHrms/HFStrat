@@ -6,9 +6,8 @@ global key "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
 cap log close
 log using "$key\\dealer_fragility.log", replace text
 
-**# Country-specific CDS shocks
-* daily log changes, leave-one-out demeaned across the other three countries,
-* rescaled to bp by the lagged own level, cumulated over a 20-day window
+**# Country-specific CDS shocks, daily
+* daily log changes, leave-one-out demeaned across the other three countries
 
 tempfile cds_all
 local first = 1
@@ -24,180 +23,123 @@ gen date = date(period, "DMY")
 format date %td
 sort country date
 by country: gen log_change = log(cds) - log(cds[_n-1])
-by country: gen cds_lag = cds[_n-1]
 drop if missing(log_change)
 bysort date: egen sum_log_change = total(log_change)
 bysort date: gen n_countries = _N
 keep if n_countries == 4
 gen shock_rel = log_change - (sum_log_change - log_change)/3 /*own move minus avg move of the other three*/
-gen shock_daily = shock_rel*cds_lag /*back to bp using own lagged level*/
 bysort country: egen sd_rel = sd(shock_rel)
-gen tail_daily = shock_daily*(abs(shock_rel) > 2*sd_rel) /*only moves beyond 2 sd count*/
 
-local W = 20 /*business-day window*/
+**# Events
+* a stress day is a relative widening beyond two standard deviations, an event
+* is a stress day with no other stress day in the previous 20 business days
+
+gen stress_day = shock_rel > 2*sd_rel
 sort country date
-by country: gen running_sum = sum(shock_daily)
-by country: gen running_sum_tail = sum(tail_daily)
-by country: gen shock_cum = running_sum - running_sum[_n-`W']
-by country: gen tail_cum = running_sum_tail - running_sum_tail[_n-`W']
-drop if missing(shock_cum)
-keep country date shock_cum tail_cum
-reshape wide shock_cum tail_cum, i(date) j(country) string
-tempfile country_shocks
-save `country_shocks'
+by country: gen cum_stress = sum(stress_day)
+by country: gen stress_20d = cum_stress - cond(_n > 20, cum_stress[_n-20], 0)
+gen event = stress_day == 1 & stress_20d == 1
+keep if event
+keep country date
+rename date event_date
+gen event_id = _n
+list event_id country event_date, clean
+tempfile events
+save `events'
 
-**# Dealer home shocks, dealer x day
-* home shock = the cumulated shock of the dealer's home country, zero for non EA dealers
+**# Dealer nationality
 
 import delimited "$key\\dealer_nationality.csv", varnames(1) clear
 tempfile dealer_nat
 save `dealer_nat'
 
-use `country_shocks', clear
-cross using `dealer_nat'
-gen home_shock = 0
-gen home_shock_tail = 0
-foreach c in DE FR IT ES {
-	replace home_shock = shock_cum`c' if nationality == "`c'"
-	replace home_shock_tail = tail_cum`c' if nationality == "`c'"
-}
-keep dealer_id date nationality home_shock home_shock_tail
-tempfile dealer_shocks
-save `dealer_shocks'
+**# Flow panel around events, pre and post windows of 30 calendar days
+* new business per pair, window, and collateral country
 
-**# Fund wallet weights across dealers (two-sided), lagged quarter
-* share of each dealer in the fund's total repo activity
-
-import delimited "$key\\fund_dealer_country_day.csv", varnames(1) clear
+import delimited "$key\\fund_dealer_country_day_flow.csv", varnames(1) clear
 capture drop v1
-foreach v in borrowing_volume lending_volume {
+foreach v in borrowing_flow lending_flow {
 	replace `v' = 0 if missing(`v')
 }
-gen volume = borrowing_volume + lending_volume
-gen date = date(business_date, "YMD")
-gen quarter = qofd(date) + 1 /*weights used one quarter later*/
-collapse (sum) volume, by(fund_id dealer_id quarter)
-bysort fund_id quarter: egen total = total(volume)
-gen wallet_share = volume/total
-keep fund_id dealer_id quarter wallet_share
-tempfile fund_weights
-save `fund_weights'
-
-**# Fund exposure = wallet-weighted home shock of its dealers, fund x day
-
-use `dealer_shocks', clear
-gen quarter = qofd(date)
-joinby dealer_id quarter using `fund_weights'
-gen product = wallet_share*home_shock
-collapse (sum) fund_exposure_all = product, by(fund_id date)
-tempfile fund_exposures
-save `fund_exposures'
-
-**# Panel, fund x dealer x collateral country x day
-* the non-home collateral split, fund x country x day effects absorb the demand
-* for each collateral market, so supply shows up in other countries' collateral
-
-import delimited "$key\\fund_dealer_country_day.csv", varnames(1) clear
-capture drop v1
 gen date = date(business_date, "YMD")
 format date %td
-gen month = mofd(date)
+cross using `events'
+keep if inrange(date, event_date - 30, event_date + 29)
+gen post = date >= event_date
+collapse (sum) borrowing_flow lending_flow, by(fund_id dealer_id collateral_country country event_id post)
 
-merge m:1 dealer_id date using `dealer_shocks', keep(match) nogen
-gen home_shock_own = home_shock*(collateral_country == nationality) /*shock hits the dealer and the bond's own market*/
-gen home_shock_other = home_shock*(collateral_country != nationality) /*shock hits the dealer only*/
-
-gen log_borrowing = log(borrowing_volume)
-gen log_lending = log(lending_volume)
-
-egen fund_country_day = group(fund_id collateral_country date)
-egen pair_country = group(fund_id dealer_id collateral_country)
-
-label var home_shock_own "Home shock, home collateral"
-label var home_shock_other "Home shock, other collateral"
-
-foreach y in log_borrowing log_lending {
-	reghdfe `y' home_shock_other home_shock_own, a(fund_country_day pair_country) vce(cluster month)
-}
-
-**# Panel, fund x dealer x day
-
-collapse (sum) borrowing_volume lending_volume, by(fund_id dealer_id date)
-fillin fund_id dealer_id date /*balanced grid, no relationship = zero*/
-foreach v in borrowing_volume lending_volume {
+reshape wide borrowing_flow lending_flow, i(fund_id dealer_id collateral_country country event_id) j(post)
+foreach v in borrowing_flow0 borrowing_flow1 lending_flow0 lending_flow1 {
 	replace `v' = 0 if missing(`v')
 }
-gen active = (borrowing_volume + lending_volume) > 0
-gen month = mofd(date)
+merge m:1 dealer_id using `dealer_nat', keep(match) nogen
+gen treated = nationality == country
+label var treated "Dealer from the stressed country"
+tempfile pair_country_events
+save `pair_country_events'
 
-merge m:1 dealer_id date using `dealer_shocks', keep(match) nogen
+**# KM intensive margin: change in new business, within fund x event
+* pairs with positive flows before and after, treated vs untreated dealers
 
-gen quarter = qofd(date)
-merge m:1 fund_id date using `fund_exposures', keep(master match) nogen
-merge m:1 fund_id dealer_id quarter using `fund_weights', keep(master match) nogen
-gen other_exposure = fund_exposure_all
-replace other_exposure = fund_exposure_all - wallet_share*home_shock if !missing(wallet_share) /*leave out the own dealer*/
+collapse (sum) borrowing_flow0 borrowing_flow1 lending_flow0 lending_flow1 (max) treated, by(fund_id dealer_id country event_id)
+gen dlog_borrowing = log(borrowing_flow1) - log(borrowing_flow0)
+gen dlog_lending = log(lending_flow1) - log(lending_flow0)
+egen fund_event = group(fund_id event_id)
+egen dealer_num = group(dealer_id)
+label var dlog_borrowing "Change in log new borrowing, post minus pre"
+label var dlog_lending "Change in log new lending, post minus pre"
 
-gen log_borrowing = log(borrowing_volume) /*financing of longs, KM intensive margin*/
-gen log_lending = log(lending_volume) /*cash lending, the short side*/
-
-egen fund_day = group(fund_id date)
-egen fund_num = group(fund_id)
-egen pair = group(fund_id dealer_id)
-
-label var home_shock "Home country shock (20d cum.)"
-label var home_shock_tail "Home country shock (>2sd)"
-label var other_exposure "Wallet-weighted home shock of the fund's other dealers"
-label var active "Relationship active (gross volume > 0)"
-
-**# Support: multi-dealer funds
-
-bysort fund_day: egen n_active = total(active)
-gen multi_dealer = n_active > 1
-tab multi_dealer if active
-
-**# Part 1: bank lending channel, within fund x day across dealers
-* home_shock = effect on the shocked dealer relative to the fund's other dealers
-
-foreach y in log_borrowing log_lending {
-	reghdfe `y' home_shock, a(fund_day pair) vce(cluster month)
+foreach y in dlog_borrowing dlog_lending {
+	reghdfe `y' treated, a(fund_event dealer_num) vce(cluster dealer_id)
 }
 
-**# Extensive margin: relationship activity on the balanced grid
-* negative home_shock = relationships with shocked dealers go dormant
+**# Extensive margin: exit among pre-active pairs, entry among post-active pairs
 
-reghdfe active home_shock, a(fund_day pair) vce(cluster month)
+gen exit_borrowing = borrowing_flow0 > 0 & borrowing_flow1 == 0
+gen entry_borrowing = borrowing_flow0 == 0 & borrowing_flow1 > 0
+gen exit_lending = lending_flow0 > 0 & lending_flow1 == 0
+gen entry_lending = lending_flow0 == 0 & lending_flow1 > 0
 
-**# Size decomposition: weighted version comparable to Part 2, interaction tests
-* whether core or satellite relationships bear the cut
-
-foreach y in log_borrowing log_lending {
-	reghdfe `y' home_shock [aw=wallet_share], a(fund_day pair) vce(cluster month)
+foreach l in borrowing lending {
+	reghdfe exit_`l' treated if `l'_flow0 > 0, a(fund_event dealer_num) vce(cluster dealer_id)
+	reghdfe entry_`l' treated if `l'_flow1 > 0, a(fund_event dealer_num) vce(cluster dealer_id)
 }
-foreach y in log_borrowing log_lending {
-	reghdfe `y' c.home_shock##c.wallet_share, a(fund_day pair) vce(cluster month)
+tempfile pair_events
+save `pair_events'
+
+**# Non-home collateral split: supply shows up in other countries' collateral
+* fund x collateral country x event effects absorb the stressed market's demand
+
+use `pair_country_events', clear
+gen dlog_borrowing = log(borrowing_flow1) - log(borrowing_flow0)
+gen dlog_lending = log(lending_flow1) - log(lending_flow0)
+gen treated_own = treated*(collateral_country == country)
+gen treated_other = treated*(collateral_country != country)
+egen fund_country_event = group(fund_id collateral_country event_id)
+egen dealer_num = group(dealer_id)
+label var treated_own "Treated dealer, stressed country collateral"
+label var treated_other "Treated dealer, other collateral"
+
+foreach y in dlog_borrowing dlog_lending {
+	reghdfe `y' treated_other treated_own, a(fund_country_event dealer_num) vce(cluster dealer_id)
 }
 
-**# Substitution: within dealer x day across funds
-* positive other_exposure = funds whose other dealers are shocked bring more
-* business to this dealer, wallet_share controls for the mechanical size link
+**# Fund level: can funds replace the treated dealers, within event
+* exposure = share of the fund's pre window flow via treated dealers
 
-egen dealer_day = group(dealer_id date)
-foreach y in log_borrowing log_lending {
-	reghdfe `y' other_exposure wallet_share, a(dealer_day pair) vce(cluster month)
-}
-reghdfe active other_exposure, a(dealer_day pair) vce(cluster month)
+use `pair_events', clear
+gen treated_borrowing0 = treated*borrowing_flow0
+gen treated_lending0 = treated*lending_flow0
+collapse (sum) borrowing_flow0 borrowing_flow1 lending_flow0 lending_flow1 treated_borrowing0 treated_lending0, by(fund_id event_id)
+gen exposure_borrowing = treated_borrowing0/borrowing_flow0
+gen exposure_lending = treated_lending0/lending_flow0
+gen dlog_borrowing = log(borrowing_flow1) - log(borrowing_flow0)
+gen dlog_lending = log(lending_flow1) - log(lending_flow0)
+label var exposure_borrowing "Pre window borrowing share via treated dealers"
+label var exposure_lending "Pre window lending share via treated dealers"
 
-**# Part 2: fund borrowing channel, fund x day totals
-
-collapse (sum) borrowing_volume lending_volume, by(fund_id fund_num date month)
-merge m:1 fund_id date using `fund_exposures', keep(match) nogen
-gen log_borrowing = log(borrowing_volume)
-gen log_lending = log(lending_volume)
-label var fund_exposure_all "Fund exposure, wallet-weighted home shock (20d cum.)"
-
-foreach y in log_borrowing log_lending {
-	reghdfe `y' fund_exposure_all, a(fund_num date) vce(cluster month)
+foreach l in borrowing lending {
+	reghdfe dlog_`l' exposure_`l', a(event_id) vce(cluster fund_id)
 }
 
 log close
