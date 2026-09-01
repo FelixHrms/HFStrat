@@ -42,4 +42,23 @@ reshape wide shock_cum, i(date) j(country) string
 tempfile country_shocks
 save `country_shocks'
 
+**# Step 2: dealer home shocks, dealer x day
+* home shock = the cumulated shock of the dealer's home country, by the
+* nationality of the ultimate parent, zero for non EA dealers
+
+import delimited "$key\\dealer_nationality.csv", varnames(1) clear
+tempfile dealer_nat
+save `dealer_nat'
+
+use `country_shocks', clear
+cross using `dealer_nat'
+gen home_shock = 0
+foreach c in DE FR IT ES {
+	replace home_shock = shock_cum`c' if nationality == "`c'"
+}
+keep dealer_id date nationality home_shock
+label var home_shock "Home country shock (20d cum.)"
+tempfile dealer_shocks
+save `dealer_shocks'
+
 log close
