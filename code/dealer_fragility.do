@@ -90,19 +90,43 @@ foreach y in log_borrowing log_lending {
 	reghdfe `y' home_shock, a(fund_day pair) vce(cluster month)
 }
 
-**# Step 5: nationality group version
-* collapse the fund's dealers of the same nationality into one relationship,
-* so the unit of observation matches the level at which the shock varies
+**# Step 5: substitution, within dealer x day across funds
+* does a fund hit through its other dealers bring more business to this
+* dealer, exposure = wallet-weighted home shock of the fund's other dealers,
+* wallet shares from the lagged quarter
 
 preserve
-	collapse (sum) borrowing_volume lending_volume (mean) home_shock, by(fund_id nationality date month)
-	gen log_borrowing = log(borrowing_volume)
-	gen log_lending = log(lending_volume)
-	egen fund_day = group(fund_id date)
-	egen fund_nat = group(fund_id nationality)
-	foreach y in log_borrowing log_lending {
-		reghdfe `y' home_shock, a(fund_day fund_nat) vce(cluster month)
+	foreach v in borrowing_volume lending_volume {
+		replace `v' = 0 if missing(`v')
 	}
+	gen volume = borrowing_volume + lending_volume
+	gen quarter = qofd(date) + 1 /*weights used one quarter later*/
+	collapse (sum) volume, by(fund_id dealer_id quarter)
+	bysort fund_id quarter: egen total = total(volume)
+	gen wallet_share = volume/total
+	keep fund_id dealer_id quarter wallet_share
+	tempfile fund_weights
+	save `fund_weights'
+
+	use `dealer_shocks', clear
+	gen quarter = qofd(date)
+	joinby dealer_id quarter using `fund_weights'
+	gen product = wallet_share*home_shock
+	collapse (sum) fund_exposure_all = product, by(fund_id date)
+	tempfile fund_exposures
+	save `fund_exposures'
 restore
+
+gen quarter = qofd(date)
+merge m:1 fund_id date using `fund_exposures', keep(master match) nogen
+merge m:1 fund_id dealer_id quarter using `fund_weights', keep(master match) nogen
+gen other_exposure = fund_exposure_all
+replace other_exposure = fund_exposure_all - wallet_share*home_shock if !missing(wallet_share) /*leave out the own dealer*/
+label var other_exposure "Wallet-weighted home shock of the fund's other dealers"
+
+egen dealer_day = group(dealer_id date)
+foreach y in log_borrowing log_lending {
+	reghdfe `y' other_exposure wallet_share, a(dealer_day pair) vce(cluster month)
+}
 
 log close
