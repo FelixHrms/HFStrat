@@ -61,9 +61,9 @@ label var home_shock "Home country shock (20d cum.)"
 tempfile dealer_shocks
 save `dealer_shocks'
 
-**# Step 3: panel, fund x dealer x day
-* outstanding positions from the state data, log outcomes, KM style
-* unbalanced, a pair day without positions is simply not in the sample
+**# Step 3: panel, fund x nationality x day
+* outstanding positions from the state data, dealers of the same nationality
+* pooled into one relationship, log outcomes, KM style unbalanced
 
 import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
 capture drop v1
@@ -72,14 +72,15 @@ format date %td
 gen month = mofd(date)
 
 merge m:1 dealer_id date using `dealer_shocks', keep(match) nogen
+collapse (sum) borrowing_volume lending_volume (mean) home_shock, by(fund_id nationality date month) /*pool dealers of the same nationality*/
 
 gen log_borrowing = log(borrowing_volume) /*financing of longs*/
 gen log_lending = log(lending_volume) /*cash lending, the short side*/
 
 egen fund_day = group(fund_id date)
-egen pair = group(fund_id dealer_id)
+egen pair = group(fund_id nationality)
 
-**# Step 4: the lending channel, within fund x day across dealers
+**# Step 4: the lending channel, within fund x day across nationality groups
 * beta = per bp of cumulated home CDS widening, the pair's deviation from its
 * own level relative to the fund's other pairs on the same day, demand absorbed
 
@@ -97,21 +98,20 @@ foreach y in log_borrowing log_lending {
 * near zero means funds offset the shock elsewhere
 
 preserve
-	foreach v in borrowing_volume lending_volume {
-		replace `v' = 0 if missing(`v')
-	}
 	gen volume = borrowing_volume + lending_volume
 	gen quarter = qofd(date) + 1 /*weights used one quarter later*/
-	collapse (sum) volume, by(fund_id dealer_id quarter)
+	collapse (sum) volume, by(fund_id nationality quarter)
 	bysort fund_id quarter: egen total = total(volume)
 	gen wallet_share = volume/total
-	keep fund_id dealer_id quarter wallet_share
+	keep fund_id nationality quarter wallet_share
 	tempfile fund_weights
 	save `fund_weights'
 
 	use `dealer_shocks', clear
+	keep date nationality home_shock
+	duplicates drop
 	gen quarter = qofd(date)
-	joinby dealer_id quarter using `fund_weights'
+	joinby nationality quarter using `fund_weights'
 	gen product = wallet_share*home_shock
 	collapse (sum) fund_exposure = product, by(fund_id date)
 	tempfile fund_exposures
