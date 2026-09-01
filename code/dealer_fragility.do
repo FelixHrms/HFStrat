@@ -56,11 +56,8 @@ gen home_shock = 0
 foreach c in DE FR IT ES {
 	replace home_shock = shock_cum`c' if nationality == "`c'"
 }
-gen other_shock = (shock_cumDE + shock_cumFR + shock_cumIT + shock_cumES - home_shock)/3 if inlist(nationality, "DE", "FR", "IT", "ES")
-replace other_shock = (shock_cumDE + shock_cumFR + shock_cumIT + shock_cumES)/4 if !inlist(nationality, "DE", "FR", "IT", "ES")
-keep dealer_id date nationality home_shock other_shock
+keep dealer_id date nationality home_shock
 label var home_shock "Home country shock (20d cum.)"
-label var other_shock "Mean shock of the other EA countries (20d cum.)"
 tempfile dealer_shocks
 save `dealer_shocks'
 
@@ -132,13 +129,5 @@ preserve
 		reghdfe `y' fund_exposure, a(fund_num date) vce(cluster month)
 	}
 restore
-
-**# Step 6: placebo, do dealers respond to other countries' stress
-* the funding channel predicts home_shock negative and other_shock near zero,
-* other_shock as negative as home_shock would point to generic EA stress
-
-foreach y in log_borrowing log_lending {
-	reghdfe `y' home_shock other_shock, a(fund_day pair) vce(cluster month)
-}
 
 log close
