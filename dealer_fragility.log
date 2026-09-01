@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.log
   log type:  text
- opened on:   1 Sep 2026, 11:39:17
+ opened on:   1 Sep 2026, 12:00:32
 
 . 
 . **# Country-specific CDS shocks
@@ -211,6 +211,16 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000006.tmp saved as .dta format
 
 . format date %td
 
+. fillin fund_id dealer_id date /*balanced grid, no relationship = zero*/
+
+. foreach v in borrowing_volume lending_volume {
+  2.         replace `v' = 0 if missing(`v')
+  3. }
+(4,302,575 real changes made)
+(4,278,855 real changes made)
+
+. gen active = (borrowing_volume + lending_volume) > 0
+
 . gen month = mofd(date)
 
 . 
@@ -219,7 +229,7 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000006.tmp saved as .dta format
     Result                      Number of obs
     -----------------------------------------
     Not matched                             0
-    Matched                           294,119  
+    Matched                         4,462,276  
     -----------------------------------------
 
 . 
@@ -229,36 +239,36 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000006.tmp saved as .dta format
 
     Result                      Number of obs
     -----------------------------------------
-    Not matched                        14,020
-        from master                    14,020  
+    Not matched                     2,175,797
+        from master                 2,175,797  
         from using                          0  
 
-    Matched                           280,099  
+    Matched                         2,286,479  
     -----------------------------------------
 
 . merge m:1 fund_id dealer_id quarter using `fund_weights', keep(master match) nogen
 
     Result                      Number of obs
     -----------------------------------------
-    Not matched                        25,161
-        from master                    25,161  
+    Not matched                     4,115,027
+        from master                 4,115,027  
         from using                          0  
 
-    Matched                           268,958  
+    Matched                           347,249  
     -----------------------------------------
 
 . gen other_exposure = fund_exposure_all
-(14,020 missing values generated)
+(2,175,797 missing values generated)
 
 . replace other_exposure = fund_exposure_all - wallet_share*home_shock if !missing(wallet_share) /*leave out the own dealer*/
-(211,343 real changes made)
+(277,896 real changes made)
 
 . 
 . gen log_borrowing = log(borrowing_volume) /*financing of longs, KM intensive margin*/
-(65,766 missing values generated)
+(4,233,923 missing values generated)
 
 . gen log_lending = log(lending_volume) /*cash lending, the short side*/
-(41,671 missing values generated)
+(4,209,828 missing values generated)
 
 . 
 . egen fund_day = group(fund_id date)
@@ -274,12 +284,16 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000006.tmp saved as .dta format
 
 . label var other_exposure "Wallet-weighted home shock of the fund's other dealers"
 
+. label var active "Relationship active (gross volume > 0)"
+
 . 
 . **# Support: multi-dealer funds
 . 
-. bysort fund_day (pair): gen multi_dealer = pair[1] != pair[_N]
+. bysort fund_day: egen n_active = total(active)
 
-. tab multi_dealer
+. gen multi_dealer = n_active > 1
+
+. tab multi_dealer if active
 
 multi_deale |
           r |      Freq.     Percent        Cum.
@@ -356,6 +370,42 @@ Absorbed degrees of freedom:
 * = FE nested within cluster; treated as redundant for DoF computation
 
 . 
+. **# Extensive margin: relationship activity on the balanced grid
+. * negative home_shock = relationships with shocked dealers go dormant,
+. * positive other_exposure = relationships with healthy dealers get activated
+. 
+. reghdfe active home_shock other_exposure, a(fund_day pair) vce(cluster month)
+(dropped 65 singleton observations)
+(MWFE estimator converged in 2 iterations)
+
+HDFE Linear regression                            Number of obs   =  2,286,414
+Absorbing 2 HDFE groups                           F(   2,     54) =       0.57
+Statistics robust to heteroskedasticity           Prob > F        =     0.5686
+                                                  R-squared       =     0.7440
+                                                  Adj R-squared   =     0.7222
+                                                  Within R-sq.    =     0.0002
+Number of clusters (month)   =         55         Root MSE        =     0.1728
+
+                                   (Std. err. adjusted for 55 clusters in month)
+--------------------------------------------------------------------------------
+               |               Robust
+        active | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+---------------+----------------------------------------------------------------
+    home_shock |  -.0001331   .0001935    -0.69   0.495    -.0005211    .0002549
+other_exposure |   -.004668   .0045891    -1.02   0.314    -.0138687    .0045327
+         _cons |   .1237128   .0011982   103.25   0.000     .1213107     .126115
+--------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+    fund_day |    175878      175878           0    *|
+        pair |      3666           1        3665     |
+-----------------------------------------------------+
+* = FE nested within cluster; treated as redundant for DoF computation
+
+. 
 . **# Part 2: fund borrowing channel, fund x day totals
 . 
 . collapse (sum) borrowing_volume lending_volume, by(fund_id fund_num date month)
@@ -365,14 +415,14 @@ Absorbed degrees of freedom:
     Result                      Number of obs
     -----------------------------------------
     Not matched                             0
-    Matched                           144,832  
+    Matched                           175,883  
     -----------------------------------------
 
 . gen log_borrowing = log(borrowing_volume)
-(29,605 missing values generated)
+(60,656 missing values generated)
 
 . gen log_lending = log(lending_volume)
-(16,315 missing values generated)
+(47,366 missing values generated)
 
 . label var fund_exposure_all "Fund exposure, wallet-weighted home shock (20d cum.)"
 
@@ -442,5 +492,5 @@ Absorbed degrees of freedom:
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.log
   log type:  text
- closed on:   1 Sep 2026, 11:39:25
+ closed on:   1 Sep 2026, 12:01:03
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
