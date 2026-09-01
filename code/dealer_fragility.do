@@ -89,7 +89,7 @@ use `dealer_shocks', clear
 gen quarter = qofd(date)
 joinby dealer_id quarter using `fund_weights'
 gen product = wallet_share*home_shock
-collapse (sum) fund_exposure = product, by(fund_id date)
+collapse (sum) fund_exposure_all = product, by(fund_id date)
 tempfile fund_exposures
 save `fund_exposures'
 
@@ -103,25 +103,33 @@ gen month = mofd(date)
 
 merge m:1 dealer_id date using `dealer_shocks', keep(match) nogen
 
+gen quarter = qofd(date)
+merge m:1 fund_id date using `fund_exposures', keep(master match) nogen
+merge m:1 fund_id dealer_id quarter using `fund_weights', keep(master match) nogen
+gen other_exposure = fund_exposure_all
+replace other_exposure = fund_exposure_all - wallet_share*home_shock if !missing(wallet_share) /*leave out the own dealer*/
+
 gen log_borrowing = log(borrowing_volume) /*financing of longs, KM intensive margin*/
 gen log_lending = log(lending_volume) /*cash lending, the short side*/
 
 egen fund_day = group(fund_id date)
 egen fund_num = group(fund_id)
-egen dealer_num = group(dealer_id)
+egen pair = group(fund_id dealer_id)
 
 label var home_shock "Home country shock (20d cum.)"
 label var home_shock_tail "Home country shock (>2sd)"
+label var other_exposure "Wallet-weighted home shock of the fund's other dealers"
 
 **# Support: multi-dealer funds
 
-bysort fund_day (dealer_num): gen multi_dealer = dealer_num[1] != dealer_num[_N]
+bysort fund_day (pair): gen multi_dealer = pair[1] != pair[_N]
 tab multi_dealer
 
 **# Part 1: bank lending channel, within fund x day across dealers
+* home_shock = effect on the shocked dealer, other_exposure = substitution toward this dealer
 
 foreach y in log_borrowing log_lending {
-	reghdfe `y' home_shock, a(fund_day dealer_num) vce(cluster month)
+	reghdfe `y' home_shock other_exposure, a(fund_day pair) vce(cluster month)
 }
 
 **# Part 2: fund borrowing channel, fund x day totals
@@ -130,10 +138,10 @@ collapse (sum) borrowing_volume lending_volume, by(fund_id fund_num date month)
 merge m:1 fund_id date using `fund_exposures', keep(match) nogen
 gen log_borrowing = log(borrowing_volume)
 gen log_lending = log(lending_volume)
-label var fund_exposure "Fund exposure, wallet-weighted home shock (20d cum.)"
+label var fund_exposure_all "Fund exposure, wallet-weighted home shock (20d cum.)"
 
 foreach y in log_borrowing log_lending {
-	reghdfe `y' fund_exposure, a(fund_num date) vce(cluster month)
+	reghdfe `y' fund_exposure_all, a(fund_num date) vce(cluster month)
 }
 
 log close
