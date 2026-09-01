@@ -79,4 +79,15 @@ gen log_lending = log(lending_volume) /*cash lending, the short side*/
 egen fund_day = group(fund_id date)
 egen pair = group(fund_id dealer_id)
 
+**# Step 4: the lending channel, within fund x day across dealers
+* beta = per bp of cumulated home CDS widening, the pair's deviation from its
+* own level relative to the fund's other pairs on the same day, demand absorbed
+
+bysort fund_day (pair): gen multi_dealer = pair[1] != pair[_N]
+tab multi_dealer
+
+foreach y in log_borrowing log_lending {
+	reghdfe `y' home_shock, a(fund_day pair) vce(cluster month)
+}
+
 log close
