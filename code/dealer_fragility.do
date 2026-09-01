@@ -99,6 +99,11 @@ import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
 capture drop v1
 gen date = date(business_date, "YMD")
 format date %td
+fillin fund_id dealer_id date /*balanced grid, no relationship = zero*/
+foreach v in borrowing_volume lending_volume {
+	replace `v' = 0 if missing(`v')
+}
+gen active = (borrowing_volume + lending_volume) > 0
 gen month = mofd(date)
 
 merge m:1 dealer_id date using `dealer_shocks', keep(match) nogen
@@ -119,11 +124,13 @@ egen pair = group(fund_id dealer_id)
 label var home_shock "Home country shock (20d cum.)"
 label var home_shock_tail "Home country shock (>2sd)"
 label var other_exposure "Wallet-weighted home shock of the fund's other dealers"
+label var active "Relationship active (gross volume > 0)"
 
 **# Support: multi-dealer funds
 
-bysort fund_day (pair): gen multi_dealer = pair[1] != pair[_N]
-tab multi_dealer
+bysort fund_day: egen n_active = total(active)
+gen multi_dealer = n_active > 1
+tab multi_dealer if active
 
 **# Part 1: bank lending channel, within fund x day across dealers
 * home_shock = effect on the shocked dealer, other_exposure = substitution toward this dealer
@@ -131,6 +138,12 @@ tab multi_dealer
 foreach y in log_borrowing log_lending {
 	reghdfe `y' home_shock other_exposure, a(fund_day pair) vce(cluster month)
 }
+
+**# Extensive margin: relationship activity on the balanced grid
+* negative home_shock = relationships with shocked dealers go dormant,
+* positive other_exposure = relationships with healthy dealers get activated
+
+reghdfe active home_shock other_exposure, a(fund_day pair) vce(cluster month)
 
 **# Part 2: fund borrowing channel, fund x day totals
 
