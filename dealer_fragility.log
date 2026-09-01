@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.log
   log type:  text
- opened on:   1 Sep 2026, 13:46:28
+ opened on:   1 Sep 2026, 13:49:54
 
 . 
 . **# Country-specific CDS shocks, daily
@@ -66,7 +66,7 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000001.tmp saved as .dta format
 . **# Events
 . * a stress day is a relative widening beyond two standard deviations and at
 . * least 5 bp, an event is a stress day with no other stress day in the
-. * previous 20 business days
+. * previous 60 business days
 . 
 . gen stress_day = shock_rel > 2*sd_rel & shock_daily > 5
 
@@ -74,12 +74,12 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000001.tmp saved as .dta format
 
 . by country: gen cum_stress = sum(stress_day)
 
-. by country: gen stress_20d = cum_stress - cond(_n > 20, cum_stress[_n-20], 0)
+. by country: gen stress_60d = cum_stress - cond(_n > 60, cum_stress[_n-60], 0)
 
-. gen event = stress_day == 1 & stress_20d == 1
+. gen event = stress_day == 1 & stress_60d == 1
 
 . keep if event
-(5,837 observations deleted)
+(5,841 observations deleted)
 
 . keep country date
 
@@ -92,11 +92,7 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000001.tmp saved as .dta format
        event_id   country   event_d~e  
   1.          1        IT   14jan2021  
   2.          2        IT   28apr2022  
-  3.          3        IT   10jun2022  
-  4.          4        IT   14jul2022  
-  5.          5        IT   19jan2023  
-  6.          6        IT   13mar2023  
-  7.          7        IT   26apr2023  
+  3.          3        IT   19jan2023  
 
 . tempfile events
 
@@ -138,7 +134,7 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000003.tmp saved as .dta format
 . cross using `events'
 
 . keep if inrange(date, event_date - 30, event_date + 29)
-(1,390,868 observations deleted)
+(599,031 observations deleted)
 
 . gen post = date >= event_date
 
@@ -150,7 +146,7 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000003.tmp saved as .dta format
 
 Data                               Long   ->   Wide
 -----------------------------------------------------------------------------
-Number of observations            6,444   ->   3,788       
+Number of observations            2,477   ->   1,470       
 Number of variables                   8   ->   9           
 j variable (2 values)              post   ->   (dropped)
 xij variables:
@@ -161,17 +157,17 @@ xij variables:
 . foreach v in borrowing_flow0 borrowing_flow1 lending_flow0 lending_flow1 {
   2.         replace `v' = 0 if missing(`v')
   3. }
-(681 real changes made)
-(451 real changes made)
-(681 real changes made)
-(451 real changes made)
+(340 real changes made)
+(123 real changes made)
+(340 real changes made)
+(123 real changes made)
 
 . merge m:1 dealer_id using `dealer_nat', keep(match) nogen
 
     Result                      Number of obs
     -----------------------------------------
     Not matched                             0
-    Matched                             3,788  
+    Matched                             1,470  
     -----------------------------------------
 
 . gen treated = nationality == country
@@ -190,14 +186,12 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000004.tmp saved as .dta format
 . collapse (sum) borrowing_flow0 borrowing_flow1 lending_flow0 lending_flow1 (max) treated, by(fund_id dealer_id country event_id)
 
 . gen dlog_borrowing = log(borrowing_flow1) - log(borrowing_flow0)
-(701 missing values generated)
+(297 missing values generated)
 
 . gen dlog_lending = log(lending_flow1) - log(lending_flow0)
-(470 missing values generated)
+(214 missing values generated)
 
 . egen fund_event = group(fund_id event_id)
-
-. egen dealer_num = group(dealer_id)
 
 . label var dlog_borrowing "Change in log new borrowing, post minus pre"
 
@@ -205,48 +199,47 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000004.tmp saved as .dta format
 
 . 
 . foreach y in dlog_borrowing dlog_lending {
-  2.         reghdfe `y' treated, a(fund_event dealer_num) vce(cluster dealer_id)
+  2.         reghdfe `y' treated, a(fund_event) vce(cluster dealer_id)
   3. }
-(dropped 321 singleton observations)
-(MWFE estimator converged in 9 iterations)
-note: treated omitted because of collinearity
+(dropped 134 singleton observations)
+(MWFE estimator converged in 1 iterations)
+warning: missing F statistic; dropped variables due to collinearity or too few clusters
+warning: variance matrix is nonsymmetric or highly singular.
 
-HDFE Linear regression                            Number of obs   =        621
-Absorbing 2 HDFE groups                           F(   0,      7) =          .
+HDFE Linear regression                            Number of obs   =        224
+Absorbing 1 HDFE group                            F(   1,      7) =          .
 Statistics robust to heteroskedasticity           Prob > F        =          .
-                                                  R-squared       =     0.5358
-                                                  Adj R-squared   =     0.2407
+                                                  R-squared       =     0.5503
+                                                  Adj R-squared   =     0.2516
                                                   Within R-sq.    =     0.0000
-Number of clusters (dealer_id) =          8       Root MSE        =     0.9088
+Number of clusters (dealer_id) =          8       Root MSE        =     0.9908
 
                               (Std. err. adjusted for 8 clusters in dealer_id)
 ------------------------------------------------------------------------------
              |               Robust
 dlog_borro~g | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-     treated |          0  (omitted)
-       _cons |   .2357887   1.64e-17  1.4e+16   0.000     .2357887    .2357887
+     treated |  -.0413859          .        .       .            .           .
+       _cons |   .5483059          .        .       .            .           .
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-  fund_event |       235           1         234     |
-  dealer_num |         8           8           0    *|
+  fund_event |        89           0          89     |
 -----------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 391 singleton observations)
-(MWFE estimator converged in 7 iterations)
+(dropped 155 singleton observations)
+(MWFE estimator converged in 1 iterations)
 note: treated omitted because of collinearity
 
-HDFE Linear regression                            Number of obs   =        782
-Absorbing 2 HDFE groups                           F(   0,      6) =          .
+HDFE Linear regression                            Number of obs   =        286
+Absorbing 1 HDFE group                            F(   0,      6) =          .
 Statistics robust to heteroskedasticity           Prob > F        =          .
-                                                  R-squared       =     0.5612
-                                                  Adj R-squared   =     0.3034
+                                                  R-squared       =     0.5331
+                                                  Adj R-squared   =     0.2483
                                                   Within R-sq.    =     0.0000
-Number of clusters (dealer_id) =          7       Root MSE        =     0.8828
+Number of clusters (dealer_id) =          7       Root MSE        =     0.8686
 
                               (Std. err. adjusted for 7 clusters in dealer_id)
 ------------------------------------------------------------------------------
@@ -254,17 +247,15 @@ Number of clusters (dealer_id) =          7       Root MSE        =     0.8828
 dlog_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
      treated |          0  (omitted)
-       _cons |   .1967494   4.39e-17  4.5e+15   0.000     .1967494    .1967494
+       _cons |   .5544362   .0649012     8.54   0.000     .3956286    .7132438
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-  fund_event |       284           1         283     |
-  dealer_num |         7           7           0    *|
+  fund_event |       109           0         109     |
 -----------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
 
 . 
 . **# Extensive margin: exit among pre-active pairs, entry among post-active pairs
@@ -279,107 +270,102 @@ Absorbed degrees of freedom:
 
 . 
 . foreach l in borrowing lending {
-  2.         reghdfe exit_`l' treated if `l'_flow0 > 0, a(fund_event dealer_num) vce(cluster dealer_id)
-  3.         reghdfe entry_`l' treated if `l'_flow1 > 0, a(fund_event dealer_num) vce(cluster dealer_id)
+  2.         reghdfe exit_`l' treated if `l'_flow0 > 0, a(fund_event) vce(cluster dealer_id)
+  3.         reghdfe entry_`l' treated if `l'_flow1 > 0, a(fund_event) vce(cluster dealer_id)
   4. }
-(dropped 372 singleton observations)
-(MWFE estimator converged in 9 iterations)
-note: treated omitted because of collinearity
+(dropped 159 singleton observations)
+(MWFE estimator converged in 1 iterations)
+warning: missing F statistic; dropped variables due to collinearity or too few clusters
 
-HDFE Linear regression                            Number of obs   =        708
-Absorbing 2 HDFE groups                           F(   0,      7) =          .
+HDFE Linear regression                            Number of obs   =        253
+Absorbing 1 HDFE group                            F(   1,      8) =          .
 Statistics robust to heteroskedasticity           Prob > F        =          .
-                                                  R-squared       =     0.5485
-                                                  Adj R-squared   =     0.2729
+                                                  R-squared       =     0.4690
+                                                  Adj R-squared   =     0.1367
                                                   Within R-sq.    =     0.0000
-Number of clusters (dealer_id) =          8       Root MSE        =     0.2481
+Number of clusters (dealer_id) =          9       Root MSE        =     0.2623
 
-                              (Std. err. adjusted for 8 clusters in dealer_id)
+                              (Std. err. adjusted for 9 clusters in dealer_id)
 ------------------------------------------------------------------------------
              |               Robust
 exit_borro~g | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
      treated |          0  (omitted)
-       _cons |   .0932203   9.39e-18  9.9e+15   0.000     .0932203    .0932203
+       _cons |   .0869565   .0389975     2.23   0.056    -.0029719    .1768849
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-  fund_event |       262           1         261     |
-  dealer_num |         8           8           0    *|
+  fund_event |        97           0          97     |
 -----------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 376 singleton observations)
-(MWFE estimator converged in 9 iterations)
-note: treated omitted because of collinearity
+(dropped 153 singleton observations)
+(MWFE estimator converged in 1 iterations)
+warning: missing F statistic; dropped variables due to collinearity or too few clusters
+warning: variance matrix is nonsymmetric or highly singular.
 
-HDFE Linear regression                            Number of obs   =        756
-Absorbing 2 HDFE groups                           F(   0,      7) =          .
+HDFE Linear regression                            Number of obs   =        306
+Absorbing 1 HDFE group                            F(   1,      8) =          .
 Statistics robust to heteroskedasticity           Prob > F        =          .
-                                                  R-squared       =     0.6001
-                                                  Adj R-squared   =     0.3479
+                                                  R-squared       =     0.4765
+                                                  Adj R-squared   =     0.1275
                                                   Within R-sq.    =     0.0000
-Number of clusters (dealer_id) =          8       Root MSE        =     0.2654
+Number of clusters (dealer_id) =          9       Root MSE        =     0.3592
 
-                              (Std. err. adjusted for 8 clusters in dealer_id)
+                              (Std. err. adjusted for 9 clusters in dealer_id)
 ------------------------------------------------------------------------------
              |               Robust
 entry_borr~g | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
      treated |          0  (omitted)
-       _cons |   .1230159   1.00e-17  1.2e+16   0.000     .1230159    .1230159
+       _cons |   .1797386          .        .       .            .           .
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-  fund_event |       286           1         285     |
-  dealer_num |         8           8           0    *|
+  fund_event |       122           0         122     |
 -----------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 450 singleton observations)
-(MWFE estimator converged in 8 iterations)
+(dropped 177 singleton observations)
+(MWFE estimator converged in 1 iterations)
 note: treated omitted because of collinearity
 
-HDFE Linear regression                            Number of obs   =        856
-Absorbing 2 HDFE groups                           F(   0,      6) =          .
+HDFE Linear regression                            Number of obs   =        300
+Absorbing 1 HDFE group                            F(   0,      7) =          .
 Statistics robust to heteroskedasticity           Prob > F        =          .
-                                                  R-squared       =     0.5214
-                                                  Adj R-squared   =     0.2451
+                                                  R-squared       =     0.3707
+                                                  Adj R-squared   =    -0.0062
                                                   Within R-sq.    =     0.0000
-Number of clusters (dealer_id) =          7       Root MSE        =     0.2132
+Number of clusters (dealer_id) =          8       Root MSE        =     0.1804
 
-                              (Std. err. adjusted for 7 clusters in dealer_id)
+                              (Std. err. adjusted for 8 clusters in dealer_id)
 ------------------------------------------------------------------------------
              |               Robust
 exit_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
      treated |          0  (omitted)
-       _cons |   .0642523   8.72e-18  7.4e+15   0.000     .0642523    .0642523
+       _cons |   .0333333   .0126337     2.64   0.033     .0034593    .0632073
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-  fund_event |       308           1         307     |
-  dealer_num |         7           7           0    *|
+  fund_event |       113           0         113     |
 -----------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 477 singleton observations)
-(MWFE estimator converged in 8 iterations)
+(dropped 192 singleton observations)
+(MWFE estimator converged in 1 iterations)
 note: treated omitted because of collinearity
 
-HDFE Linear regression                            Number of obs   =        892
-Absorbing 2 HDFE groups                           F(   0,      6) =          .
+HDFE Linear regression                            Number of obs   =        345
+Absorbing 1 HDFE group                            F(   0,      6) =          .
 Statistics robust to heteroskedasticity           Prob > F        =          .
-                                                  R-squared       =     0.4926
-                                                  Adj R-squared   =     0.2027
+                                                  R-squared       =     0.4825
+                                                  Adj R-squared   =     0.1796
                                                   Within R-sq.    =     0.0000
-Number of clusters (dealer_id) =          7       Root MSE        =     0.2553
+Number of clusters (dealer_id) =          7       Root MSE        =     0.3026
 
                               (Std. err. adjusted for 7 clusters in dealer_id)
 ------------------------------------------------------------------------------
@@ -387,17 +373,15 @@ Number of clusters (dealer_id) =          7       Root MSE        =     0.2553
 entry_lend~g | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
      treated |          0  (omitted)
-       _cons |   .0896861   1.27e-17  7.0e+15   0.000     .0896861    .0896861
+       _cons |   .1275362   .0253198     5.04   0.002      .065581    .1894914
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-  fund_event |       319           1         318     |
-  dealer_num |         7           7           0    *|
+  fund_event |       128           0         128     |
 -----------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
 
 . tempfile pair_events
 
@@ -411,10 +395,10 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000005.tmp saved as .dta format
 . use `pair_country_events', clear
 
 . gen dlog_borrowing = log(borrowing_flow1) - log(borrowing_flow0)
-(1,902 missing values generated)
+(771 missing values generated)
 
 . gen dlog_lending = log(lending_flow1) - log(lending_flow0)
-(1,473 missing values generated)
+(622 missing values generated)
 
 . gen treated_own = treated*(collateral_country == country)
 
@@ -422,28 +406,27 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_4dbc_000005.tmp saved as .dta format
 
 . egen fund_country_event = group(fund_id collateral_country event_id)
 
-. egen dealer_num = group(dealer_id)
-
 . label var treated_own "Treated dealer, stressed country collateral"
 
 . label var treated_other "Treated dealer, other collateral"
 
 . 
 . foreach y in dlog_borrowing dlog_lending {
-  2.         reghdfe `y' treated_other treated_own, a(fund_country_event dealer_num) vce(cluster dealer_id)
+  2.         reghdfe `y' treated_other treated_own, a(fund_country_event) vce(cluster dealer_id)
   3. }
-(dropped 594 singleton observations)
-(MWFE estimator converged in 9 iterations)
+(dropped 246 singleton observations)
+(MWFE estimator converged in 1 iterations)
 note: treated_other omitted because of collinearity
-note: treated_own omitted because of collinearity
+warning: missing F statistic; dropped variables due to collinearity or too few clusters
+warning: variance matrix is nonsymmetric or highly singular.
 
-HDFE Linear regression                            Number of obs   =      1,292
-Absorbing 2 HDFE groups                           F(   0,      7) =          .
+HDFE Linear regression                            Number of obs   =        453
+Absorbing 1 HDFE group                            F(   1,      7) =          .
 Statistics robust to heteroskedasticity           Prob > F        =          .
-                                                  R-squared       =     0.5496
-                                                  Adj R-squared   =     0.2227
+                                                  R-squared       =     0.6180
+                                                  Adj R-squared   =     0.3334
                                                   Within R-sq.    =     0.0000
-Number of clusters (dealer_id) =          8       Root MSE        =     1.0534
+Number of clusters (dealer_id) =          8       Root MSE        =     0.9800
 
                                (Std. err. adjusted for 8 clusters in dealer_id)
 -------------------------------------------------------------------------------
@@ -451,30 +434,28 @@ Number of clusters (dealer_id) =          8       Root MSE        =     1.0534
 dlog_borrow~g | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 --------------+----------------------------------------------------------------
 treated_other |          0  (omitted)
-  treated_own |          0  (omitted)
-        _cons |   .1948986   5.48e-17  3.6e+15   0.000     .1948986    .1948986
+  treated_own |  -.0413859          .        .       .            .           .
+        _cons |    .557888          .        .       .            .           .
 -------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 ------------------------------------------------------------+
         Absorbed FE | Categories  - Redundant  = Num. Coefs |
 --------------------+---------------------------------------|
- fund_country_event |       537           1         536     |
-         dealer_num |         8           8           0    *|
+ fund_country_event |       193           0         193     |
 ------------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
-(dropped 823 singleton observations)
-(MWFE estimator converged in 7 iterations)
+(dropped 327 singleton observations)
+(MWFE estimator converged in 1 iterations)
 note: treated_other omitted because of collinearity
 note: treated_own omitted because of collinearity
 
-HDFE Linear regression                            Number of obs   =      1,492
-Absorbing 2 HDFE groups                           F(   0,      6) =          .
+HDFE Linear regression                            Number of obs   =        521
+Absorbing 1 HDFE group                            F(   0,      6) =          .
 Statistics robust to heteroskedasticity           Prob > F        =          .
-                                                  R-squared       =     0.5008
-                                                  Adj R-squared   =     0.1730
+                                                  R-squared       =     0.4868
+                                                  Adj R-squared   =     0.1392
                                                   Within R-sq.    =     0.0000
-Number of clusters (dealer_id) =          7       Root MSE        =     0.9312
+Number of clusters (dealer_id) =          7       Root MSE        =     0.8556
 
                                (Std. err. adjusted for 7 clusters in dealer_id)
 -------------------------------------------------------------------------------
@@ -483,17 +464,15 @@ Number of clusters (dealer_id) =          7       Root MSE        =     0.9312
 --------------+----------------------------------------------------------------
 treated_other |          0  (omitted)
   treated_own |          0  (omitted)
-        _cons |    .142995   5.85e-17  2.4e+15   0.000      .142995     .142995
+        _cons |   .4664632    .063173     7.38   0.000     .3118843     .621042
 -------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 ------------------------------------------------------------+
         Absorbed FE | Categories  - Redundant  = Num. Coefs |
 --------------------+---------------------------------------|
- fund_country_event |       586           1         585     |
-         dealer_num |         7           7           0    *|
+ fund_country_event |       211           0         211     |
 ------------------------------------------------------------+
-* = FE nested within cluster; treated as redundant for DoF computation
 
 . 
 . **# Fund level: can funds replace the treated dealers, within event
@@ -508,16 +487,16 @@ Absorbed degrees of freedom:
 . collapse (sum) borrowing_flow0 borrowing_flow1 lending_flow0 lending_flow1 treated_borrowing0 treated_lending0, by(fund_id event_id)
 
 . gen exposure_borrowing = treated_borrowing0/borrowing_flow0
-(321 missing values generated)
+(127 missing values generated)
 
 . gen exposure_lending = treated_lending0/lending_flow0
-(197 missing values generated)
+(93 missing values generated)
 
 . gen dlog_borrowing = log(borrowing_flow1) - log(borrowing_flow0)
-(392 missing values generated)
+(156 missing values generated)
 
 . gen dlog_lending = log(lending_flow1) - log(lending_flow0)
-(279 missing values generated)
+(119 missing values generated)
 
 . label var exposure_borrowing "Pre window borrowing share via treated dealers"
 
@@ -529,53 +508,53 @@ Absorbed degrees of freedom:
   3. }
 (MWFE estimator converged in 1 iterations)
 
-HDFE Linear regression                            Number of obs   =        562
-Absorbing 1 HDFE group                            F(   1,    144) =      17.66
-Statistics robust to heteroskedasticity           Prob > F        =     0.0000
-                                                  R-squared       =     0.1093
-                                                  Adj R-squared   =     0.0980
-                                                  Within R-sq.    =     0.0002
-Number of clusters (fund_id) =        145         Root MSE        =     0.9851
+HDFE Linear regression                            Number of obs   =        227
+Absorbing 1 HDFE group                            F(   1,    123) =       8.88
+Statistics robust to heteroskedasticity           Prob > F        =     0.0035
+                                                  R-squared       =     0.0216
+                                                  Adj R-squared   =     0.0084
+                                                  Within R-sq.    =     0.0007
+Number of clusters (fund_id) =        124         Root MSE        =     1.0206
 
-                                    (Std. err. adjusted for 145 clusters in fund_id)
+                                    (Std. err. adjusted for 124 clusters in fund_id)
 ------------------------------------------------------------------------------------
                    |               Robust
     dlog_borrowing | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------------+----------------------------------------------------------------
-exposure_borrowing |   .1496415   .0356044     4.20   0.000     .0792667    .2200163
-             _cons |   .2616927   .0344666     7.59   0.000     .1935669    .3298185
+exposure_borrowing |  -.2746624   .0921866    -2.98   0.003    -.4571402   -.0921846
+             _cons |   .6339424   .0757626     8.37   0.000      .483975    .7839099
 ------------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-    event_id |         7           0           7     |
+    event_id |         3           0           3     |
 -----------------------------------------------------+
 (MWFE estimator converged in 1 iterations)
 
-HDFE Linear regression                            Number of obs   =        675
-Absorbing 1 HDFE group                            F(   1,    157) =     159.59
+HDFE Linear regression                            Number of obs   =        264
+Absorbing 1 HDFE group                            F(   1,    130) =     294.21
 Statistics robust to heteroskedasticity           Prob > F        =     0.0000
-                                                  R-squared       =     0.1008
-                                                  Adj R-squared   =     0.0913
-                                                  Within R-sq.    =     0.0010
-Number of clusters (fund_id) =        158         Root MSE        =     1.2012
+                                                  R-squared       =     0.0863
+                                                  Adj R-squared   =     0.0758
+                                                  Within R-sq.    =     0.0093
+Number of clusters (fund_id) =        131         Root MSE        =     1.0958
 
-                                  (Std. err. adjusted for 158 clusters in fund_id)
+                                  (Std. err. adjusted for 131 clusters in fund_id)
 ----------------------------------------------------------------------------------
                  |               Robust
     dlog_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -----------------+----------------------------------------------------------------
-exposure_lending |  -.5716285    .045249   -12.63   0.000    -.6610038   -.4822531
-           _cons |   .2482131   .0422854     5.87   0.000     .1646914    .3317348
+exposure_lending |  -1.718901    .100212   -17.15   0.000    -1.917158   -1.520643
+           _cons |   .6196092   .0704995     8.79   0.000     .4801344    .7590841
 ----------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
  Absorbed FE | Categories  - Redundant  = Num. Coefs |
 -------------+---------------------------------------|
-    event_id |         7           0           7     |
+    event_id |         3           0           3     |
 -----------------------------------------------------+
 
 . 
@@ -583,5 +562,5 @@ Absorbed degrees of freedom:
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility.log
   log type:  text
- closed on:   1 Sep 2026, 13:46:34
+ closed on:   1 Sep 2026, 13:50:00
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
