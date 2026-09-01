@@ -23,18 +23,21 @@ gen date = date(period, "DMY")
 format date %td
 sort country date
 by country: gen log_change = log(cds) - log(cds[_n-1])
+by country: gen cds_lag = cds[_n-1]
 drop if missing(log_change)
 bysort date: egen sum_log_change = total(log_change)
 bysort date: gen n_countries = _N
 keep if n_countries == 4
 gen shock_rel = log_change - (sum_log_change - log_change)/3 /*own move minus avg move of the other three*/
+gen shock_daily = shock_rel*cds_lag /*back to bp using own lagged level*/
 bysort country: egen sd_rel = sd(shock_rel)
 
 **# Events
-* a stress day is a relative widening beyond two standard deviations, an event
-* is a stress day with no other stress day in the previous 20 business days
+* a stress day is a relative widening beyond two standard deviations and at
+* least 5 bp, an event is a stress day with no other stress day in the
+* previous 20 business days
 
-gen stress_day = shock_rel > 2*sd_rel
+gen stress_day = shock_rel > 2*sd_rel & shock_daily > 5
 sort country date
 by country: gen cum_stress = sum(stress_day)
 by country: gen stress_20d = cum_stress - cond(_n > 20, cum_stress[_n-20], 0)
