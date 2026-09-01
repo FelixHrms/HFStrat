@@ -46,64 +46,36 @@ reshape wide shock_cum tail_cum, i(date) j(country) string
 tempfile country_shocks
 save `country_shocks'
 
-**# Dealer collateral-country weights, lagged quarter
-* share of each country's collateral in the dealer's full repo book,
-* time-averaged over the previous quarter
-
-import delimited "$key\\dealer_country_day.csv", varnames(1) clear
-capture drop v1
-keep if inlist(collateral_country, "DE", "FR", "IT", "ES")
-foreach v in borrowing_volume lending_volume {
-	replace `v' = 0 if missing(`v')
-}
-gen volume = borrowing_volume + lending_volume
-gen date = date(business_date, "YMD")
-gen quarter = qofd(date) + 1 /*weights used one quarter later*/
-collapse (sum) volume, by(dealer_id collateral_country quarter)
-bysort dealer_id quarter: egen total = total(volume)
-gen dealer_share = volume/total
-drop volume total
-reshape wide dealer_share, i(dealer_id quarter) j(collateral_country) string
-foreach c in DE FR IT ES {
-	replace dealer_share`c' = 0 if missing(dealer_share`c')
-}
-tempfile dealer_weights
-save `dealer_weights'
-
-**# Dealer nationality
+**# Dealer home shocks, dealer x day
+* home shock = the cumulated shock of the dealer's home country, zero for non EA dealers
 
 import delimited "$key\\dealer_nationality.csv", varnames(1) clear
 tempfile dealer_nat
 save `dealer_nat'
 
-**# Dealer shock = portfolio-weighted CDS shock, dealer x day
-* home shock = the cumulated shock of the dealer's home country, zero for non EA dealers
-
 use `country_shocks', clear
-gen quarter = qofd(date)
-joinby quarter using `dealer_weights'
-merge m:1 dealer_id using `dealer_nat', keep(master match) nogen
-gen dealer_shock = dealer_shareDE*shock_cumDE + dealer_shareFR*shock_cumFR + dealer_shareIT*shock_cumIT + dealer_shareES*shock_cumES
-gen dealer_shock_tail = dealer_shareDE*tail_cumDE + dealer_shareFR*tail_cumFR + dealer_shareIT*tail_cumIT + dealer_shareES*tail_cumES
-gen dealer_home_shock = 0
+cross using `dealer_nat'
+gen home_shock = 0
+gen home_shock_tail = 0
 foreach c in DE FR IT ES {
-	replace dealer_home_shock = shock_cum`c' if nationality == "`c'"
+	replace home_shock = shock_cum`c' if nationality == "`c'"
+	replace home_shock_tail = tail_cum`c' if nationality == "`c'"
 }
-keep dealer_id date dealer_shock dealer_shock_tail dealer_home_shock
+keep dealer_id date nationality home_shock home_shock_tail
 tempfile dealer_shocks
 save `dealer_shocks'
 
 **# Fund wallet weights across dealers (two-sided), lagged quarter
 * share of each dealer in the fund's total repo activity
 
-import delimited "$key\\fund_dealer_isin_day.csv", varnames(1) clear
+import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
 capture drop v1
 foreach v in borrowing_volume lending_volume {
 	replace `v' = 0 if missing(`v')
 }
 gen volume = borrowing_volume + lending_volume
 gen date = date(business_date, "YMD")
-gen quarter = qofd(date) + 1
+gen quarter = qofd(date) + 1 /*weights used one quarter later*/
 collapse (sum) volume, by(fund_id dealer_id quarter)
 bysort fund_id quarter: egen total = total(volume)
 gen wallet_share = volume/total
@@ -111,108 +83,57 @@ keep fund_id dealer_id quarter wallet_share
 tempfile fund_weights
 save `fund_weights'
 
-**# Fund exposure = wallet-weighted dealer shocks, fund x day
+**# Fund exposure = wallet-weighted home shock of its dealers, fund x day
 
 use `dealer_shocks', clear
 gen quarter = qofd(date)
 joinby dealer_id quarter using `fund_weights'
-gen product = wallet_share*dealer_shock
-gen product_tail = wallet_share*dealer_shock_tail
-gen product_home = wallet_share*dealer_home_shock
-collapse (sum) fund_exposure_all = product fund_exposure_all_tail = product_tail fund_exposure_all_home = product_home, by(fund_id date)
+gen product = wallet_share*home_shock
+collapse (sum) fund_exposure = product, by(fund_id date)
 tempfile fund_exposures
 save `fund_exposures'
 
-**# Panel
+**# Panel, fund x dealer x day
 
-import delimited "$key\\fund_dealer_isin_day.csv", varnames(1) clear
+import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
 capture drop v1
 gen date = date(business_date, "YMD")
 format date %td
-gen country = substr(security_isin, 1, 2)
-keep if inlist(country, "DE", "FR", "IT", "ES")
-gen quarter = qofd(date)
-
-merge m:1 date using `country_shocks', keep(match) nogen
-merge m:1 dealer_id quarter using `dealer_weights', keep(match) nogen
-merge m:1 dealer_id using `dealer_nat', keep(master match) nogen
-gen dealer_exposure = 0
-gen dealer_exposure_tail = 0
-gen home_exposure = 0
-gen home_exposure_own = 0
-foreach c in DE FR IT ES {
-	replace dealer_exposure = dealer_exposure + dealer_share`c'*shock_cum`c' if country != "`c'" /*exclude the collateral country of the bond*/
-	replace dealer_exposure_tail = dealer_exposure_tail + dealer_share`c'*tail_cum`c' if country != "`c'"
-	replace home_exposure = shock_cum`c' if nationality == "`c'" & country != "`c'" /*home country shock, off when home is the bond's country, zero for non EA dealers*/
-	replace home_exposure_own = shock_cum`c' if nationality == "`c'" & country == "`c'" /*home country shock when the bond is home collateral*/
-}
-
-merge m:1 fund_id date using `fund_exposures', keep(master match) nogen
-merge m:1 fund_id dealer_id quarter using `fund_weights', keep(master match) nogen
-merge m:1 dealer_id date using `dealer_shocks', keep(master match) nogen
-gen fund_exposure_other = fund_exposure_all
-replace fund_exposure_other = fund_exposure_all - wallet_share*dealer_shock if !missing(fund_exposure_all, wallet_share, dealer_shock) /*leave out the own dealer*/
-gen fund_exposure_other_tail = fund_exposure_all_tail
-replace fund_exposure_other_tail = fund_exposure_all_tail - wallet_share*dealer_shock_tail if !missing(fund_exposure_all_tail, wallet_share, dealer_shock_tail)
-gen fund_exposure_other_home = fund_exposure_all_home
-replace fund_exposure_other_home = fund_exposure_all_home - wallet_share*dealer_home_shock if !missing(fund_exposure_all_home, wallet_share, dealer_home_shock)
-
-foreach v in borrowing_volume lending_volume {
-	replace `v' = 0 if missing(`v')
-}
-gen net_position = (borrowing_volume - lending_volume)/10^6 /*net long position in mn*/
-gen borrowing_mn = borrowing_volume/10^6 /*financing of longs*/
-gen lending_mn = lending_volume/10^6 /*cash lending, the short side*/
-
 gen month = mofd(date)
-egen fund_country_day = group(fund_id country date)
-egen dealer_country_day = group(dealer_id country date)
-egen bond_day = group(security_isin date)
+
+merge m:1 dealer_id date using `dealer_shocks', keep(match) nogen
+
+gen log_borrowing = log(borrowing_volume) /*financing of longs, KM intensive margin*/
+gen log_lending = log(lending_volume) /*cash lending, the short side*/
+
+egen fund_day = group(fund_id date)
 egen fund_num = group(fund_id)
 egen dealer_num = group(dealer_id)
 
-label var dealer_exposure "Dealer exposure (20d cum.)"
-label var home_exposure "Home country exposure, other collateral (20d cum.)"
-label var home_exposure_own "Home country exposure, home collateral (20d cum.)"
-label var dealer_exposure_tail "Dealer exposure (>2sd)"
-label var fund_exposure_other "Fund exposure via other dealers (20d cum.)"
-label var fund_exposure_other_tail "Fund exposure via other dealers (>2sd)"
-label var fund_exposure_other_home "Fund exposure via other dealers' home countries (20d cum.)"
+label var home_shock "Home country shock (20d cum.)"
+label var home_shock_tail "Home country shock (>2sd)"
 
-**# Support: multi-dealer / multi-fund cells, both-sided pairs
+**# Support: multi-dealer funds
 
-bysort fund_country_day (dealer_num): gen multi_dealer = dealer_num[1] != dealer_num[_N]
-bysort dealer_country_day (fund_num): gen multi_fund = fund_num[1] != fund_num[_N]
-tab multi_dealer if !missing(dealer_exposure)
-tab multi_fund if !missing(fund_exposure_other)
+bysort fund_day (dealer_num): gen multi_dealer = dealer_num[1] != dealer_num[_N]
+tab multi_dealer
 
-**# Part 1: shock -> dealer -> fund, within fund x country x day
-* home exposure is the liability side of the nexus, book exposure the asset side
+**# Part 1: bank lending channel, within fund x day across dealers
 
-foreach y in borrowing_mn lending_mn {
-	reghdfe `y' home_exposure home_exposure_own dealer_exposure, a(fund_country_day bond_day dealer_num) vce(cluster month) /*book exposure kept as control*/
+foreach y in log_borrowing log_lending {
+	reghdfe `y' home_shock, a(fund_day dealer_num) vce(cluster month)
 }
 
-**# Part 2: shocked dealers -> fund -> other dealer, within dealer x country x day
+**# Part 2: fund borrowing channel, fund x day totals
 
-foreach y in borrowing_mn lending_mn {
-	reghdfe `y' fund_exposure_other_home fund_exposure_other, a(dealer_country_day bond_day fund_num) vce(cluster month) /*book based exposure kept as control*/
-}
+collapse (sum) borrowing_volume lending_volume, by(fund_id fund_num date month)
+merge m:1 fund_id date using `fund_exposures', keep(match) nogen
+gen log_borrowing = log(borrowing_volume)
+gen log_lending = log(lending_volume)
+label var fund_exposure "Fund exposure, wallet-weighted home shock (20d cum.)"
 
-**# Country level: same tests on the fund x dealer x country x day panel
-
-collapse (sum) net_position borrowing_mn lending_mn (mean) dealer_exposure dealer_exposure_tail home_exposure home_exposure_own fund_exposure_other fund_exposure_other_tail fund_exposure_other_home, by(fund_id dealer_id country date month nationality)
-
-egen fund_country_day = group(fund_id country date)
-egen dealer_country_day = group(dealer_id country date)
-egen fund_num = group(fund_id)
-egen dealer_num = group(dealer_id)
-
-foreach y in borrowing_mn lending_mn {
-	reghdfe `y' home_exposure home_exposure_own dealer_exposure, a(fund_country_day dealer_num) vce(cluster month)
-}
-foreach y in borrowing_mn lending_mn {
-	reghdfe `y' fund_exposure_other_home fund_exposure_other, a(dealer_country_day fund_num) vce(cluster month)
+foreach y in log_borrowing log_lending {
+	reghdfe `y' fund_exposure, a(fund_num date) vce(cluster month)
 }
 
 log close
