@@ -35,13 +35,13 @@ bysort country: egen sd_rel = sd(shock_rel)
 **# Events
 * a stress day is a relative widening beyond two standard deviations and at
 * least 5 bp, an event is a stress day with no other stress day in the
-* previous 20 business days
+* previous 60 business days
 
 gen stress_day = shock_rel > 2*sd_rel & shock_daily > 5
 sort country date
 by country: gen cum_stress = sum(stress_day)
-by country: gen stress_20d = cum_stress - cond(_n > 20, cum_stress[_n-20], 0)
-gen event = stress_day == 1 & stress_20d == 1
+by country: gen stress_60d = cum_stress - cond(_n > 60, cum_stress[_n-60], 0)
+gen event = stress_day == 1 & stress_60d == 1
 keep if event
 keep country date
 rename date event_date
@@ -88,12 +88,11 @@ collapse (sum) borrowing_flow0 borrowing_flow1 lending_flow0 lending_flow1 (max)
 gen dlog_borrowing = log(borrowing_flow1) - log(borrowing_flow0)
 gen dlog_lending = log(lending_flow1) - log(lending_flow0)
 egen fund_event = group(fund_id event_id)
-egen dealer_num = group(dealer_id)
 label var dlog_borrowing "Change in log new borrowing, post minus pre"
 label var dlog_lending "Change in log new lending, post minus pre"
 
 foreach y in dlog_borrowing dlog_lending {
-	reghdfe `y' treated, a(fund_event dealer_num) vce(cluster dealer_id)
+	reghdfe `y' treated, a(fund_event) vce(cluster dealer_id)
 }
 
 **# Extensive margin: exit among pre-active pairs, entry among post-active pairs
@@ -104,8 +103,8 @@ gen exit_lending = lending_flow0 > 0 & lending_flow1 == 0
 gen entry_lending = lending_flow0 == 0 & lending_flow1 > 0
 
 foreach l in borrowing lending {
-	reghdfe exit_`l' treated if `l'_flow0 > 0, a(fund_event dealer_num) vce(cluster dealer_id)
-	reghdfe entry_`l' treated if `l'_flow1 > 0, a(fund_event dealer_num) vce(cluster dealer_id)
+	reghdfe exit_`l' treated if `l'_flow0 > 0, a(fund_event) vce(cluster dealer_id)
+	reghdfe entry_`l' treated if `l'_flow1 > 0, a(fund_event) vce(cluster dealer_id)
 }
 tempfile pair_events
 save `pair_events'
@@ -119,12 +118,11 @@ gen dlog_lending = log(lending_flow1) - log(lending_flow0)
 gen treated_own = treated*(collateral_country == country)
 gen treated_other = treated*(collateral_country != country)
 egen fund_country_event = group(fund_id collateral_country event_id)
-egen dealer_num = group(dealer_id)
 label var treated_own "Treated dealer, stressed country collateral"
 label var treated_other "Treated dealer, other collateral"
 
 foreach y in dlog_borrowing dlog_lending {
-	reghdfe `y' treated_other treated_own, a(fund_country_event dealer_num) vce(cluster dealer_id)
+	reghdfe `y' treated_other treated_own, a(fund_country_event) vce(cluster dealer_id)
 }
 
 **# Fund level: can funds replace the treated dealers, within event
