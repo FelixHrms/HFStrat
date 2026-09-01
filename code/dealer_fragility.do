@@ -133,27 +133,36 @@ gen multi_dealer = n_active > 1
 tab multi_dealer if active
 
 **# Part 1: bank lending channel, within fund x day across dealers
-* home_shock = effect on the shocked dealer, other_exposure = substitution toward this dealer
+* home_shock = effect on the shocked dealer relative to the fund's other dealers
 
 foreach y in log_borrowing log_lending {
-	reghdfe `y' home_shock other_exposure, a(fund_day pair) vce(cluster month)
+	reghdfe `y' home_shock, a(fund_day pair) vce(cluster month)
 }
 
 **# Extensive margin: relationship activity on the balanced grid
-* negative home_shock = relationships with shocked dealers go dormant,
-* positive other_exposure = relationships with healthy dealers get activated
+* negative home_shock = relationships with shocked dealers go dormant
 
-reghdfe active home_shock other_exposure, a(fund_day pair) vce(cluster month)
+reghdfe active home_shock, a(fund_day pair) vce(cluster month)
 
-**# Reconciliation: does the effect live in small relationships?
-* weighted version is comparable to Part 2, the interaction tests core protection
+**# Size decomposition: weighted version comparable to Part 2, interaction tests
+* whether core or satellite relationships bear the cut
 
 foreach y in log_borrowing log_lending {
-	reghdfe `y' home_shock other_exposure [aw=wallet_share], a(fund_day pair) vce(cluster month)
+	reghdfe `y' home_shock [aw=wallet_share], a(fund_day pair) vce(cluster month)
 }
 foreach y in log_borrowing log_lending {
-	reghdfe `y' c.home_shock##c.wallet_share other_exposure, a(fund_day pair) vce(cluster month)
+	reghdfe `y' c.home_shock##c.wallet_share, a(fund_day pair) vce(cluster month)
 }
+
+**# Substitution: within dealer x day across funds
+* positive other_exposure = funds whose other dealers are shocked bring more
+* business to this dealer, wallet_share controls for the mechanical size link
+
+egen dealer_day = group(dealer_id date)
+foreach y in log_borrowing log_lending {
+	reghdfe `y' other_exposure wallet_share, a(dealer_day pair) vce(cluster month)
+}
+reghdfe active other_exposure, a(dealer_day pair) vce(cluster month)
 
 **# Part 2: fund borrowing channel, fund x day totals
 
