@@ -90,4 +90,19 @@ foreach y in log_borrowing log_lending {
 	reghdfe `y' home_shock, a(fund_day pair) vce(cluster month)
 }
 
+**# Step 5: nationality group version
+* collapse the fund's dealers of the same nationality into one relationship,
+* so the unit of observation matches the level at which the shock varies
+
+preserve
+	collapse (sum) borrowing_volume lending_volume (mean) home_shock, by(fund_id nationality date month)
+	gen log_borrowing = log(borrowing_volume)
+	gen log_lending = log(lending_volume)
+	egen fund_day = group(fund_id date)
+	egen fund_nat = group(fund_id nationality)
+	foreach y in log_borrowing log_lending {
+		reghdfe `y' home_shock, a(fund_day fund_nat) vce(cluster month)
+	}
+restore
+
 log close
