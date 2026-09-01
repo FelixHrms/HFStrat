@@ -145,6 +145,16 @@ foreach y in log_borrowing log_lending {
 
 reghdfe active home_shock other_exposure, a(fund_day pair) vce(cluster month)
 
+**# Reconciliation: does the effect live in small relationships?
+* weighted version is comparable to Part 2, the interaction tests core protection
+
+foreach y in log_borrowing log_lending {
+	reghdfe `y' home_shock other_exposure [aw=wallet_share], a(fund_day pair) vce(cluster month)
+}
+foreach y in log_borrowing log_lending {
+	reghdfe `y' c.home_shock##c.wallet_share other_exposure, a(fund_day pair) vce(cluster month)
+}
+
 **# Part 2: fund borrowing channel, fund x day totals
 
 collapse (sum) borrowing_volume lending_volume, by(fund_id fund_num date month)
