@@ -61,4 +61,22 @@ label var home_shock "Home country shock (20d cum.)"
 tempfile dealer_shocks
 save `dealer_shocks'
 
+**# Step 3: panel, fund x dealer x day
+* outstanding positions from the state data, log outcomes, KM style
+* unbalanced, a pair day without positions is simply not in the sample
+
+import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
+capture drop v1
+gen date = date(business_date, "YMD")
+format date %td
+gen month = mofd(date)
+
+merge m:1 dealer_id date using `dealer_shocks', keep(match) nogen
+
+gen log_borrowing = log(borrowing_volume) /*financing of longs*/
+gen log_lending = log(lending_volume) /*cash lending, the short side*/
+
+egen fund_day = group(fund_id date)
+egen pair = group(fund_id dealer_id)
+
 log close
