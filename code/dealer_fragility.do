@@ -121,13 +121,12 @@ restore
 preserve
 	collapse (sum) borrowing_volume lending_volume, by(fund_id date month)
 	merge m:1 fund_id date using `fund_exposures', keep(match) nogen
-	collapse (mean) borrowing_volume lending_volume fund_exposure, by(fund_id month) /*monthly averages against daily noise*/
 	gen log_borrowing = log(borrowing_volume)
 	gen log_lending = log(lending_volume)
 	egen fund_num = group(fund_id)
 	label var fund_exposure "Wallet-weighted home shock of the fund's dealers"
 	foreach y in log_borrowing log_lending {
-		reghdfe `y' fund_exposure, a(fund_num month) vce(cluster month)
+		reghdfe `y' fund_exposure, a(fund_num date) vce(cluster month)
 	}
 restore
 
