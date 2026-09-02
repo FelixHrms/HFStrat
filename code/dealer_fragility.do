@@ -121,7 +121,8 @@ preserve
 restore
 
 preserve
-	collapse (sum) borrowing_volume lending_volume, by(fund_id date month)
+	bysort fund_id date: gen n_dealers = _N /*active dealers of the fund that day*/
+	collapse (sum) borrowing_volume lending_volume (mean) n_dealers, by(fund_id date month)
 	merge m:1 fund_id date using `fund_exposures', keep(match) nogen
 	gen log_borrowing = log(borrowing_volume)
 	gen log_lending = log(lending_volume)
@@ -130,6 +131,9 @@ preserve
 	label var fund_exposure "Wallet-weighted home shock of the fund's dealers"
 	foreach y in log_borrowing log_lending log_net {
 		reghdfe `y' fund_exposure, a(fund_num date) vce(cluster month)
+	}
+	foreach y in log_borrowing log_lending log_net {
+		reghdfe `y' fund_exposure if n_dealers > 1, a(fund_num date) vce(cluster month) /*same fund days as step 4, funds that could substitute*/
 	}
 restore
 
