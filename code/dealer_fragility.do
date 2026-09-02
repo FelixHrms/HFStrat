@@ -75,6 +75,8 @@ merge m:1 dealer_id date using `dealer_shocks', keep(match) nogen
 
 gen log_borrowing = log(borrowing_volume) /*financing of longs*/
 gen log_lending = log(lending_volume) /*cash lending, the short side*/
+gen net_position = cond(missing(borrowing_volume), 0, borrowing_volume) - cond(missing(lending_volume), 0, lending_volume)
+gen log_net = log(abs(net_position)) /*absolute value since net can be negative, noisy when the two legs are close*/
 
 egen fund_day = group(fund_id date)
 egen pair = group(fund_id dealer_id)
@@ -86,7 +88,7 @@ egen pair = group(fund_id dealer_id)
 bysort fund_day (pair): gen multi_dealer = pair[1] != pair[_N]
 tab multi_dealer
 
-foreach y in log_borrowing log_lending {
+foreach y in log_borrowing log_lending log_net {
 	reghdfe `y' home_shock, a(fund_day pair) vce(cluster month)
 }
 
@@ -112,7 +114,7 @@ preserve
 	use `dealer_shocks', clear
 	gen quarter = qofd(date)
 	joinby dealer_id quarter using `fund_weights'
-	gen product = wallet_share*home_shock
+	gen product = wallet_share*home_shock /*wallet shares sum to one within fund, so the sum over dealers is a weighted average of the shocks, KM's average shock of the fund's preshock dealers*/
 	collapse (sum) fund_exposure = product, by(fund_id date)
 	tempfile fund_exposures
 	save `fund_exposures'
@@ -123,9 +125,10 @@ preserve
 	merge m:1 fund_id date using `fund_exposures', keep(match) nogen
 	gen log_borrowing = log(borrowing_volume)
 	gen log_lending = log(lending_volume)
+	gen log_net = log(abs(borrowing_volume - lending_volume))
 	egen fund_num = group(fund_id)
 	label var fund_exposure "Wallet-weighted home shock of the fund's dealers"
-	foreach y in log_borrowing log_lending {
+	foreach y in log_borrowing log_lending log_net {
 		reghdfe `y' fund_exposure, a(fund_num date) vce(cluster month)
 	}
 restore
