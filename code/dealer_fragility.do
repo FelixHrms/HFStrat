@@ -137,4 +137,24 @@ preserve
 	}
 restore
 
+**# Step 6: substitution, do funds increase business at their other dealers
+* within dealer x day across funds, other_exposure = wallet-weighted home shock
+* of the fund's other dealers, fund x month effects absorb slow-moving demand,
+* a fund whose wallet is shocked plausibly also wants to cut, so the demand
+* bias is downward and a positive coefficient is robust evidence of substitution,
+* KM do not run this test, their firm level table is the implicit version
+
+gen quarter = qofd(date)
+merge m:1 fund_id date using `fund_exposures', keep(master match) nogen
+merge m:1 fund_id dealer_id quarter using `fund_weights', keep(master match) nogen
+gen other_exposure = fund_exposure
+replace other_exposure = fund_exposure - wallet_share*home_shock if !missing(wallet_share) /*leave out the own dealer*/
+label var other_exposure "Wallet-weighted home shock of the fund's other dealers"
+
+egen dealer_day = group(dealer_id date)
+egen fund_month = group(fund_id month)
+foreach y in log_borrowing log_lending log_net {
+	reghdfe `y' other_exposure wallet_share, a(dealer_day pair fund_month) vce(cluster month)
+}
+
 log close
