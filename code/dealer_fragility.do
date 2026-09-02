@@ -157,4 +157,11 @@ foreach y in log_borrowing log_lending log_net {
 	reghdfe `y' other_exposure wallet_share, a(dealer_day pair fund_month) vce(cluster month)
 }
 
+* net split by the sign of the relationship, a lending increase shrinks the
+* absolute net of net long pairs and raises it for net short pairs
+bysort pair: egen net_mean = mean(net_position)
+gen net_long = net_mean > 0
+reghdfe log_net other_exposure wallet_share if net_long == 1, a(dealer_day pair fund_month) vce(cluster month)
+reghdfe log_net other_exposure wallet_share if net_long == 0, a(dealer_day pair fund_month) vce(cluster month)
+
 log close
