@@ -11,17 +11,12 @@ log using "$key\\dealer_fragility_svb.log", replace text
 * window sums of outstanding positions over H calendar days on each side,
 * treated = dealers with a US parent, all other dealers are the controls,
 * the continuous version uses the log change of the dealer's own CDS between
-* the two windows, KM's bank liquidity change, dealers only, no MFIs
+* the two windows, KM's bank liquidity change, entities as in the panel csv
 
 local event = td(10mar2023)
 local H = 60 /*window length in calendar days, robustness at 30 90*/
 
-**# Step 1: dealer treatment
-
-import delimited "$key\\dealer_nationality.csv", varnames(1) clear
-keep dealer_id /*the dealer list, nationality now comes from the Bloomberg sheet*/
-tempfile dealer_list
-save `dealer_list'
+**# Step 1: dealer treatment, nationality from the Bloomberg sheet
 
 import delimited "$key\\dealer_cds.csv", varnames(1) clear
 capture drop v1
@@ -30,7 +25,6 @@ keep if inrange(date, `event' - `H', `event' + `H' - 1)
 gen post = date >= `event'
 collapse (mean) cds (first) nationality, by(dealer_id post)
 reshape wide cds, i(dealer_id nationality) j(post)
-merge 1:1 dealer_id using `dealer_list', keep(match) nogen
 gen treated = nationality == "US"
 gen dcds = log(cds1) - log(cds0) /*log change of the dealer's CDS, post over pre window*/
 label var treated "US parent"
