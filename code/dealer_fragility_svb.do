@@ -10,8 +10,7 @@ log using "$key\\dealer_fragility_svb.log", replace text
 * the time dimension collapses to one pre and one post observation per pair,
 * window sums of outstanding positions over H calendar days on each side,
 * treated = dealers with a US parent, all other dealers are the controls,
-* the log change of each dealer's own CDS between the windows is listed as a
-* check on the treatment, entities as in the panel csv
+* entities as in the panel csv
 
 local event = td(10mar2023)
 local H = 60 /*window length in calendar days, robustness at 30 90*/
@@ -19,17 +18,11 @@ local H = 60 /*window length in calendar days, robustness at 30 90*/
 **# Step 1: dealer treatment, nationality from the Bloomberg sheet
 
 import delimited "$key\\dealer_cds.csv", varnames(1) clear
-capture drop v1
-gen date = date(period, "YMD")
-keep if inrange(date, `event' - `H', `event' + `H' - 1)
-gen post = date >= `event'
-collapse (mean) cds (first) nationality, by(dealer_id post)
-reshape wide cds, i(dealer_id nationality) j(post)
+keep dealer_id nationality
+duplicates drop
 gen treated = nationality == "US"
-gen dcds = log(cds1) - log(cds0) /*log change of the dealer's CDS, post over pre window*/
 label var treated "US parent"
-label var dcds "Log change in dealer CDS around the event"
-list dealer_id nationality treated dcds, clean
+tab nationality treated
 tempfile dealers
 save `dealers'
 
