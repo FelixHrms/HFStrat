@@ -157,4 +157,128 @@ foreach y in log_borrowing log_lending log_net {
 	reghdfe `y' other_exposure wallet_share, a(dealer_day pair fund_month) vce(cluster month)
 }
 
+**# Step 7: dealer-specific CDS shocks from the Bloomberg series
+* same construction as step 1 at the entity level, daily log changes,
+* leave-one-out demeaned across the other series on the day, rescaled to bp,
+* cumulated over the same window, built per series and mapped to LEIs
+
+import delimited "$key\\dealer_cds.csv", varnames(1) clear
+capture drop v1
+gen date = date(period, "YMD")
+format date %td
+preserve
+	keep dealer_id bloomberg
+	duplicates drop
+	tempfile cds_map
+	save `cds_map'
+restore
+keep bloomberg date cds
+duplicates drop
+drop if missing(cds)
+sort bloomberg date
+by bloomberg: gen log_change = log(cds) - log(cds[_n-1])
+by bloomberg: gen cds_lag = cds[_n-1]
+drop if missing(log_change)
+bysort date: egen sum_log_change = total(log_change)
+bysort date: gen n_series = _N
+gen shock_rel = log_change - (sum_log_change - log_change)/(n_series - 1) /*own move minus avg move of the other series*/
+gen shock_daily = shock_rel*cds_lag /*back to bp using own lagged level*/
+
+local W = 20
+sort bloomberg date
+by bloomberg: gen running_sum = sum(shock_daily)
+by bloomberg: gen bank_shock = running_sum - running_sum[_n-`W']
+drop if missing(bank_shock)
+keep bloomberg date bank_shock
+joinby bloomberg using `cds_map'
+keep dealer_id date bank_shock
+label var bank_shock "Dealer CDS shock (20d cum.)"
+tempfile bank_shocks
+save `bank_shocks'
+
+**# Step 8: panel with dealer shocks, fund x dealer x day
+* same panel as step 3, dealers and MFIs, each merged to its own CDS shock,
+* entities without a CDS series drop out here
+
+import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
+capture drop v1
+gen date = date(business_date, "YMD")
+format date %td
+gen month = mofd(date)
+
+merge m:1 dealer_id date using `bank_shocks', keep(match) nogen
+
+gen log_borrowing = log(borrowing_volume)
+gen log_lending = log(lending_volume)
+gen net_position = cond(missing(borrowing_volume), 0, borrowing_volume) - cond(missing(lending_volume), 0, lending_volume)
+gen log_net = log(abs(net_position))
+
+egen fund_day = group(fund_id date)
+egen pair = group(fund_id dealer_id)
+
+**# Step 9: the lending channel with dealer shocks, mirrors step 4
+
+bysort fund_day (pair): gen multi_dealer = pair[1] != pair[_N]
+tab multi_dealer
+
+foreach y in log_borrowing log_lending log_net {
+	reghdfe `y' bank_shock, a(fund_day pair) vce(cluster month)
+}
+
+**# Step 10: fund level with dealer shocks, mirrors step 5
+
+preserve
+	foreach v in borrowing_volume lending_volume {
+		replace `v' = 0 if missing(`v')
+	}
+	gen volume = borrowing_volume + lending_volume
+	gen quarter = qofd(date) + 1
+	collapse (sum) volume, by(fund_id dealer_id quarter)
+	bysort fund_id quarter: egen total = total(volume)
+	gen wallet_share = volume/total
+	keep fund_id dealer_id quarter wallet_share
+	tempfile fund_weights_b
+	save `fund_weights_b'
+
+	use `bank_shocks', clear
+	gen quarter = qofd(date)
+	joinby dealer_id quarter using `fund_weights_b'
+	gen product = wallet_share*bank_shock /*weighted average of the dealers' shocks, shares sum to one*/
+	collapse (sum) fund_exposure = product, by(fund_id date)
+	tempfile fund_exposures_b
+	save `fund_exposures_b'
+restore
+
+preserve
+	bysort fund_id date: gen n_dealers = _N
+	collapse (sum) borrowing_volume lending_volume (mean) n_dealers, by(fund_id date month)
+	merge m:1 fund_id date using `fund_exposures_b', keep(match) nogen
+	gen log_borrowing = log(borrowing_volume)
+	gen log_lending = log(lending_volume)
+	gen log_net = log(abs(borrowing_volume - lending_volume))
+	egen fund_num = group(fund_id)
+	label var fund_exposure "Wallet-weighted dealer CDS shock of the fund's dealers"
+	foreach y in log_borrowing log_lending log_net {
+		reghdfe `y' fund_exposure, a(fund_num date) vce(cluster month)
+	}
+	foreach y in log_borrowing log_lending log_net {
+		reghdfe `y' fund_exposure if n_dealers > 1, a(fund_num date) vce(cluster month)
+	}
+restore
+
+**# Step 11: substitution with dealer shocks, mirrors step 6
+
+gen quarter = qofd(date)
+merge m:1 fund_id date using `fund_exposures_b', keep(master match) nogen
+merge m:1 fund_id dealer_id quarter using `fund_weights_b', keep(master match) nogen
+gen other_exposure = fund_exposure
+replace other_exposure = fund_exposure - wallet_share*bank_shock if !missing(wallet_share) /*leave out the own dealer*/
+label var other_exposure "Wallet-weighted dealer CDS shock of the fund's other dealers"
+
+egen dealer_day = group(dealer_id date)
+egen fund_month = group(fund_id month)
+foreach y in log_borrowing log_lending log_net {
+	reghdfe `y' other_exposure wallet_share, a(dealer_day pair fund_month) vce(cluster month)
+}
+
 log close
