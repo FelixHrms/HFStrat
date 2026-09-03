@@ -10,8 +10,8 @@ log using "$key\\dealer_fragility_svb.log", replace text
 * the time dimension collapses to one pre and one post observation per pair,
 * window sums of outstanding positions over H calendar days on each side,
 * treated = dealers with a US parent, all other dealers are the controls,
-* the continuous version uses the log change of the dealer's own CDS between
-* the two windows, KM's bank liquidity change, entities as in the panel csv
+* the log change of each dealer's own CDS between the windows is listed as a
+* check on the treatment, entities as in the panel csv
 
 local event = td(10mar2023)
 local H = 60 /*window length in calendar days, robustness at 30 90*/
@@ -60,50 +60,27 @@ label var dlog_borrowing "Change in log borrowing, post minus pre"
 label var dlog_lending "Change in log lending, post minus pre"
 label var dlog_net "Change in log absolute net, post minus pre"
 
-**# Test 1: bank lending channel, KM equation 5 and Table 3
-* fund fixed effects compare the same fund's US and non US dealers, the OLS
-* column without fixed effects is KM's benchmark for the demand bias
+**# Test 1: bank lending channel, KM equation 5
+* within fund, the same fund's US dealers against its non US dealers
 
 foreach y in dlog_borrowing dlog_lending dlog_net {
 	reghdfe `y' treated, a(fund_num) vce(cluster dealer_id)
-	reg `y' treated, vce(cluster dealer_id)
-}
-foreach y in dlog_borrowing dlog_lending dlog_net {
-	reghdfe `y' dcds, a(fund_num) vce(cluster dealer_id)
 }
 
-**# Extensive margin, KM Table 4
-* exit among pairs active before the event, entry among pairs active after
-
-gen exit_borrowing = borrowing_volume0 > 0 & borrowing_volume1 == 0
-gen entry_borrowing = borrowing_volume0 == 0 & borrowing_volume1 > 0
-gen exit_lending = lending_volume0 > 0 & lending_volume1 == 0
-gen entry_lending = lending_volume0 == 0 & lending_volume1 > 0
-
-foreach l in borrowing lending {
-	reghdfe exit_`l' treated if `l'_volume0 > 0, a(fund_num) vce(cluster dealer_id)
-	reghdfe entry_`l' treated if `l'_volume1 > 0, a(fund_num) vce(cluster dealer_id)
-}
-
-**# Test 2: fund borrowing channel, KM equation 6 and Table 6
+**# Test 2: fund borrowing channel, KM equation 6
 * fund level change in log totals on the pre window share of the fund's
-* positions held with treated dealers, and on the pre share weighted CDS
-* change, KM's average shock of the fund's preshock banks, no fixed effects
+* positions held with US dealers, KM's average shock of the fund's preshock
+* banks, no fixed effects
 
 gen gross0 = borrowing_volume0 + lending_volume0
 gen gross1 = borrowing_volume1 + lending_volume1
-gen active0 = gross0 > 0
 foreach v in borrowing_volume0 lending_volume0 gross0 {
 	gen treated_`v' = treated*`v'
-	gen dcds_`v' = dcds*`v'
 }
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 treated_* dcds_* active0, by(fund_id)
+collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 treated_*, by(fund_id)
 gen exposure_borrowing = treated_borrowing_volume0/borrowing_volume0
 gen exposure_lending = treated_lending_volume0/lending_volume0
 gen exposure_net = treated_gross0/gross0
-gen dcds_borrowing = dcds_borrowing_volume0/borrowing_volume0
-gen dcds_lending = dcds_lending_volume0/lending_volume0
-gen dcds_net = dcds_gross0/gross0
 gen dlog_borrowing = log(borrowing_volume1) - log(borrowing_volume0)
 gen dlog_lending = log(lending_volume1) - log(lending_volume0)
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
@@ -113,10 +90,6 @@ label var exposure_net "Pre window gross share with US dealers"
 
 foreach l in borrowing lending net {
 	reg dlog_`l' exposure_`l', vce(robust)
-	reg dlog_`l' dcds_`l', vce(robust)
-}
-foreach l in borrowing lending net {
-	reg dlog_`l' exposure_`l' if active0 > 1, vce(robust) /*funds with more than one dealer before the event*/
 }
 
 log close
