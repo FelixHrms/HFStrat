@@ -104,14 +104,15 @@ foreach y in dlog_borrowing dlog_lending dlog_net {
 **# Test 2: fund borrowing channel, KM equation 6 stacked over quarter-ends
 * fund level change in log totals on the reference window share weighted
 * contraction of the fund's dealers, KM's average shock of the fund's
-* preshock banks, quarter fixed effects
+* preshock banks, quarter fixed effects, funds with at least two dealers
 
 gen gross0 = borrowing_volume0 + lending_volume0
 gen gross1 = borrowing_volume1 + lending_volume1
+gen active0 = gross0 > 0 /*dealer active in the reference window*/
 foreach v in borrowing_volume0 lending_volume0 gross0 {
 	gen dress_`v' = dress*`v'
 }
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_*, by(fund_id quarter)
+collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_* n_dealers = active0, by(fund_id quarter)
 gen exposure_borrowing = dress_borrowing_volume0/borrowing_volume0
 gen exposure_lending = dress_lending_volume0/lending_volume0
 gen exposure_net = dress_gross0/gross0
@@ -123,7 +124,7 @@ label var exposure_lending "Reference share weighted contraction of the fund's d
 label var exposure_net "Reference share weighted contraction of the fund's dealers"
 
 foreach l in borrowing lending net {
-	reghdfe dlog_`l' exposure_`l', a(quarter) vce(cluster fund_id)
+	reghdfe dlog_`l' exposure_`l' if n_dealers > 1, a(quarter) vce(cluster fund_id) /*funds with at least two dealers in the reference window, the population that identifies test 1*/
 }
 
 log close
