@@ -2,9 +2,11 @@ clear all
 snapshot erase _all
 
 global key "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
+global placebo = 0 /*1 = pseudo events at the month-ends that are not quarter-ends, set once per Stata session*/
 
 cap log close
-log using "$key\\dealer_fragility_qe.log", replace text
+if $placebo == 0 log using "$key\\dealer_fragility_qe.log", replace text
+if $placebo == 1 log using "$key\\dealer_fragility_qe_placebo.log", replace text
 
 **# Quarter-end window dressing as the dealer shock, following Khwaja and Mian
 * every quarter-end is an event, one reference and one event observation per
@@ -26,10 +28,16 @@ keep date
 duplicates drop
 gen quarter = qofd(date)
 format quarter %tq
+if $placebo == 1 {
+	replace quarter = mofd(date) /*the event period is the month, kept under the name quarter so the rest of the file runs unchanged*/
+	format quarter %tm
+	drop if mod(month(date), 3) == 0 /*months that end a quarter*/
+}
 sort quarter date
 by quarter: gen n_from_end = _N - _n
 by quarter: gen n_days = _N
-keep if n_days >= 40 /*complete quarters only*/
+if $placebo == 0 keep if n_days >= 40 /*complete quarters only*/
+if $placebo == 1 keep if n_days >= 20 /*months long enough for the reference window*/
 gen window = .
 replace window = 1 if n_from_end < `K'
 replace window = 0 if inrange(n_from_end, `R0', `R1')
