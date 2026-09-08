@@ -56,6 +56,7 @@ replace book0 = book0/(`R1' - `R0' + 1) /*daily averages*/
 replace book1 = book1/`K'
 gen dress = log(book0) - log(book1)
 label var dress "Quarter-end contraction of the dealer's non HF repo book"
+drop if missing(dress) /*no book in one of the two windows, the dealer is not active that quarter*/
 tabstat dress, by(dealer_id) stat(mean sd n)
 keep dealer_id quarter dress
 tempfile dealers
