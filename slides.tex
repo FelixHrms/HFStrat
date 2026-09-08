@@ -63,7 +63,6 @@
 }
 
 \usepackage{booktabs}
-\newsavebox{\tablebox}   % table width notes under regression tables
 \usepackage{siunitx}   % needed by the estout table fragments (S columns)
 \usepackage{graphicx}
 \graphicspath{{Figures/}}
@@ -580,7 +579,7 @@
 
 \begin{frame}{The dealer fragility test, results}
   \begin{center}\scriptsize
-  \savebox{\tablebox}{\begin{tabular}{lcc}
+  \begin{tabular}{lcc}
     \toprule
     & Test 1: pair level & Test 2: fund level \\
     \midrule
@@ -594,12 +593,10 @@
     Observations & 5,560 & 1,712 \\
     R-squared & 0.301 & 0.029 \\
     \bottomrule
-  \end{tabular}}
-  \begin{minipage}{\wd\tablebox}
-    \usebox{\tablebox}\par\smallskip
-    {\tiny\color{slate} Standard errors in parentheses, clustered by dealer in the pair level column and by fund in the fund level column. The outcome is the change in the log absolute net position from the reference to the event window, stacked over 19 quarter-ends from 2021 to 2025. The pair level column uses fund dealer pairs active in both windows, the fund level column funds with at least two dealers in the reference window. $\overline{\mathrm{windress}}_{f,q} = \sum_d w_{f,d,q}\,\mathrm{windress}_{d,q}$ is the reference window share weighted average contraction of the fund's dealers. $^{*}$, $^{**}$, $^{***}$ denote significance at the 10, 5 and 1 percent level.\par}
-  \end{minipage}
+  \end{tabular}
   \end{center}
+  \vspace{-0.6em}
+  {\tiny\color{slate} Standard errors in parentheses, clustered by dealer in the pair level column and by fund in the fund level column. The outcome is the change in the log absolute net position from the reference to the event window, stacked over 19 quarter-ends from 2021 to 2025. The pair level column uses fund dealer pairs active in both windows, the fund level column funds with at least two dealers in the reference window. $\overline{\mathrm{windress}}_{f,q} = \sum_d w_{f,d,q}\,\mathrm{windress}_{d,q}$ is the reference window share weighted average contraction of the fund's dealers. $^{*}$, $^{**}$, $^{***}$ denote significance at the 10, 5 and 1 percent level.\par}
   \smallskip
   \begin{itemize}\small
     \item Within a fund, the net position with the dealer that shrinks more falls close to one for one with the dealer's contraction.
