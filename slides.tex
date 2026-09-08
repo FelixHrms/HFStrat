@@ -63,6 +63,7 @@
 }
 
 \usepackage{booktabs}
+\newsavebox{\tablebox}   % table width notes under regression tables
 \usepackage{siunitx}   % needed by the estout table fragments (S columns)
 \usepackage{graphicx}
 \graphicspath{{Figures/}}
@@ -542,7 +543,7 @@
   \vspace{-1.1em}
   \begin{itemize}\small
     \item $\bar B_{d,q}$ is dealer $d$'s EUR repo book with all counterparties other than hedge funds, so the treatment is not mechanically the outcome. Positive values mean the dealer shrinks into the quarter-end.
-    \item Across the 686 dealer quarters of the 37 dealers that finance hedge funds, the standard deviation is 0.32 log points, with persistent differences between dealers.
+    \item Across the 705 dealer quarters of the 38 dealers that finance hedge funds, the standard deviation is 0.35 log points, with persistent differences between dealers.
     \item The shock is anticipated by everyone, so the test measures whether funds can substitute, not whether they are surprised.
   \end{itemize}
 \end{frame}
@@ -579,7 +580,7 @@
 
 \begin{frame}{The dealer fragility test, results}
   \begin{center}\scriptsize
-  \begin{tabular}{lcc}
+  \savebox{\tablebox}{\begin{tabular}{lcc}
     \toprule
     & Test 1: pair level & Test 2: fund level \\
     \midrule
@@ -593,9 +594,11 @@
     Observations & 5,560 & 1,712 \\
     R-squared & 0.301 & 0.029 \\
     \bottomrule
-  \end{tabular}
-  \par\smallskip
-  {\tiny\color{slate} Standard errors in parentheses, clustered by dealer in column (1) and by fund in column (2). The outcome is the change in the log absolute net position from the reference to the event window, stacked over 19 quarter-ends from 2021 to 2025. Column (1) uses fund dealer pairs active in both windows, column (2) funds with at least two dealers in the reference window. $\overline{\mathrm{windress}}_{f,q} = \sum_d w_{f,d,q}\,\mathrm{windress}_{d,q}$ is the reference window share weighted average contraction of the fund's dealers. $^{*}$, $^{**}$, $^{***}$ denote significance at the 10, 5 and 1 percent level.}
+  \end{tabular}}
+  \begin{minipage}{\wd\tablebox}
+    \usebox{\tablebox}\par\smallskip
+    {\tiny\color{slate} Standard errors in parentheses, clustered by dealer in the pair level column and by fund in the fund level column. The outcome is the change in the log absolute net position from the reference to the event window, stacked over 19 quarter-ends from 2021 to 2025. The pair level column uses fund dealer pairs active in both windows, the fund level column funds with at least two dealers in the reference window. $\overline{\mathrm{windress}}_{f,q} = \sum_d w_{f,d,q}\,\mathrm{windress}_{d,q}$ is the reference window share weighted average contraction of the fund's dealers. $^{*}$, $^{**}$, $^{***}$ denote significance at the 10, 5 and 1 percent level.\par}
+  \end{minipage}
   \end{center}
   \smallskip
   \begin{itemize}\small
