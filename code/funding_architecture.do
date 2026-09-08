@@ -79,11 +79,12 @@ tabstat spread_lending lending_haircut zero_haircut_lending lending_tenor short_
 tempfile panel
 save `panel'
 
-**# Step 3: relationships per fund and quarter, dealers, share of the largest dealer, share of volume with dealers used a year earlier
+**# Step 3: relationships per fund and quarter on absolute net positions, dealers, share of the largest dealer, share with dealers used a year earlier
 
-gen gross = borrowing_volume + lending_volume
+gen net = borrowing_volume - lending_volume
 gen quarter = qofd(date)
-collapse (sum) gross, by(fund_id dealer_id quarter)
+collapse (sum) net, by(fund_id dealer_id quarter)
+gen gross = abs(net)
 drop if gross <= 0
 egen pair = group(fund_id dealer_id)
 xtset pair quarter
