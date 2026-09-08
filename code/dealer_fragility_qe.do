@@ -108,6 +108,11 @@ label var dlog_net "Change in log absolute net, quarter-end minus reference"
 foreach y in dlog_borrowing dlog_lending dlog_net {
 	reghdfe `y' dress, a(fund_quarter) vce(cluster dealer_id)
 }
+preserve
+	keep if e(sample) /*the dealer quarters that identify the net regression*/
+	collapse (first) dress, by(dealer_id quarter)
+	tabstat dress, stat(mean sd n)
+restore
 
 **# Test 2: fund borrowing channel, KM equation 6 stacked over quarter-ends
 * fund level change in log totals on the reference window share weighted
