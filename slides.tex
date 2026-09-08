@@ -374,7 +374,7 @@
   \smallskip
   \textbf{Concentration and capped dealers amplify.}
   \begin{itemize}
-    \item A handful of funds and dealers carry the trade.
+    \item A handful of funds and dealers carry the trade. 
     \item Fire sales land on capped dealer balance sheets, which pull back market making and repo intermediation. The basis, trading costs and repo spreads blow out together, and liquidity disappears.
     \item The same funds run books in several markets, so stress crosses borders through common funds and common dealers.
   \end{itemize}
@@ -521,25 +521,23 @@
   \textbf{Test}\quad{\small\color{slate} the Khwaja and Mian design}
   \begin{itemize}
     \item We observe the same fund with several dealers at the same time.
-    \item Take a shock that hits dealers by different amounts. Quarter-end window dressing recurs every quarter, since euro area banks report the leverage ratio as a quarter-end snapshot while US banks report daily averages.
+    \item Take a shock that hits dealers by different amounts. Quarter-end window dressing recurs every quarter, but dealers contract heterogeneously depending on how constrained they are.
     \item Fund$\times$quarter fixed effects absorb the fund's capital, beliefs and redemptions, so a differential contraction at the dealer that shrinks more is financing supply.
-    \item Trace it forward. Does the fund replace the financing elsewhere or does its net position get cut?
+    \item Does the fund replace the financing elsewhere or does its net position get cut?
   \end{itemize}
-  \medskip
-  \takeaway{With three dealers supplying half the capital, a shock to one dealer is a shock to the market, not a rounding error.}
 \end{frame}
 
 \begin{frame}{The dealer fragility test, event and treatment}
   \textbf{Event}\quad{\small\color{slate} every quarter-end from 2021 to 2025, 19 events stacked}
   \begin{itemize}\small
     \item Event window, the last three business days of the quarter. Reference window, business days 5 to 19 before the quarter's last day.
-    \item Positions are daily averages within each window, absent days count as zero.
+    \item Positions are daily averages within each window.
   \end{itemize}
   \smallskip
-  \textbf{Treatment, the dealer's contraction}\quad{\small\color{slate} measured on the dealer's other clients, not on the funds}
+  \textbf{Treatment, the dealer's contraction}
   \vspace{-0.4em}
   \[
-    \mathrm{dress}_{d,q} = \log \bar B^{\mathrm{ref}}_{d,q} - \log \bar B^{\mathrm{event}}_{d,q}
+    \mathrm{windress}_{d,q} = \log \bar B^{\mathrm{pre}}_{d,q} - \log \bar B^{\mathrm{event}}_{d,q}
   \]
   \vspace{-1.1em}
   \begin{itemize}\small
@@ -550,25 +548,27 @@
 \end{frame}
 
 \begin{frame}{The dealer fragility test, outcome and the two regressions}
-  \textbf{Outcome}\quad{\small\color{slate} the fund's net position with the dealer, borrowing minus lending in absolute value, in logs}
-  \begin{itemize}\small
-    \item Net is the measure of how the fund wants to be positioned, gross financing can move between dealers without touching it. Pairs active in both windows, the intensive margin as in Khwaja and Mian.
+  \textbf{Outcome}
+  \begin{itemize} \small
+    \item Pairs active in both windows, the intensive margin as in Khwaja and Mian.
+    \item The fund's absolute net position (cash borrowing - lending) with dealer, in logs ($\Delta log|N_{f,d,q}|$)
   \end{itemize}
+  \vspace{0.4em}
   \smallskip
-  \textbf{Part one, pair level}\quad{\small\color{slate} Khwaja and Mian equation 5}
+  \textbf{Test 1: pair level}\quad{\small\color{slate} Khwaja and Mian equation 5}
   \vspace{-0.4em}
   \[
-    \Delta \log |N_{f,d,q}| = \alpha_{f,q} + \beta_1\, \mathrm{dress}_{d,q} + \varepsilon_{f,d,q}
+    \Delta \log |N_{f,d,q}| = \alpha_{f,q} + \beta_1\, \mathrm{windress}_{d,q} + \varepsilon_{f,d,q}
   \]
   \vspace{-1.1em}
   \begin{itemize}\small
     \item Fund$\times$quarter effects compare the same fund's dealers at the same quarter-end. $\beta_1$ is the pass-through per log point of the dealer's contraction. Standard errors clustered by dealer.
   \end{itemize}
   \smallskip
-  \textbf{Part two, fund level}\quad{\small\color{slate} Khwaja and Mian equation 6}
+  \textbf{Test 2: fund level}\quad{\small\color{slate} Khwaja and Mian equation 6}
   \vspace{-0.4em}
   \[
-    \Delta \log |N_{f,q}| = \alpha_q + \beta_2 \sum_{d} w_{f,d,q}\, \mathrm{dress}_{d,q} + \eta_{f,q}
+    \Delta \log |N_{f,q}| = \alpha_q + \beta_2 \sum_{d} w_{f,d,q}\, \mathrm{windress}_{d,q} + \eta_{f,q}
   \]
   \vspace{-1.1em}
   \begin{itemize}\small
@@ -581,8 +581,7 @@
   \begin{center}\scriptsize
   \begin{tabular}{lcc}
     \toprule
-    & Part one, pair level & Part two, fund level \\
-    & $\Delta \log |N_{f,d,q}|$ & $\Delta \log |N_{f,q}|$ \\
+    & Test 1: pair level & Test 2: fund level \\
     \midrule
     Dealer contraction, $\mathrm{dress}_{d,q}$ & $-0.78^{***}$ ($-2.77$) & \\
     Average contraction of the fund's dealers & & $0.42$ (1.09) \\
@@ -605,6 +604,7 @@
   \end{itemize}
   \takeaway{Dealer balance sheet shocks reach the fund's positions dealer by dealer. Funds with several dealers move the financing and keep the position.}
 \end{frame}
+
 
 % ===========================================================================
 \section{Fragility through the volatility shock}
