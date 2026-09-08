@@ -501,19 +501,45 @@
 
 % ===========================================================================
 \section{The funding architecture}
-\begin{frame}{The funding architecture - \todohl{create the descriptives}}
-  \begin{itemize}
-    \item Repo terms by fund$\times$dealer pair
-    \begin{itemize}
-      \item rates
-      \item haircuts
-      \item tenor
-      \item rollover frequency
-    \end{itemize}
-    \item Relationship stability over time
-  \end{itemize}
-  \bigskip
+\begin{frame}{The funding architecture}{Repo terms by fund dealer pair and relationship stability}
+  \vspace{-0.6em}
+  \begin{center}\scriptsize
+  \begin{tabular}{lrrrr}
+    \toprule
+    & Mean & p10 & p50 & p90 \\
+    \midrule
+    \multicolumn{5}{l}{\textit{Fund borrows cash}} \\
+    Rate spread to the bond day average (bp) & 5.3 & $-9.6$ & 3.5 & 22.0 \\
+    Haircut (percent) & 0.34 & 0.00 & 0.00 & 1.48 \\
+    Tenor (days) & 27.1 & 3.5 & 11.7 & 86.0 \\
+    \midrule
+    \multicolumn{5}{l}{\textit{Fund lends cash}} \\
+    Rate spread to the bond day average (bp) & $-4.9$ & $-20.2$ & $-3.7$ & 6.6 \\
+    Haircut (percent) & $-0.26$ & $-1.25$ & 0.00 & 0.00 \\
+    Tenor (days) & 24.5 & 4.0 & 14.0 & 61.8 \\
+    \midrule
+    \multicolumn{5}{l}{\textit{Relationships, per fund and quarter}} \\
+    Dealers per fund & 2.8 & 1 & 2 & 5 \\
+    Share of the largest dealer & 0.76 & 0.41 & 0.83 & 1.00 \\
+    Share of net position with dealers used a year earlier & 0.85 & 0.41 & 1.00 & 1.00 \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  \vspace{-0.8em}
+  {\tiny\color{slate} One observation per fund, dealer and day, simple averages over the pair's trades, 301 thousand on the borrowing and 338 thousand on the lending side. The rate spread is the pair's rate minus the average over all other trades in the same bond on the same day, the fund's own trades excluded. A zero or negative haircut applies in 60 percent of borrowing and 91 percent of lending pair days, a tenor of up to one week in 30 and 27 percent. Relationships use absolute net positions over 3,201 fund quarters, the last row the 2,079 with the fund active a year earlier.\par}
   \takeaway{Funding is concentrated, short term and relationship based.}
+\end{frame}
+
+\begin{frame}{The funding architecture}{The same fund faces different rates at different dealers}
+  \centering
+  % Figure produced by code/funding_architecture.do, the placeholder shows until
+  % rate_gap_within_fund.png is copied into Figures/
+  \IfFileExists{Figures/rate_gap_within_fund.png}{%
+    \includegraphics[width=.72\textwidth,height=.68\textheight,keepaspectratio]{rate_gap_within_fund.png}\\
+    {\small\color{slate} For each fund, day and side with at least two dealers, the highest minus the lowest rate spread across the fund's dealers in basis points, median 8 and mean 20, gaps above 100 left out}%
+  }{%
+    \todohl{rate gap figure, run code/funding\_architecture.do and copy rate\_gap\_within\_fund.png into Figures/}%
+  }
 \end{frame}
 
 % ===========================================================================
