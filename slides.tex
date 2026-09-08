@@ -449,7 +449,14 @@
 
 \begin{frame}{Anatomy of the trade}{Three dealers finance more than half of the trade}
   \centering
-  \todohl{dealer share figure to be produced}
+  % Figure produced by code/dealer_fragility_qe.do, the placeholder shows until
+  % frac_top3_dealers.png is copied into Figures/
+  \IfFileExists{Figures/frac_top3_dealers.png}{%
+    \includegraphics[width=.72\textwidth,height=.68\textheight,keepaspectratio]{frac_top3_dealers.png}\\
+    {\small\color{slate} Each day dealers are ranked by the absolute value of their net EUR repo position with hedge funds, the chart shows the share of the three largest in the total across all dealers}%
+  }{%
+    \todohl{dealer share figure, run code/dealer\_fragility\_qe.do and copy frac\_top3\_dealers.png into Figures/}%
+  }
 \end{frame}
 
 \begin{frame}{Anatomy of the trade}{The bonds are not the cheapest to deliver}

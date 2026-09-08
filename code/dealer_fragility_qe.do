@@ -2,6 +2,8 @@ clear all
 snapshot erase _all
 
 global key "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
+global fig "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures" /*figures for the slides, the Figures folder of the repository*/
+capture mkdir "$fig"
 
 cap log close
 log using "$key\\dealer_fragility_qe.log", replace text
@@ -16,12 +18,53 @@ local K = 3 /*event window, the last K business days of the quarter*/
 local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
 local R1 = 19
 
-**# Step 1: windows, from the business days in the panel
+**# Step 0: the hedge fund panel, fund x dealer x day, cleaned as in DT.do
 
 import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
 capture drop v1
 gen date = date(business_date, "YMD")
 format date %td
+foreach v in borrowing_volume lending_volume {
+	replace `v' = 0 if missing(`v')
+}
+* two funds report borrowing and lending the wrong way round at the beginning
+* of the sample, flip the two sides for them before 24 April 2021 as in DT.do
+gen flip = inlist(fund_id, "P5XEQYFJP74DYQX88M80", "O1XNTICYRCAHEAMEQI31") & date < td(24apr2021)
+gen tmp = borrowing_volume
+replace borrowing_volume = lending_volume if flip
+replace lending_volume = tmp if flip
+drop tmp flip
+tempfile panel
+save `panel'
+
+**# Dealer concentration, the share of the three largest dealers, figure for the slides
+* same construction as the fund concentration figure in Graph.do, each day the
+* dealers are ranked by the absolute value of their net position with all hedge
+* funds, the figure shows the share of the three largest in the total across
+* all dealers, the top five share is summarised alongside for comparison with
+* the fund figure
+
+preserve
+	collapse (sum) borrowing_volume lending_volume, by(date dealer_id)
+	gen net = borrowing_volume - lending_volume
+	gen absnet = abs(net)
+	gsort date -absnet
+	by date: gen n = _n
+	by date: egen sumtop3 = sum(absnet*(n<=3))
+	by date: egen sumtop5 = sum(absnet*(n<=5))
+	by date: egen sumall = sum(absnet)
+	gen frac = sumtop3/sumall
+	gen frac5 = sumtop5/sumall
+	keep date frac frac5
+	duplicates drop
+	scatter frac date
+	graph export "$fig\\frac_top3_dealers.png", replace width(3220)
+	sum frac frac5
+restore
+
+**# Step 1: windows, from the business days in the panel
+
+use `panel', clear
 preserve
 	keep dealer_id /*the dealers that finance hedge funds, the population of test 1*/
 	duplicates drop
@@ -73,13 +116,8 @@ save `dealers'
 * daily averages over each window, absent days count as zero, log differences
 * only for pairs active in both windows as in KM's intensive margin
 
-import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
-capture drop v1
-gen date = date(business_date, "YMD")
+use `panel', clear
 merge m:1 date using `windows', keep(match) nogen
-foreach v in borrowing_volume lending_volume {
-	replace `v' = 0 if missing(`v')
-}
 collapse (sum) borrowing_volume lending_volume, by(fund_id dealer_id quarter window)
 reshape wide borrowing_volume lending_volume, i(fund_id dealer_id quarter) j(window)
 foreach v in borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 {
