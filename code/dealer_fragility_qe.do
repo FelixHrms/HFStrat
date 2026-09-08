@@ -22,6 +22,12 @@ import delimited "$key\\fund_dealer_day.csv", varnames(1) clear
 capture drop v1
 gen date = date(business_date, "YMD")
 format date %td
+preserve
+	keep dealer_id /*the dealers that finance hedge funds, the population of test 1*/
+	duplicates drop
+	tempfile hf_dealers
+	save `hf_dealers'
+restore
 keep date
 duplicates drop
 gen quarter = qofd(date)
@@ -45,6 +51,7 @@ save `windows'
 import delimited "$key\\dealer_book_day.csv", varnames(1) clear
 capture drop v1
 gen date = date(business_date, "YMD")
+merge m:1 dealer_id using `hf_dealers', keep(match) nogen /*only dealers that face hedge funds*/
 merge m:1 date using `windows', keep(match) nogen
 foreach v in borrowing_volume lending_volume {
 	replace `v' = 0 if missing(`v')

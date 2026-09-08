@@ -542,7 +542,7 @@
   \vspace{-1.1em}
   \begin{itemize}\small
     \item $\bar B_{d,q}$ is dealer $d$'s EUR repo book with all counterparties other than hedge funds, so the treatment is not mechanically the outcome. Positive values mean the dealer shrinks into the quarter-end.
-    \item Across the 9,403 dealer quarters in the book data the standard deviation is 0.60 log points, with persistent differences between dealers.
+    \item Across the 686 dealer quarters of the 37 dealers that finance hedge funds, the standard deviation is 0.32 log points, with persistent differences between dealers.
     \item The shock is anticipated by everyone, so the test measures whether funds can substitute, not whether they are surprised.
   \end{itemize}
 \end{frame}
@@ -581,21 +581,23 @@
   \begin{center}\scriptsize
   \begin{tabular}{lcc}
     \toprule
+    & (1) & (2) \\
     & Test 1: pair level & Test 2: fund level \\
+    & $\Delta \log |N_{f,d,q}|$ & $\Delta \log |N_{f,q}|$ \\
     \midrule
-    Dealer contraction, $\mathrm{dress}_{d,q}$ & $-0.78^{***}$ ($-2.77$) & \\
-    Average contraction of the fund's dealers & & $0.42$ (1.09) \\
-    95 percent confidence interval & $[-1.35,\, -0.20]$ & $[-0.34,\, 1.17]$ \\
+    $\mathrm{windress}_{d,q}$ & $-0.779^{***}$ & \\
+     & (0.281) & \\
+    $\overline{\mathrm{windress}}_{f,q}$ & & 0.418 \\
+     & & (0.383) \\
     \midrule
-    Fund $\times$ quarter FE & Yes & \\
-    Quarter FE & & Yes \\
-    Sample & pairs active in both windows & funds with at least two dealers \\
-    Clusters & 29 dealers & 170 funds \\
-    Observations & 5,560 pair quarters & 1,712 fund quarters \\
+    Fund $\times$ quarter FE & Yes & No \\
+    Quarter FE & No & Yes \\
+    Observations & 5,560 & 1,712 \\
+    R-squared & 0.301 & 0.029 \\
     \bottomrule
   \end{tabular}
   \par\smallskip
-  {\tiny\color{slate} Outcome is the change in the log absolute net position from the reference to the event window, 19 quarter-ends from 2021 to 2025. Coefficients per log point of the dealer's contraction of its non hedge fund repo book, t statistics in parentheses. $^{*}$, $^{**}$, $^{***}$ denote significance at the 10, 5 and 1 percent level. The fund level interval excludes the pair level estimate.}
+  {\tiny\color{slate} Standard errors in parentheses, clustered by dealer in column (1) and by fund in column (2). The outcome is the change in the log absolute net position from the reference to the event window, stacked over 19 quarter-ends from 2021 to 2025. Column (1) uses fund dealer pairs active in both windows, column (2) funds with at least two dealers in the reference window. $\overline{\mathrm{windress}}_{f,q} = \sum_d w_{f,d,q}\,\mathrm{windress}_{d,q}$ is the reference window share weighted average contraction of the fund's dealers. $^{*}$, $^{**}$, $^{***}$ denote significance at the 10, 5 and 1 percent level.}
   \end{center}
   \smallskip
   \begin{itemize}\small
