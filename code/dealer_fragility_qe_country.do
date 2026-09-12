@@ -112,7 +112,6 @@ egen fund_country_quarter = group(fund_id country quarter)
 label var dlog_borrowing "Change in log borrowing, quarter-end minus reference"
 label var dlog_lending "Change in log lending, quarter-end minus reference"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
-bysort fund_id quarter: egen fund_gross0 = total(borrowing_volume0 + lending_volume0) /*the fund's gross position in the reference window, the weight in the fund importance regressions*/
 
 **# Test 1: bank lending channel, KM equation 5 by collateral country
 * fund x country x quarter fixed effects compare the same fund's dealers within
@@ -127,7 +126,6 @@ preserve
 	collapse (first) dress, by(dealer_id quarter)
 	tabstat dress, stat(mean sd n)
 restore
-reghdfe dlog_net dress [aw = fund_gross0], a(fund_country_quarter) vce(cluster dealer_id) /*weighted by the fund's reference window gross position, the euro weighted response*/
 
 **# Test 2: fund borrowing channel, KM equation 6 by collateral country
 * fund x country level change in log totals on the reference window share
@@ -141,7 +139,7 @@ gen active0 = gross0 > 0 /*dealer active in the reference window*/
 foreach v in borrowing_volume0 lending_volume0 gross0 {
 	gen dress_`v' = dress*`v'
 }
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_* n_dealers = active0 (mean) fund_gross0, by(fund_id country quarter)
+collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_* n_dealers = active0, by(fund_id country quarter)
 gen exposure_borrowing = dress_borrowing_volume0/borrowing_volume0
 gen exposure_lending = dress_lending_volume0/lending_volume0
 gen exposure_net = dress_gross0/gross0
@@ -156,6 +154,5 @@ label var exposure_net "Reference share weighted contraction of the fund's deale
 foreach l in borrowing lending net {
 	reghdfe dlog_`l' exposure_`l' if n_dealers > 1, a(country_quarter) vce(cluster fund_id) /*fund country cells with at least two dealers in the reference window, the population that identifies test 1*/
 }
-reghdfe dlog_net exposure_net if n_dealers > 1 [aw = fund_gross0], a(country_quarter) vce(cluster fund_id) /*weighted by the fund's reference window gross position*/
 
 log close
