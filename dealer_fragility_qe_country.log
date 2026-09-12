@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- opened on:  12 Sep 2026, 16:21:59
+ opened on:  12 Sep 2026, 16:50:13
 
 . 
 . **# Quarter-end window dressing as the dealer shock, by collateral country
@@ -315,6 +315,11 @@ xij variables:
 
 . label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
+. tempfile pairs
+
+. save `pairs'
+file C:\Users\hermesf\AppData\Local\Temp\ST_75ec_000006.tmp saved as .dta format
+
 . 
 . **# Test 1: bank lending channel, KM equation 5 by collateral country
 . * fund x country x quarter fixed effects compare the same fund's dealers within
@@ -547,9 +552,119 @@ Absorbed degrees of freedom:
 ---------------------------------------------------------+
 
 . 
+. **# Pooled over countries, net as the sum of absolute country nets
+. * the pooled net |sum over countries of B - L| lets a long in one sovereign and
+. * a short in another cancel, so it can stay flat while both positions are cut,
+. * here the net is taken per country first and the absolute values are summed,
+. * at the pair level per dealer, at the fund level after netting across the
+. * fund's dealers within the country, same two tests as in dealer_fragility_qe.do
+. 
+. use `pairs', clear
+
+. gen gross0 = borrowing_volume0 + lending_volume0
+
+. bysort fund_id quarter dealer_id: egen dealer_gross0 = total(gross0)
+
+. bysort fund_id quarter dealer_id: gen active0 = _n == 1 & dealer_gross0 > 0 /*dealer active in the reference window, counted once per fund and 
+> quarter*/
+
+. gen dress_gross0 = dress*gross0
+
+. gen absnet0 = abs(borrowing_volume0 - lending_volume0)
+
+. gen absnet1 = abs(borrowing_volume1 - lending_volume1)
+
+. 
+. preserve
+
+.         collapse (sum) absnet0 absnet1 (first) dress, by(fund_id dealer_id quarter)
+
+.         gen dlog_net = log(absnet1) - log(absnet0)
+(873 missing values generated)
+
+.         egen fund_quarter = group(fund_id quarter)
+
+.         label var dlog_net "Change in log net, sum of absolute country nets, quarter-end minus reference"
+
+.         reghdfe dlog_net dress, a(fund_quarter) vce(cluster dealer_id)
+(dropped 1059 singleton observations)
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      5,560
+Absorbing 1 HDFE group                            F(   1,     28) =       5.92
+Statistics robust to heteroskedasticity           Prob > F        =     0.0216
+                                                  R-squared       =     0.3140
+                                                  Adj R-squared   =     0.0447
+                                                  Within R-sq.    =     0.0025
+Number of clusters (dealer_id) =         29       Root MSE        =     0.9291
+
+                             (Std. err. adjusted for 29 clusters in dealer_id)
+------------------------------------------------------------------------------
+             |               Robust
+    dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       dress |  -.6187431    .254195    -2.43   0.022    -1.139438   -.0980483
+       _cons |  -.0151968    .028674    -0.53   0.600    -.0739329    .0435393
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+------------------------------------------------------+
+  Absorbed FE | Categories  - Redundant  = Num. Coefs |
+--------------+---------------------------------------|
+ fund_quarter |      1567           0        1567     |
+------------------------------------------------------+
+
+. restore
+
+. 
+. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0, by(fund_id country 
+> quarter)
+
+. gen absnet0 = abs(borrowing_volume0 - lending_volume0) /*the fund's position in the country, netted across its dealers*/
+
+. gen absnet1 = abs(borrowing_volume1 - lending_volume1)
+
+. collapse (sum) absnet0 absnet1 gross0 dress_gross0 n_dealers, by(fund_id quarter)
+
+. gen exposure_net = dress_gross0/gross0
+(35 missing values generated)
+
+. gen dlog_net = log(absnet1) - log(absnet0)
+(214 missing values generated)
+
+. label var exposure_net "Reference share weighted contraction of the fund's dealers"
+
+. reghdfe dlog_net exposure_net if n_dealers > 1, a(quarter) vce(cluster fund_id)
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,712
+Absorbing 1 HDFE group                            F(   1,    169) =       0.32
+Statistics robust to heteroskedasticity           Prob > F        =     0.5725
+                                                  R-squared       =     0.0158
+                                                  Adj R-squared   =     0.0048
+                                                  Within R-sq.    =     0.0001
+Number of clusters (fund_id) =        170         Root MSE        =     0.6231
+
+                              (Std. err. adjusted for 170 clusters in fund_id)
+------------------------------------------------------------------------------
+             |               Robust
+    dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+exposure_net |   .1783352   .3153375     0.57   0.572    -.4441727    .8008431
+       _cons |  -.0890924   .0295385    -3.02   0.003    -.1474044   -.0307803
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+
+. 
 . log close
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- closed on:  12 Sep 2026, 16:22:23
+ closed on:  12 Sep 2026, 16:50:23
 -------------------------------------------------------------------------------------------------------------------------------------------------
