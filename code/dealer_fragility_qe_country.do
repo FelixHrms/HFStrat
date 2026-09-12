@@ -112,8 +112,6 @@ egen fund_country_quarter = group(fund_id country quarter)
 label var dlog_borrowing "Change in log borrowing, quarter-end minus reference"
 label var dlog_lending "Change in log lending, quarter-end minus reference"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
-tempfile pairs
-save `pairs'
 
 **# Test 1: bank lending channel, KM equation 5 by collateral country
 * fund x country x quarter fixed effects compare the same fund's dealers within
@@ -156,37 +154,5 @@ label var exposure_net "Reference share weighted contraction of the fund's deale
 foreach l in borrowing lending net {
 	reghdfe dlog_`l' exposure_`l' if n_dealers > 1, a(country_quarter) vce(cluster fund_id) /*fund country cells with at least two dealers in the reference window, the population that identifies test 1*/
 }
-
-**# Pooled over countries, net as the sum of absolute country nets
-* the pooled net |sum over countries of B - L| lets a long in one sovereign and
-* a short in another cancel, so it can stay flat while both positions are cut,
-* here the net is taken per country first and the absolute values are summed,
-* at the pair level per dealer, at the fund level after netting across the
-* fund's dealers within the country, same two tests as in dealer_fragility_qe.do
-
-use `pairs', clear
-gen gross0 = borrowing_volume0 + lending_volume0
-bysort fund_id quarter dealer_id: egen dealer_gross0 = total(gross0)
-bysort fund_id quarter dealer_id: gen active0 = _n == 1 & dealer_gross0 > 0 /*dealer active in the reference window, counted once per fund and quarter*/
-gen dress_gross0 = dress*gross0
-gen absnet0 = abs(borrowing_volume0 - lending_volume0)
-gen absnet1 = abs(borrowing_volume1 - lending_volume1)
-
-preserve
-	collapse (sum) absnet0 absnet1 (first) dress, by(fund_id dealer_id quarter)
-	gen dlog_net = log(absnet1) - log(absnet0)
-	egen fund_quarter = group(fund_id quarter)
-	label var dlog_net "Change in log net, sum of absolute country nets, quarter-end minus reference"
-	reghdfe dlog_net dress, a(fund_quarter) vce(cluster dealer_id)
-restore
-
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0, by(fund_id country quarter)
-gen absnet0 = abs(borrowing_volume0 - lending_volume0) /*the fund's position in the country, netted across its dealers*/
-gen absnet1 = abs(borrowing_volume1 - lending_volume1)
-collapse (sum) absnet0 absnet1 gross0 dress_gross0 n_dealers, by(fund_id quarter)
-gen exposure_net = dress_gross0/gross0
-gen dlog_net = log(absnet1) - log(absnet0)
-label var exposure_net "Reference share weighted contraction of the fund's dealers"
-reghdfe dlog_net exposure_net if n_dealers > 1, a(quarter) vce(cluster fund_id)
 
 log close
