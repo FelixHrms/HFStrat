@@ -1,0 +1,555 @@
+-------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
+  log type:  text
+ opened on:  12 Sep 2026, 16:21:59
+
+. 
+. **# Quarter-end window dressing as the dealer shock, by collateral country
+. * mirrors dealer_fragility_qe.do with the outcome at fund x dealer x collateral
+. * country, the treatment stays at the dealer level, test 1 compares the same
+. * fund's dealers within the same collateral country, test 2 asks whether the
+. * fund's net position in that country stays flat when its dealers there dress
+. 
+. local K = 3 /*event window, the last K business days of the quarter*/
+
+. local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
+
+. local R1 = 19
+
+. 
+. **# Step 0: the hedge fund panel, fund x dealer x country x day, cleaned as in DT.do
+. 
+. import delimited "$key\\fund_dealer_country_day.csv", varnames(1) clear
+(encoding automatically selected: UTF-8)
+(7 vars, 936,822 obs)
+
+. capture drop v1
+
+. gen date = date(business_date, "YMD")
+
+. format date %td
+
+. foreach v in borrowing_volume lending_volume {
+  2.         replace `v' = 0 if missing(`v')
+  3. }
+(267,398 real changes made)
+(181,497 real changes made)
+
+. * two funds report borrowing and lending the wrong way round at the beginning
+. * of the sample, flip the two sides for them before 24 April 2021 as in DT.do
+. gen flip = inlist(fund_id, "P5XEQYFJP74DYQX88M80", "O1XNTICYRCAHEAMEQI31") & date < td(24apr2021)
+
+. gen tmp = borrowing_volume
+
+. replace borrowing_volume = lending_volume if flip
+(1,341 real changes made)
+
+. replace lending_volume = tmp if flip
+(1,341 real changes made)
+
+. drop tmp flip
+
+. tempfile panel
+
+. save `panel'
+file C:\Users\hermesf\AppData\Local\Temp\ST_75ec_000001.tmp saved as .dta format
+
+. 
+. **# Step 1: windows, from the business days in the panel
+. 
+. use `panel', clear
+
+. preserve
+
+.         keep dealer_id /*the dealers that finance hedge funds, the population of test 1*/
+
+.         duplicates drop
+
+Duplicates in terms of all variables
+
+(936,784 observations deleted)
+
+.         tempfile hf_dealers
+
+.         save `hf_dealers'
+file C:\Users\hermesf\AppData\Local\Temp\ST_75ec_000003.tmp saved as .dta format
+
+. restore
+
+. keep date
+
+. duplicates drop
+
+Duplicates in terms of all variables
+
+(935,607 observations deleted)
+
+. gen quarter = qofd(date)
+
+. format quarter %tq
+
+. sort quarter date
+
+. by quarter: gen n_from_end = _N - _n
+
+. by quarter: gen n_days = _N
+
+. keep if n_days >= 40 /*complete quarters only*/
+(1 observation deleted)
+
+. gen window = .
+(1,214 missing values generated)
+
+. replace window = 1 if n_from_end < `K'
+(57 real changes made)
+
+. replace window = 0 if inrange(n_from_end, `R0', `R1')
+(285 real changes made)
+
+. drop if missing(window)
+(872 observations deleted)
+
+. keep date quarter window
+
+. tempfile windows
+
+. save `windows'
+file C:\Users\hermesf\AppData\Local\Temp\ST_75ec_000004.tmp saved as .dta format
+
+. 
+. **# Step 2: dealer treatment, contraction of the non hedge fund repo book
+. * dress = log of the daily book in the reference window minus log of the daily
+. * book in the event window, positive means the dealer shrinks at quarter-end,
+. * all collateral, the leverage ratio is collateral blind
+. 
+. import delimited "$key\\dealer_book_day.csv", varnames(1) clear
+(encoding automatically selected: UTF-8)
+(5 vars, 602,669 obs)
+
+. capture drop v1
+
+. gen date = date(business_date, "YMD")
+
+. merge m:1 dealer_id using `hf_dealers', keep(match) nogen /*only dealers that face hedge funds*/
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                            45,170  
+    -----------------------------------------
+
+. merge m:1 date using `windows', keep(match) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                            12,702  
+    -----------------------------------------
+
+. foreach v in borrowing_volume lending_volume {
+  2.         replace `v' = 0 if missing(`v')
+  3. }
+(180 real changes made)
+(222 real changes made)
+
+. gen book = borrowing_volume + lending_volume
+
+. collapse (sum) book, by(dealer_id quarter window)
+
+. reshape wide book, i(dealer_id quarter) j(window)
+(j = 0 1)
+
+Data                               Long   ->   Wide
+-----------------------------------------------------------------------------
+Number of observations            1,412   ->   707         
+Number of variables                   4   ->   4           
+j variable (2 values)            window   ->   (dropped)
+xij variables:
+                                   book   ->   book0 book1
+-----------------------------------------------------------------------------
+
+. replace book0 = book0/(`R1' - `R0' + 1) /*daily averages*/
+(706 real changes made)
+
+. replace book1 = book1/`K'
+(706 real changes made)
+
+. gen dress = log(book0) - log(book1)
+(2 missing values generated)
+
+. label var dress "Quarter-end contraction of the dealer's non HF repo book"
+
+. drop if missing(dress) /*no book in one of the two windows, the dealer is not active that quarter*/
+(2 observations deleted)
+
+. tabstat dress, by(dealer_id) stat(mean sd n)
+
+Summary for variables: dress
+Group variable: dealer_id 
+
+       dealer_id |      Mean        SD         N
+-----------------+------------------------------
+1VUV7VQFKUOQSJ21 |  .1076975  .0989364        19
+2G5BKIC2CB69PRJH |   .035092  .0514507        19
+2W8N8UU78PMDQKZE |  .2214509  .3497383        19
+2ZCNRR8UK83OBTEK |  .0562482  .3002354        19
+3TK20IVIUJ8J3ZU0 |  .0756966  .1550455        19
+529900ODI3047E2L |  .0089814  .1478486        19
+54930056FHWP7GIW | -.0569538  .0864495        19
+5493006QMFDDMYWI | -.0283985   .078564        19
+549300A2F46GR0UO |  .3269343  .8213122        19
+549300FH0WJAPEHT |  .0589691  .1174463        19
+549300GRXFI7D6PN |  .0666436   .378156        12
+549300ZK53CNGEEI |  .0535414   .080881        19
+6B2PBRV1FCJDMR45 | -.0614468   .111012        19
+7CUNS533WID6K7DG |  .0414171  .1116353        19
+7LTWFZYICNSX8D62 |  .1220662  .1333092        19
+8156007395B20763 |   .003555  .2992888        17
+815600E4E6DCD2D2 |  .0192378  .1616917        19
+851WYGNLUQLFZBSY |  .1066224  .1392418        19
+9598002014000518 |   .271643  1.520562        19
+96950023SCR9X9F3 |   .068753  .0888575        19
+DGQCSV2PHVF7I274 |   .061299  .0922345        19
+F0HUI1NY1AZMJMD8 |  .0940807  .0934112        19
+F3JS33DEI6XQ4ZBP |  .0714148  .7459045        19
+G5GSEF7VJP5I7OUK |  .1013136  .0953946        19
+K6Q0W1PS1L1O4IQL |  .0230724  .0827824        19
+K8MS7FD7N5Z2WQ51 |  .0230725  .0973394        19
+KX1WK48MPD4Y2NCU |  .0766443  .0960949        19
+MAES062Z21O4RZ2U |  .0180857  .1465813        19
+MP6I5ZYZBEU3UXPY |  .0500293  .1172832        19
+N4JDFKKH2FTD8RKF | -.0158662  .0263271        19
+O2RNE8IBXP4R0TD8 |  .0275956  .0574744        19
+PRNXTNXHBI0TSY1V |  .0798005  .3716324        19
+PSNL19R2RXX5U3QW | -.0285615  .1226758        19
+R0MUWSFPU8MPRO8K |   .081996  .0922319        19
+RRAN7P32P0W0YY4X |  .0310721  .0738129        19
+V3Z6EZ8Z6KSBJBFB |  .2090917  .1901235        11
+VWMYAEQSTOPNV0SU | -.0843149  .1352005        19
+XKZZ2JZF41MRHTR1 |  .0875151  .0750487        19
+-----------------+------------------------------
+           Total |  .0617736   .345949       705
+------------------------------------------------
+
+. keep dealer_id quarter dress
+
+. tempfile dealers
+
+. save `dealers'
+file C:\Users\hermesf\AppData\Local\Temp\ST_75ec_000005.tmp saved as .dta format
+
+. 
+. **# Step 3: pair x country level, one reference and one event observation per quarter
+. * daily averages over each window, absent days count as zero, log differences
+. * only for cells active in both windows as in KM's intensive margin
+. 
+. use `panel', clear
+
+. merge m:1 date using `windows', keep(match) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                           263,334  
+    -----------------------------------------
+
+. collapse (sum) borrowing_volume lending_volume, by(fund_id dealer_id country quarter window)
+
+. reshape wide borrowing_volume lending_volume, i(fund_id dealer_id country quarter) j(window)
+(j = 0 1)
+
+Data                               Long   ->   Wide
+-----------------------------------------------------------------------------
+Number of observations           32,051   ->   17,599      
+Number of variables                   7   ->   8           
+j variable (2 values)            window   ->   (dropped)
+xij variables:
+                       borrowing_volume   ->   borrowing_volume0 borrowing_volume1
+                         lending_volume   ->   lending_volume0 lending_volume1
+-----------------------------------------------------------------------------
+
+. foreach v in borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 {
+  2.         replace `v' = 0 if missing(`v')
+  3. }
+(554 real changes made)
+(2,593 real changes made)
+(554 real changes made)
+(2,593 real changes made)
+
+. foreach v in borrowing_volume0 lending_volume0 {
+  2.         replace `v' = `v'/(`R1' - `R0' + 1)
+  3. }
+(12,993 real changes made)
+(14,190 real changes made)
+
+. foreach v in borrowing_volume1 lending_volume1 {
+  2.         replace `v' = `v'/`K'
+  3. }
+(10,936 real changes made)
+(12,085 real changes made)
+
+. merge m:1 dealer_id quarter using `dealers', keep(match) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                            17,599  
+    -----------------------------------------
+
+. 
+. gen dlog_borrowing = log(borrowing_volume1) - log(borrowing_volume0)
+(7,184 missing values generated)
+
+. gen dlog_lending = log(lending_volume1) - log(lending_volume0)
+(6,056 missing values generated)
+
+. gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
+(3,149 missing values generated)
+
+. egen fund_country_quarter = group(fund_id country quarter)
+
+. label var dlog_borrowing "Change in log borrowing, quarter-end minus reference"
+
+. label var dlog_lending "Change in log lending, quarter-end minus reference"
+
+. label var dlog_net "Change in log absolute net, quarter-end minus reference"
+
+. 
+. **# Test 1: bank lending channel, KM equation 5 by collateral country
+. * fund x country x quarter fixed effects compare the same fund's dealers within
+. * the same collateral country at the same quarter-end, beta = per log point of
+. * the dealer's book contraction
+. 
+. foreach y in dlog_borrowing dlog_lending dlog_net {
+  2.         reghdfe `y' dress, a(fund_country_quarter) vce(cluster dealer_id)
+  3. }
+(dropped 2280 singleton observations)
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      8,135
+Absorbing 1 HDFE group                            F(   1,     22) =       2.11
+Statistics robust to heteroskedasticity           Prob > F        =     0.1606
+                                                  R-squared       =     0.3512
+                                                  Adj R-squared   =     0.0767
+                                                  Within R-sq.    =     0.0006
+Number of clusters (dealer_id) =         23       Root MSE        =     0.8358
+
+                             (Std. err. adjusted for 23 clusters in dealer_id)
+------------------------------------------------------------------------------
+             |               Robust
+dlog_borro~g | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       dress |  -.2928417   .2016687    -1.45   0.161    -.7110769    .1253936
+       _cons |   .0318835   .0200165     1.59   0.125    -.0096283    .0733953
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+--------------------------------------------------------------+
+          Absorbed FE | Categories  - Redundant  = Num. Coefs |
+----------------------+---------------------------------------|
+ fund_country_quarter |      2418           0        2418     |
+--------------------------------------------------------------+
+(dropped 2543 singleton observations)
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      9,000
+Absorbing 1 HDFE group                            F(   1,     27) =       2.22
+Statistics robust to heteroskedasticity           Prob > F        =     0.1479
+                                                  R-squared       =     0.3763
+                                                  Adj R-squared   =     0.1032
+                                                  Within R-sq.    =     0.0011
+Number of clusters (dealer_id) =         28       Root MSE        =     0.7579
+
+                             (Std. err. adjusted for 28 clusters in dealer_id)
+------------------------------------------------------------------------------
+             |               Robust
+dlog_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       dress |  -.3553993   .2385633    -1.49   0.148    -.8448909    .1340922
+       _cons |    .000822   .0290707     0.03   0.978    -.0588262    .0604702
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+--------------------------------------------------------------+
+          Absorbed FE | Categories  - Redundant  = Num. Coefs |
+----------------------+---------------------------------------|
+ fund_country_quarter |      2740           0        2740     |
+--------------------------------------------------------------+
+(dropped 2857 singleton observations)
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =     11,593
+Absorbing 1 HDFE group                            F(   1,     28) =       5.28
+Statistics robust to heteroskedasticity           Prob > F        =     0.0292
+                                                  R-squared       =     0.3141
+                                                  Adj R-squared   =     0.0283
+                                                  Within R-sq.    =     0.0007
+Number of clusters (dealer_id) =         29       Root MSE        =     1.1870
+
+                             (Std. err. adjusted for 29 clusters in dealer_id)
+------------------------------------------------------------------------------
+             |               Robust
+    dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       dress |  -.4383339   .1907259    -2.30   0.029    -.8290182   -.0476496
+       _cons |   .0270167   .0265534     1.02   0.318    -.0273755    .0814088
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+--------------------------------------------------------------+
+          Absorbed FE | Categories  - Redundant  = Num. Coefs |
+----------------------+---------------------------------------|
+ fund_country_quarter |      3410           0        3410     |
+--------------------------------------------------------------+
+
+. preserve
+
+.         keep if e(sample) /*the dealer quarters that identify the net regression*/
+(6,006 observations deleted)
+
+.         collapse (first) dress, by(dealer_id quarter)
+
+.         tabstat dress, stat(mean sd n)
+
+    Variable |      Mean        SD         N
+-------------+------------------------------
+       dress |  .0534816  .1467916       338
+--------------------------------------------
+
+. restore
+
+. 
+. **# Test 2: fund borrowing channel, KM equation 6 by collateral country
+. * fund x country level change in log totals on the reference window share
+. * weighted contraction of the dealers that finance the fund's positions in that
+. * country, country x quarter fixed effects compare funds within the same
+. * collateral country, cells with at least two dealers
+. 
+. gen gross0 = borrowing_volume0 + lending_volume0
+
+. gen gross1 = borrowing_volume1 + lending_volume1
+
+. gen active0 = gross0 > 0 /*dealer active in the reference window*/
+
+. foreach v in borrowing_volume0 lending_volume0 gross0 {
+  2.         gen dress_`v' = dress*`v'
+  3. }
+
+. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_* n_dealers = active0, by(fund_id countr
+> y quarter)
+
+. gen exposure_borrowing = dress_borrowing_volume0/borrowing_volume0
+(1,664 missing values generated)
+
+. gen exposure_lending = dress_lending_volume0/lending_volume0
+(985 missing values generated)
+
+. gen exposure_net = dress_gross0/gross0
+(113 missing values generated)
+
+. gen dlog_borrowing = log(borrowing_volume1) - log(borrowing_volume0)
+(2,352 missing values generated)
+
+. gen dlog_lending = log(lending_volume1) - log(lending_volume0)
+(1,747 missing values generated)
+
+. gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
+(771 missing values generated)
+
+. egen country_quarter = group(country quarter)
+
+. label var exposure_borrowing "Reference share weighted contraction of the fund's dealers in the country"
+
+. label var exposure_lending "Reference share weighted contraction of the fund's dealers in the country"
+
+. label var exposure_net "Reference share weighted contraction of the fund's dealers in the country"
+
+. 
+. foreach l in borrowing lending net {
+  2.         reghdfe dlog_`l' exposure_`l' if n_dealers > 1, a(country_quarter) vce(cluster fund_id) /*fund country cells with at least two deale
+> rs in the reference window, the population that identifies test 1*/
+  3. }
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      3,272
+Absorbing 1 HDFE group                            F(   1,    160) =       0.89
+Statistics robust to heteroskedasticity           Prob > F        =     0.3463
+                                                  R-squared       =     0.0483
+                                                  Adj R-squared   =     0.0257
+                                                  Within R-sq.    =     0.0002
+Number of clusters (fund_id) =        161         Root MSE        =     0.6603
+
+                                    (Std. err. adjusted for 161 clusters in fund_id)
+------------------------------------------------------------------------------------
+                   |               Robust
+    dlog_borrowing | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------------+----------------------------------------------------------------
+exposure_borrowing |  -.1915865   .2028462    -0.94   0.346    -.5921877    .2090147
+             _cons |  -.0673991   .0183329    -3.68   0.000    -.1036047   -.0311935
+------------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+---------------------------------------------------------+
+     Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-----------------+---------------------------------------|
+ country_quarter |        76           0          76     |
+---------------------------------------------------------+
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      3,501
+Absorbing 1 HDFE group                            F(   1,    160) =       9.08
+Statistics robust to heteroskedasticity           Prob > F        =     0.0030
+                                                  R-squared       =     0.0556
+                                                  Adj R-squared   =     0.0346
+                                                  Within R-sq.    =     0.0024
+Number of clusters (fund_id) =        161         Root MSE        =     0.6471
+
+                                  (Std. err. adjusted for 161 clusters in fund_id)
+----------------------------------------------------------------------------------
+                 |               Robust
+    dlog_lending | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-----------------+----------------------------------------------------------------
+exposure_lending |  -.7749739    .257203    -3.01   0.003    -1.282924   -.2670233
+           _cons |  -.0431849   .0214171    -2.02   0.045    -.0854815   -.0008882
+----------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+---------------------------------------------------------+
+     Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-----------------+---------------------------------------|
+ country_quarter |        76           0          76     |
+---------------------------------------------------------+
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      3,867
+Absorbing 1 HDFE group                            F(   1,    166) =       0.77
+Statistics robust to heteroskedasticity           Prob > F        =     0.3810
+                                                  R-squared       =     0.0307
+                                                  Adj R-squared   =     0.0112
+                                                  Within R-sq.    =     0.0001
+Number of clusters (fund_id) =        167         Root MSE        =     1.0934
+
+                              (Std. err. adjusted for 167 clusters in fund_id)
+------------------------------------------------------------------------------
+             |               Robust
+    dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+exposure_net |  -.3023514   .3441841    -0.88   0.381     -.981894    .3771912
+       _cons |   -.046167   .0263865    -1.75   0.082    -.0982635    .0059294
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+---------------------------------------------------------+
+     Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-----------------+---------------------------------------|
+ country_quarter |        76           0          76     |
+---------------------------------------------------------+
+
+. 
+. log close
+      name:  <unnamed>
+       log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
+  log type:  text
+ closed on:  12 Sep 2026, 16:22:23
+-------------------------------------------------------------------------------------------------------------------------------------------------
