@@ -108,12 +108,8 @@ foreach v in borrowing_volume1 lending_volume1 {
 }
 merge m:1 dealer_id quarter using `dealers', keep(match) nogen
 
-gen dlog_borrowing = log(borrowing_volume1) - log(borrowing_volume0)
-gen dlog_lending = log(lending_volume1) - log(lending_volume0)
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
 egen fund_quarter = group(fund_id quarter)
-label var dlog_borrowing "Change in log borrowing, quarter-end minus reference"
-label var dlog_lending "Change in log lending, quarter-end minus reference"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
 **# Test 1: bank lending channel, KM equation 5 by collateral country
@@ -124,9 +120,7 @@ label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
 foreach c of local countries {
 	di _n "Collateral country `c'"
-	foreach y in dlog_borrowing dlog_lending dlog_net {
-		reghdfe `y' dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
-	}
+	reghdfe dlog_net dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
 	preserve
 		keep if e(sample) /*the dealer quarters that identify the net regression*/
 		collapse (first) dress, by(dealer_id quarter)
@@ -144,25 +138,15 @@ foreach c of local countries {
 gen gross0 = borrowing_volume0 + lending_volume0
 gen gross1 = borrowing_volume1 + lending_volume1
 gen active0 = gross0 > 0 /*dealer active in the reference window*/
-foreach v in borrowing_volume0 lending_volume0 gross0 {
-	gen dress_`v' = dress*`v'
-}
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_* n_dealers = active0, by(fund_id country quarter)
-gen exposure_borrowing = dress_borrowing_volume0/borrowing_volume0
-gen exposure_lending = dress_lending_volume0/lending_volume0
+gen dress_gross0 = dress*gross0
+collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_gross0 n_dealers = active0, by(fund_id country quarter)
 gen exposure_net = dress_gross0/gross0
-gen dlog_borrowing = log(borrowing_volume1) - log(borrowing_volume0)
-gen dlog_lending = log(lending_volume1) - log(lending_volume0)
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
-label var exposure_borrowing "Reference share weighted contraction of the fund's dealers in the country"
-label var exposure_lending "Reference share weighted contraction of the fund's dealers in the country"
 label var exposure_net "Reference share weighted contraction of the fund's dealers in the country"
 
 foreach c of local countries {
 	di _n "Collateral country `c'"
-	foreach l in borrowing lending net {
-		reghdfe dlog_`l' exposure_`l' if n_dealers > 1 & country == "`c'", a(quarter) vce(cluster fund_id) /*funds with at least two dealers in the country in the reference window, the population that identifies test 1*/
-	}
+	reghdfe dlog_net exposure_net if n_dealers > 1 & country == "`c'", a(quarter) vce(cluster fund_id) /*funds with at least two dealers in the country in the reference window, the population that identifies test 1*/
 }
 
 log close
