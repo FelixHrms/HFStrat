@@ -7,14 +7,17 @@ cap log close
 log using "$key\\dealer_fragility_qe_country.log", replace text
 
 **# Quarter-end window dressing as the dealer shock, by collateral country
-* mirrors dealer_fragility_qe.do with the outcome at fund x dealer x collateral
-* country, the treatment stays at the dealer level, test 1 compares the same
-* fund's dealers within the same collateral country, test 2 asks whether the
-* fund's net position in that country stays flat when its dealers there dress
+* runs the two tests of dealer_fragility_qe.do separately for each collateral
+* country, the outcome is the fund x dealer x quarter panel of the country's
+* collateral, the treatment stays at the dealer level, test 1 compares the
+* same fund's dealers at the same quarter-end, test 2 asks whether the fund's
+* net position in the country stays flat when its dealers dress, the slopes
+* are free to differ across the four sovereigns
 
 local K = 3 /*event window, the last K business days of the quarter*/
 local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
 local R1 = 19
+local countries "DE FR IT ES" /*the four sovereigns, one regression per collateral country*/
 
 **# Step 0: the hedge fund panel, fund x dealer x country x day, cleaned as in DT.do
 
@@ -108,30 +111,35 @@ merge m:1 dealer_id quarter using `dealers', keep(match) nogen
 gen dlog_borrowing = log(borrowing_volume1) - log(borrowing_volume0)
 gen dlog_lending = log(lending_volume1) - log(lending_volume0)
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
-egen fund_country_quarter = group(fund_id country quarter)
+egen fund_quarter = group(fund_id quarter)
 label var dlog_borrowing "Change in log borrowing, quarter-end minus reference"
 label var dlog_lending "Change in log lending, quarter-end minus reference"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
 **# Test 1: bank lending channel, KM equation 5 by collateral country
-* fund x country x quarter fixed effects compare the same fund's dealers within
-* the same collateral country at the same quarter-end, beta = per log point of
+* one regression per collateral country on the pairs in that country's
+* collateral, fund x quarter fixed effects compare the same fund's dealers at
+* the same quarter-end as in dealer_fragility_qe.do, beta = per log point of
 * the dealer's book contraction
 
-foreach y in dlog_borrowing dlog_lending dlog_net {
-	reghdfe `y' dress, a(fund_country_quarter) vce(cluster dealer_id)
+foreach c of local countries {
+	di _n "Collateral country `c'"
+	foreach y in dlog_borrowing dlog_lending dlog_net {
+		reghdfe `y' dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
+	}
+	preserve
+		keep if e(sample) /*the dealer quarters that identify the net regression*/
+		collapse (first) dress, by(dealer_id quarter)
+		tabstat dress, stat(mean sd n)
+	restore
 }
-preserve
-	keep if e(sample) /*the dealer quarters that identify the net regression*/
-	collapse (first) dress, by(dealer_id quarter)
-	tabstat dress, stat(mean sd n)
-restore
 
 **# Test 2: fund borrowing channel, KM equation 6 by collateral country
-* fund x country level change in log totals on the reference window share
-* weighted contraction of the dealers that finance the fund's positions in that
-* country, country x quarter fixed effects compare funds within the same
-* collateral country, cells with at least two dealers
+* fund level change in log totals in the country's collateral on the reference
+* window share weighted contraction of the dealers that finance the fund's
+* positions in that country, one regression per collateral country with
+* quarter fixed effects as in dealer_fragility_qe.do, funds with at least two
+* dealers in the country
 
 gen gross0 = borrowing_volume0 + lending_volume0
 gen gross1 = borrowing_volume1 + lending_volume1
@@ -146,13 +154,15 @@ gen exposure_net = dress_gross0/gross0
 gen dlog_borrowing = log(borrowing_volume1) - log(borrowing_volume0)
 gen dlog_lending = log(lending_volume1) - log(lending_volume0)
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
-egen country_quarter = group(country quarter)
 label var exposure_borrowing "Reference share weighted contraction of the fund's dealers in the country"
 label var exposure_lending "Reference share weighted contraction of the fund's dealers in the country"
 label var exposure_net "Reference share weighted contraction of the fund's dealers in the country"
 
-foreach l in borrowing lending net {
-	reghdfe dlog_`l' exposure_`l' if n_dealers > 1, a(country_quarter) vce(cluster fund_id) /*fund country cells with at least two dealers in the reference window, the population that identifies test 1*/
+foreach c of local countries {
+	di _n "Collateral country `c'"
+	foreach l in borrowing lending net {
+		reghdfe dlog_`l' exposure_`l' if n_dealers > 1 & country == "`c'", a(quarter) vce(cluster fund_id) /*funds with at least two dealers in the country in the reference window, the population that identifies test 1*/
+	}
 }
 
 log close
