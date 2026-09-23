@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- opened on:  23 Sep 2026, 14:25:31
+ opened on:  23 Sep 2026, 14:49:13
 
 . 
 . **# Quarter-end window dressing as the dealer shock, by collateral country
@@ -321,19 +321,23 @@ xij variables:
 . * one regression per collateral country on the pairs in that country's
 . * collateral, fund x quarter fixed effects compare the same fund's dealers at
 . * the same quarter-end as in dealer_fragility_qe.do, beta = per log point of
-. * the dealer's book contraction
+. * the dealer's book contraction, standard errors clustered by dealer as in KM
+. * with wild cluster bootstrap p values since there are only about twenty
+. * dealers per country
 . 
 . foreach c of local countries {
   2.         di _n "Collateral country `c'"
   3.         foreach y in dlog_gross dlog_net {
   4.                 reghdfe `y' dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
-  5.         }
-  6.         preserve
-  7.                 keep if e(sample) /*the dealer quarters that identify the net regression*/
-  8.                 collapse (first) dress, by(dealer_id quarter)
-  9.                 tabstat dress, stat(mean sd n)
- 10.         restore
- 11. }
+  5.                 boottest dress, reps(9999) seed(1) nograph /*wild cluster bootstrap p value, Rademacher weights, the cluster robust standard
+>  errors are too small with this few dealers*/
+  6.         }
+  7.         preserve
+  8.                 keep if e(sample) /*the dealer quarters that identify the net regression*/
+  9.                 collapse (first) dress, by(dealer_id quarter)
+ 10.                 tabstat dress, stat(mean sd n)
+ 11.         restore
+ 12. }
 
 Collateral country DE
 (dropped 698 singleton observations)
@@ -362,6 +366,14 @@ Absorbed degrees of freedom:
 --------------+---------------------------------------|
  fund_quarter |       861           0         861     |
 ------------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by dealer_id, Rademacher weights:
+  dress
+
+                           t(22) =    -1.2754
+                        Prob>|t| =     0.2033
+
+95% confidence set for null hypothesis expression: [−.9898, .1303]
 (dropped 698 singleton observations)
 (MWFE estimator converged in 1 iterations)
 
@@ -388,6 +400,14 @@ Absorbed degrees of freedom:
 --------------+---------------------------------------|
  fund_quarter |       861           0         861     |
 ------------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by dealer_id, Rademacher weights:
+  dress
+
+                           t(22) =    -1.8973
+                        Prob>|t| =     0.0580
+
+95% confidence set for null hypothesis expression: [−1.144, .01811]
 (14,593 observations deleted)
 
     Variable |      Mean        SD         N
@@ -422,6 +442,14 @@ Absorbed degrees of freedom:
 --------------+---------------------------------------|
  fund_quarter |      1060           0        1060     |
 ------------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by dealer_id, Rademacher weights:
+  dress
+
+                           t(20) =    -0.9362
+                        Prob>|t| =     0.3739
+
+95% confidence set for null hypothesis expression: [−.8432, .2573]
 (dropped 747 singleton observations)
 (MWFE estimator converged in 1 iterations)
 
@@ -448,6 +476,14 @@ Absorbed degrees of freedom:
 --------------+---------------------------------------|
  fund_quarter |      1060           0        1060     |
 ------------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by dealer_id, Rademacher weights:
+  dress
+
+                           t(20) =    -0.3827
+                        Prob>|t| =     0.6254
+
+95% confidence set for null hypothesis expression: [−.547, .637]
 (14,152 observations deleted)
 
     Variable |      Mean        SD         N
@@ -482,6 +518,14 @@ Absorbed degrees of freedom:
 --------------+---------------------------------------|
  fund_quarter |       768           0         768     |
 ------------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by dealer_id, Rademacher weights:
+  dress
+
+                           t(20) =    -1.5474
+                        Prob>|t| =     0.1415
+
+95% confidence set for null hypothesis expression: [−1.103, .1729]
 (dropped 741 singleton observations)
 (MWFE estimator converged in 1 iterations)
 
@@ -508,6 +552,14 @@ Absorbed degrees of freedom:
 --------------+---------------------------------------|
  fund_quarter |       768           0         768     |
 ------------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by dealer_id, Rademacher weights:
+  dress
+
+                           t(20) =    -0.0125
+                        Prob>|t| =     0.9886
+
+95% confidence set for null hypothesis expression: [−1.26, .9287]
 (14,800 observations deleted)
 
     Variable |      Mean        SD         N
@@ -542,6 +594,14 @@ Absorbed degrees of freedom:
 --------------+---------------------------------------|
  fund_quarter |       721           0         721     |
 ------------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by dealer_id, Rademacher weights:
+  dress
+
+                           t(18) =    -1.8124
+                        Prob>|t| =     0.1589
+
+95% confidence set for null hypothesis expression: [−1.311, .2103]
 (dropped 671 singleton observations)
 (MWFE estimator converged in 1 iterations)
 
@@ -568,6 +628,14 @@ Absorbed degrees of freedom:
 --------------+---------------------------------------|
  fund_quarter |       721           0         721     |
 ------------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by dealer_id, Rademacher weights:
+  dress
+
+                           t(18) =    -3.7505
+                        Prob>|t| =     0.0167
+
+95% confidence set for null hypothesis expression: [−2.051, −.3222]
 (15,258 observations deleted)
 
     Variable |      Mean        SD         N
@@ -581,7 +649,8 @@ Absorbed degrees of freedom:
 . * window share weighted contraction of the dealers that finance the fund's
 . * positions in that country, one regression per collateral country with
 . * quarter fixed effects as in dealer_fragility_qe.do, funds with at least two
-. * dealers in the country
+. * dealers in the country, standard errors clustered by the fund's largest
+. * dealer in the country in the reference window as in KM's table 6
 . 
 . gen gross0 = borrowing_volume0 + lending_volume0
 
@@ -589,10 +658,13 @@ Absorbed degrees of freedom:
 
 . gen active0 = gross0 > 0 /*dealer active in the reference window*/
 
+. bysort fund_id country quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the country in the reference 
+> window, the unit of clustering*/
+
 . gen dress_gross0 = dress*gross0
 
-. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_gross0 n_dealers = active0, by(fund_id c
-> ountry quarter)
+. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_gross0 n_dealers = active0 (first) main_
+> dealer, by(fund_id country quarter)
 
 . gen exposure = dress_gross0/gross0 /*the same gross share weighted contraction for both outcomes*/
 (113 missing values generated)
@@ -613,29 +685,30 @@ Absorbed degrees of freedom:
 . foreach c of local countries {
   2.         di _n "Collateral country `c'"
   3.         foreach y in dlog_gross dlog_net {
-  4.                 reghdfe `y' exposure if n_dealers > 1 & country == "`c'", a(quarter) vce(cluster fund_id) /*funds with at least two dealers 
-> in the country in the reference window, the population that identifies test 1*/
-  5.         }
-  6. }
+  4.                 reghdfe `y' exposure if n_dealers > 1 & country == "`c'", a(quarter) vce(cluster main_dealer) /*funds with at least two deal
+> ers in the country in the reference window, the population that identifies test 1*/
+  5.                 boottest exposure, reps(9999) seed(1) nograph
+  6.         }
+  7. }
 
 Collateral country DE
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =        979
-Absorbing 1 HDFE group                            F(   1,    127) =       1.09
-Statistics robust to heteroskedasticity           Prob > F        =     0.2992
+Absorbing 1 HDFE group                            F(   1,     16) =       2.02
+Statistics robust to heteroskedasticity           Prob > F        =     0.1746
                                                   R-squared       =     0.0382
                                                   Adj R-squared   =     0.0191
                                                   Within R-sq.    =     0.0007
-Number of clusters (fund_id) =        128         Root MSE        =     0.6950
+Number of clusters (main_dealer) =         17     Root MSE        =     0.6950
 
-                              (Std. err. adjusted for 128 clusters in fund_id)
+                           (Std. err. adjusted for 17 clusters in main_dealer)
 ------------------------------------------------------------------------------
              |               Robust
   dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-    exposure |  -.3931756   .3771499    -1.04   0.299    -1.139487    .3531359
-       _cons |  -.1253799   .0290486    -4.32   0.000    -.1828618    -.067898
+    exposure |  -.3931756   .2767427    -1.42   0.175    -.9798439    .1934928
+       _cons |  -.1253799   .0390762    -3.21   0.005    -.2082178    -.042542
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -644,23 +717,31 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(16) =    -1.4207
+                        Prob>|t| =     0.2361
+
+95% confidence set for null hypothesis expression: [−.9077, .4137]
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =        979
-Absorbing 1 HDFE group                            F(   1,    127) =       4.81
-Statistics robust to heteroskedasticity           Prob > F        =     0.0301
+Absorbing 1 HDFE group                            F(   1,     16) =       6.93
+Statistics robust to heteroskedasticity           Prob > F        =     0.0181
                                                   R-squared       =     0.0205
                                                   Adj R-squared   =     0.0011
                                                   Within R-sq.    =     0.0023
-Number of clusters (fund_id) =        128         Root MSE        =     1.0610
+Number of clusters (main_dealer) =         17     Root MSE        =     1.0610
 
-                              (Std. err. adjusted for 128 clusters in fund_id)
+                           (Std. err. adjusted for 17 clusters in main_dealer)
 ------------------------------------------------------------------------------
              |               Robust
     dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-    exposure |  -1.068839   .4872592    -2.19   0.030    -2.033037   -.1046406
-       _cons |  -.0272899   .0418904    -0.65   0.516    -.1101834    .0556036
+    exposure |  -1.068839   .4060425    -2.63   0.018     -1.92961   -.2080669
+       _cons |  -.0272899   .0693134    -0.39   0.699    -.1742278     .119648
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -669,25 +750,33 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(16) =    -2.6323
+                        Prob>|t| =     0.0829
+
+95% confidence set for null hypothesis expression: [−1.994, .317]
 
 Collateral country FR
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      1,217
-Absorbing 1 HDFE group                            F(   1,    136) =       6.50
-Statistics robust to heteroskedasticity           Prob > F        =     0.0119
+Absorbing 1 HDFE group                            F(   1,     15) =      13.42
+Statistics robust to heteroskedasticity           Prob > F        =     0.0023
                                                   R-squared       =     0.0395
                                                   Adj R-squared   =     0.0242
                                                   Within R-sq.    =     0.0087
-Number of clusters (fund_id) =        137         Root MSE        =     0.6772
+Number of clusters (main_dealer) =         16     Root MSE        =     0.6772
 
-                              (Std. err. adjusted for 137 clusters in fund_id)
+                           (Std. err. adjusted for 16 clusters in main_dealer)
 ------------------------------------------------------------------------------
              |               Robust
   dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-    exposure |  -1.629858   .6393218    -2.55   0.012    -2.894156   -.3655607
-       _cons |  -.0256116   .0388606    -0.66   0.511    -.1024608    .0512376
+    exposure |  -1.629858   .4449888    -3.66   0.002    -2.578329   -.6813872
+       _cons |  -.0256116   .0289991    -0.88   0.391    -.0874217    .0361985
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -696,23 +785,31 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(15) =    -3.6627
+                        Prob>|t| =     0.0381
+
+95% confidence set for null hypothesis expression: [−2.587, −.1532]
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      1,217
-Absorbing 1 HDFE group                            F(   1,    136) =       3.67
-Statistics robust to heteroskedasticity           Prob > F        =     0.0575
+Absorbing 1 HDFE group                            F(   1,     15) =       4.03
+Statistics robust to heteroskedasticity           Prob > F        =     0.0632
                                                   R-squared       =     0.0204
                                                   Adj R-squared   =     0.0048
                                                   Within R-sq.    =     0.0021
-Number of clusters (fund_id) =        137         Root MSE        =     1.1303
+Number of clusters (main_dealer) =         16     Root MSE        =     1.1303
 
-                              (Std. err. adjusted for 137 clusters in fund_id)
+                           (Std. err. adjusted for 16 clusters in main_dealer)
 ------------------------------------------------------------------------------
              |               Robust
     dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-    exposure |  -1.339075   .6989355    -1.92   0.057    -2.721262    .0431126
-       _cons |   .0589064   .0545072     1.08   0.282    -.0488849    .1666976
+    exposure |  -1.339075    .667341    -2.01   0.063    -2.761478    .0833288
+       _cons |   .0589064   .0708297     0.83   0.419    -.0920635    .2098762
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -721,25 +818,33 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(15) =    -2.0066
+                        Prob>|t| =     0.1420
+
+95% confidence set for null hypothesis expression: [−2.78, .754]
 
 Collateral country IT
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =        862
-Absorbing 1 HDFE group                            F(   1,    100) =       0.08
-Statistics robust to heteroskedasticity           Prob > F        =     0.7725
+Absorbing 1 HDFE group                            F(   1,     17) =       0.17
+Statistics robust to heteroskedasticity           Prob > F        =     0.6833
                                                   R-squared       =     0.1113
                                                   Adj R-squared   =     0.0912
                                                   Within R-sq.    =     0.0001
-Number of clusters (fund_id) =        101         Root MSE        =     0.4396
+Number of clusters (main_dealer) =         18     Root MSE        =     0.4396
 
-                              (Std. err. adjusted for 101 clusters in fund_id)
+                           (Std. err. adjusted for 18 clusters in main_dealer)
 ------------------------------------------------------------------------------
              |               Robust
   dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-    exposure |  -.0828817   .2858807    -0.29   0.772    -.6500609    .4842974
-       _cons |  -.0641815    .022051    -2.91   0.004      -.10793    -.020433
+    exposure |  -.0828817    .199691    -0.42   0.683     -.504193    .3384295
+       _cons |  -.0641815   .0282347    -2.27   0.036    -.1237515   -.0046114
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -748,23 +853,31 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(17) =    -0.4150
+                        Prob>|t| =     0.6838
+
+95% confidence set for null hypothesis expression: [−.9058, .2045]
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =        862
-Absorbing 1 HDFE group                            F(   1,    100) =       3.11
-Statistics robust to heteroskedasticity           Prob > F        =     0.0807
+Absorbing 1 HDFE group                            F(   1,     17) =       4.11
+Statistics robust to heteroskedasticity           Prob > F        =     0.0586
                                                   R-squared       =     0.0411
                                                   Adj R-squared   =     0.0195
                                                   Within R-sq.    =     0.0033
-Number of clusters (fund_id) =        101         Root MSE        =     1.1201
+Number of clusters (main_dealer) =         18     Root MSE        =     1.1201
 
-                              (Std. err. adjusted for 101 clusters in fund_id)
+                           (Std. err. adjusted for 18 clusters in main_dealer)
 ------------------------------------------------------------------------------
              |               Robust
     dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-    exposure |    1.62824   .9228703     1.76   0.081    -.2027083    3.459188
-       _cons |  -.1266948    .070852    -1.79   0.077    -.2672631    .0138736
+    exposure |    1.62824   .8030518     2.03   0.059    -.0660512    3.322531
+       _cons |  -.1266948   .0622683    -2.03   0.058    -.2580694    .0046799
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -773,25 +886,33 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(17) =     2.0276
+                        Prob>|t| =     0.0896
+
+95% confidence set for null hypothesis expression: [−.4767, 4.41]
 
 Collateral country ES
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =        809
-Absorbing 1 HDFE group                            F(   1,     92) =       0.40
-Statistics robust to heteroskedasticity           Prob > F        =     0.5280
+Absorbing 1 HDFE group                            F(   1,     14) =       0.97
+Statistics robust to heteroskedasticity           Prob > F        =     0.3423
                                                   R-squared       =     0.0563
                                                   Adj R-squared   =     0.0336
                                                   Within R-sq.    =     0.0005
-Number of clusters (fund_id) =         93         Root MSE        =     0.5975
+Number of clusters (main_dealer) =         15     Root MSE        =     0.5975
 
-                               (Std. err. adjusted for 93 clusters in fund_id)
+                           (Std. err. adjusted for 15 clusters in main_dealer)
 ------------------------------------------------------------------------------
              |               Robust
   dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-    exposure |  -.3353085    .529327    -0.63   0.528    -1.386598    .7159806
-       _cons |  -.1125889   .0366339    -3.07   0.003    -.1853471   -.0398308
+    exposure |  -.3353085   .3411167    -0.98   0.342    -1.066931     .396314
+       _cons |  -.1125889   .0386753    -2.91   0.011    -.1955391   -.0296387
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -800,23 +921,31 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(14) =    -0.9830
+                        Prob>|t| =     0.3710
+
+95% confidence set for null hypothesis expression: [−1.742, .4205]
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =        809
-Absorbing 1 HDFE group                            F(   1,     92) =       0.21
-Statistics robust to heteroskedasticity           Prob > F        =     0.6464
+Absorbing 1 HDFE group                            F(   1,     14) =       0.72
+Statistics robust to heteroskedasticity           Prob > F        =     0.4099
                                                   R-squared       =     0.0507
                                                   Adj R-squared   =     0.0279
                                                   Within R-sq.    =     0.0003
-Number of clusters (fund_id) =         93         Root MSE        =     1.0422
+Number of clusters (main_dealer) =         15     Root MSE        =     1.0422
 
-                               (Std. err. adjusted for 93 clusters in fund_id)
+                           (Std. err. adjusted for 15 clusters in main_dealer)
 ------------------------------------------------------------------------------
              |               Robust
     dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-    exposure |   .4652811   1.010914     0.46   0.646    -1.542481    2.473044
-       _cons |   -.143989   .0758427    -1.90   0.061    -.2946191    .0066411
+    exposure |   .4652811   .5477254     0.85   0.410     -.709473    1.640035
+       _cons |   -.143989   .0515442    -2.79   0.014    -.2545402   -.0334378
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -825,11 +954,19 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(14) =     0.8495
+                        Prob>|t| =     0.6091
+
+95% confidence set for null hypothesis expression: [−1.682, 1.588]
 
 . 
 . log close
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- closed on:  23 Sep 2026, 14:25:46
+ closed on:  23 Sep 2026, 14:49:40
 -------------------------------------------------------------------------------------------------------------------------------------------------
