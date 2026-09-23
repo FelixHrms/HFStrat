@@ -120,12 +120,15 @@ label var dlog_net "Change in log absolute net, quarter-end minus reference"
 * one regression per collateral country on the pairs in that country's
 * collateral, fund x quarter fixed effects compare the same fund's dealers at
 * the same quarter-end as in dealer_fragility_qe.do, beta = per log point of
-* the dealer's book contraction
+* the dealer's book contraction, standard errors clustered by dealer as in KM
+* with wild cluster bootstrap p values since there are only about twenty
+* dealers per country
 
 foreach c of local countries {
 	di _n "Collateral country `c'"
 	foreach y in dlog_gross dlog_net {
 		reghdfe `y' dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
+		boottest dress, reps(9999) seed(1) nograph /*wild cluster bootstrap p value, Rademacher weights, the cluster robust standard errors are too small with this few dealers*/
 	}
 	preserve
 		keep if e(sample) /*the dealer quarters that identify the net regression*/
@@ -139,13 +142,15 @@ foreach c of local countries {
 * window share weighted contraction of the dealers that finance the fund's
 * positions in that country, one regression per collateral country with
 * quarter fixed effects as in dealer_fragility_qe.do, funds with at least two
-* dealers in the country
+* dealers in the country, standard errors clustered by the fund's largest
+* dealer in the country in the reference window as in KM's table 6
 
 gen gross0 = borrowing_volume0 + lending_volume0
 gen gross1 = borrowing_volume1 + lending_volume1
 gen active0 = gross0 > 0 /*dealer active in the reference window*/
+bysort fund_id country quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the country in the reference window, the unit of clustering*/
 gen dress_gross0 = dress*gross0
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_gross0 n_dealers = active0, by(fund_id country quarter)
+collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_gross0 n_dealers = active0 (first) main_dealer, by(fund_id country quarter)
 gen exposure = dress_gross0/gross0 /*the same gross share weighted contraction for both outcomes*/
 gen dlog_gross = log(gross1) - log(gross0)
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
@@ -156,7 +161,8 @@ label var dlog_net "Change in log absolute net, quarter-end minus reference"
 foreach c of local countries {
 	di _n "Collateral country `c'"
 	foreach y in dlog_gross dlog_net {
-		reghdfe `y' exposure if n_dealers > 1 & country == "`c'", a(quarter) vce(cluster fund_id) /*funds with at least two dealers in the country in the reference window, the population that identifies test 1*/
+		reghdfe `y' exposure if n_dealers > 1 & country == "`c'", a(quarter) vce(cluster main_dealer) /*funds with at least two dealers in the country in the reference window, the population that identifies test 1*/
+		boottest exposure, reps(9999) seed(1) nograph
 	}
 }
 

@@ -141,10 +141,13 @@ label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
 **# Test 1: bank lending channel, KM equation 5 stacked over quarter-ends
 * fund x quarter fixed effects compare the same fund's dealers at the same
-* quarter-end, beta = per log point of the dealer's book contraction
+* quarter-end, beta = per log point of the dealer's book contraction,
+* standard errors clustered by dealer as in KM, the level of the shock, with
+* wild cluster bootstrap p values since there are only about thirty dealers
 
 foreach y in dlog_borrowing dlog_lending dlog_net {
 	reghdfe `y' dress, a(fund_quarter) vce(cluster dealer_id)
+	boottest dress, reps(9999) seed(1) nograph /*wild cluster bootstrap p value, Rademacher weights, the cluster robust standard errors are too small with this few dealers*/
 }
 preserve
 	keep if e(sample) /*the dealer quarters that identify the net regression*/
@@ -155,15 +158,19 @@ restore
 **# Test 2: fund borrowing channel, KM equation 6 stacked over quarter-ends
 * fund level change in log totals on the reference window share weighted
 * contraction of the fund's dealers, KM's average shock of the fund's
-* preshock banks, quarter fixed effects, funds with at least two dealers
+* preshock banks, quarter fixed effects, funds with at least two dealers,
+* standard errors clustered by the fund's largest dealer in the reference
+* window as in KM's table 6, the shock stays at the dealer level after the
+* aggregation to the fund
 
 gen gross0 = borrowing_volume0 + lending_volume0
 gen gross1 = borrowing_volume1 + lending_volume1
 gen active0 = gross0 > 0 /*dealer active in the reference window*/
+bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the reference window, the unit of clustering*/
 foreach v in borrowing_volume0 lending_volume0 gross0 {
 	gen dress_`v' = dress*`v'
 }
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_* n_dealers = active0, by(fund_id quarter)
+collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_* n_dealers = active0 (first) main_dealer, by(fund_id quarter)
 gen exposure_borrowing = dress_borrowing_volume0/borrowing_volume0
 gen exposure_lending = dress_lending_volume0/lending_volume0
 gen exposure_net = dress_gross0/gross0
@@ -175,7 +182,8 @@ label var exposure_lending "Reference share weighted contraction of the fund's d
 label var exposure_net "Reference share weighted contraction of the fund's dealers"
 
 foreach l in borrowing lending net {
-	reghdfe dlog_`l' exposure_`l' if n_dealers > 1, a(quarter) vce(cluster fund_id) /*funds with at least two dealers in the reference window, the population that identifies test 1*/
+	reghdfe dlog_`l' exposure_`l' if n_dealers > 1, a(quarter) vce(cluster main_dealer) /*funds with at least two dealers in the reference window, the population that identifies test 1*/
+	boottest exposure_`l', reps(9999) seed(1) nograph
 }
 
 log close
