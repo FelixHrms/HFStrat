@@ -11,8 +11,10 @@ log using "$key\\dealer_fragility_qe_country.log", replace text
 * country, the outcome is the fund x dealer x quarter panel of the country's
 * collateral, the treatment stays at the dealer level, test 1 compares the
 * same fund's dealers at the same quarter-end, test 2 asks whether the fund's
-* net position in the country stays flat when its dealers dress, the slopes
-* are free to differ across the four sovereigns
+* total in the country stays flat when its dealers dress, the slopes are free
+* to differ across the four sovereigns, two outcomes, gross is the repo
+* volume between fund and dealer, the financing, net is the absolute net
+* position the fund finances there
 
 local K = 3 /*event window, the last K business days of the quarter*/
 local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
@@ -108,8 +110,10 @@ foreach v in borrowing_volume1 lending_volume1 {
 }
 merge m:1 dealer_id quarter using `dealers', keep(match) nogen
 
+gen dlog_gross = log(borrowing_volume1 + lending_volume1) - log(borrowing_volume0 + lending_volume0)
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
 egen fund_quarter = group(fund_id quarter)
+label var dlog_gross "Change in log gross, quarter-end minus reference"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
 **# Test 1: bank lending channel, KM equation 5 by collateral country
@@ -120,7 +124,9 @@ label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
 foreach c of local countries {
 	di _n "Collateral country `c'"
-	reghdfe dlog_net dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
+	foreach y in dlog_gross dlog_net {
+		reghdfe `y' dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
+	}
 	preserve
 		keep if e(sample) /*the dealer quarters that identify the net regression*/
 		collapse (first) dress, by(dealer_id quarter)
@@ -138,7 +144,9 @@ foreach c of local countries {
 * level changes of test 1 exactly, every pair of the fund in the country has a
 * nonzero net on the same side in both windows, so no pair enters or leaves
 * and the net shares are positive, the gap between the two tests is then
-* substitution across the fund's dealers alone
+* substitution across the fund's dealers alone, for gross only the no entry
+* or exit part is needed, the same cells are used to keep the two outcomes
+* comparable
 
 gen gross0 = borrowing_volume0 + lending_volume0
 gen gross1 = borrowing_volume1 + lending_volume1
@@ -150,15 +158,20 @@ bysort fund_id country quarter: egen side_min = min(min(side0, side1))
 bysort fund_id country quarter: egen side_max = max(max(side0, side1))
 gen same_side = side_min == side_max & side_min != 0 /*every pair of the fund in the country has a nonzero net on the same side in both windows*/
 collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_gross0 n_dealers = active0 (first) same_side, by(fund_id country quarter)
-gen exposure_net = dress_gross0/gross0
+gen exposure = dress_gross0/gross0
+gen dlog_gross = log(gross1) - log(gross0)
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
-label var exposure_net "Reference share weighted contraction of the fund's dealers in the country"
+label var exposure "Reference gross share weighted contraction of the fund's dealers in the country"
+label var dlog_gross "Change in log gross, quarter-end minus reference"
+label var dlog_net "Change in log absolute net, quarter-end minus reference"
 label var same_side "All of the fund's pairs in the country have a nonzero net on the same side in both windows"
 tab country same_side if n_dealers > 1 /*how much of the test 2 sample the restriction keeps*/
 
 foreach c of local countries {
 	di _n "Collateral country `c'"
-	reghdfe dlog_net exposure_net if n_dealers > 1 & same_side & country == "`c'", a(quarter) vce(cluster fund_id) /*funds with at least two dealers in the country in the reference window, all of them in the test 1 sample*/
+	foreach y in dlog_gross dlog_net {
+		reghdfe `y' exposure if n_dealers > 1 & same_side & country == "`c'", a(quarter) vce(cluster fund_id) /*funds with at least two dealers in the country in the reference window, all of them in the test 1 sample*/
+	}
 }
 
 log close
