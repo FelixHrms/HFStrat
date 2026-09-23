@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- opened on:  23 Sep 2026, 12:47:49
+ opened on:  23 Sep 2026, 14:15:21
 
 . 
 . **# Quarter-end window dressing as the dealer shock, by collateral country
@@ -10,8 +10,10 @@
 . * country, the outcome is the fund x dealer x quarter panel of the country's
 . * collateral, the treatment stays at the dealer level, test 1 compares the
 . * same fund's dealers at the same quarter-end, test 2 asks whether the fund's
-. * net position in the country stays flat when its dealers dress, the slopes
-. * are free to differ across the four sovereigns
+. * total in the country stays flat when its dealers dress, the slopes are free
+. * to differ across the four sovereigns, two outcomes, gross is the repo
+. * volume between fund and dealer, the financing, net is the absolute net
+. * position the fund finances there
 . 
 . local K = 3 /*event window, the last K business days of the quarter*/
 
@@ -302,10 +304,15 @@ xij variables:
     -----------------------------------------
 
 . 
+. gen dlog_gross = log(borrowing_volume1 + lending_volume1) - log(borrowing_volume0 + lending_volume0)
+(3,147 missing values generated)
+
 . gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
 (3,149 missing values generated)
 
 . egen fund_quarter = group(fund_id quarter)
+
+. label var dlog_gross "Change in log gross, quarter-end minus reference"
 
 . label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
@@ -318,15 +325,43 @@ xij variables:
 . 
 . foreach c of local countries {
   2.         di _n "Collateral country `c'"
-  3.         reghdfe dlog_net dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
-  4.         preserve
-  5.                 keep if e(sample) /*the dealer quarters that identify the net regression*/
-  6.                 collapse (first) dress, by(dealer_id quarter)
-  7.                 tabstat dress, stat(mean sd n)
-  8.         restore
-  9. }
+  3.         foreach y in dlog_gross dlog_net {
+  4.                 reghdfe `y' dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
+  5.         }
+  6.         preserve
+  7.                 keep if e(sample) /*the dealer quarters that identify the net regression*/
+  8.                 collapse (first) dress, by(dealer_id quarter)
+  9.                 tabstat dress, stat(mean sd n)
+ 10.         restore
+ 11. }
 
 Collateral country DE
+(dropped 698 singleton observations)
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      3,006
+Absorbing 1 HDFE group                            F(   1,     22) =       1.63
+Statistics robust to heteroskedasticity           Prob > F        =     0.2155
+                                                  R-squared       =     0.3696
+                                                  Adj R-squared   =     0.1165
+                                                  Within R-sq.    =     0.0008
+Number of clusters (dealer_id) =         23       Root MSE        =     0.7932
+
+                             (Std. err. adjusted for 23 clusters in dealer_id)
+------------------------------------------------------------------------------
+             |               Robust
+  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       dress |  -.3172804   .2487735    -1.28   0.215     -.833205    .1986442
+       _cons |  -.0293805   .0329419    -0.89   0.382    -.0976979    .0389368
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+------------------------------------------------------+
+  Absorbed FE | Categories  - Redundant  = Num. Coefs |
+--------------+---------------------------------------|
+ fund_quarter |       861           0         861     |
+------------------------------------------------------+
 (dropped 698 singleton observations)
 (MWFE estimator converged in 1 iterations)
 
@@ -364,6 +399,32 @@ Collateral country FR
 (dropped 747 singleton observations)
 (MWFE estimator converged in 1 iterations)
 
+HDFE Linear regression                            Number of obs   =      3,448
+Absorbing 1 HDFE group                            F(   1,     20) =       0.88
+Statistics robust to heteroskedasticity           Prob > F        =     0.3603
+                                                  R-squared       =     0.3780
+                                                  Adj R-squared   =     0.1018
+                                                  Within R-sq.    =     0.0005
+Number of clusters (dealer_id) =         21       Root MSE        =     0.7629
+
+                             (Std. err. adjusted for 21 clusters in dealer_id)
+------------------------------------------------------------------------------
+             |               Robust
+  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       dress |   -.244236   .2608817    -0.94   0.360    -.7884256    .2999537
+       _cons |  -.0208526   .0195552    -1.07   0.299     -.061644    .0199388
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+------------------------------------------------------+
+  Absorbed FE | Categories  - Redundant  = Num. Coefs |
+--------------+---------------------------------------|
+ fund_quarter |      1060           0        1060     |
+------------------------------------------------------+
+(dropped 747 singleton observations)
+(MWFE estimator converged in 1 iterations)
+
 HDFE Linear regression                            Number of obs   =      3,447
 Absorbing 1 HDFE group                            F(   1,     20) =       0.15
 Statistics robust to heteroskedasticity           Prob > F        =     0.7060
@@ -398,6 +459,32 @@ Collateral country IT
 (dropped 741 singleton observations)
 (MWFE estimator converged in 1 iterations)
 
+HDFE Linear regression                            Number of obs   =      2,800
+Absorbing 1 HDFE group                            F(   1,     20) =       2.39
+Statistics robust to heteroskedasticity           Prob > F        =     0.1375
+                                                  R-squared       =     0.3223
+                                                  Adj R-squared   =     0.0660
+                                                  Within R-sq.    =     0.0016
+Number of clusters (dealer_id) =         21       Root MSE        =     0.7113
+
+                             (Std. err. adjusted for 21 clusters in dealer_id)
+------------------------------------------------------------------------------
+             |               Robust
+  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       dress |  -.4041512   .2611849    -1.55   0.137    -.9489733    .1406709
+       _cons |  -.0150091   .0276346    -0.54   0.593    -.0726539    .0426356
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+------------------------------------------------------+
+  Absorbed FE | Categories  - Redundant  = Num. Coefs |
+--------------+---------------------------------------|
+ fund_quarter |       768           0         768     |
+------------------------------------------------------+
+(dropped 741 singleton observations)
+(MWFE estimator converged in 1 iterations)
+
 HDFE Linear regression                            Number of obs   =      2,799
 Absorbing 1 HDFE group                            F(   1,     20) =       0.00
 Statistics robust to heteroskedasticity           Prob > F        =     0.9901
@@ -429,6 +516,32 @@ Absorbed degrees of freedom:
 --------------------------------------------
 
 Collateral country ES
+(dropped 671 singleton observations)
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,341
+Absorbing 1 HDFE group                            F(   1,     18) =       3.28
+Statistics robust to heteroskedasticity           Prob > F        =     0.0866
+                                                  R-squared       =     0.3655
+                                                  Adj R-squared   =     0.0830
+                                                  Within R-sq.    =     0.0029
+Number of clusters (dealer_id) =         19       Root MSE        =     0.7525
+
+                             (Std. err. adjusted for 19 clusters in dealer_id)
+------------------------------------------------------------------------------
+             |               Robust
+  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       dress |  -.5675528    .313157    -1.81   0.087    -1.225471    .0903655
+       _cons |   .0294925   .0214779     1.37   0.187    -.0156309    .0746159
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+------------------------------------------------------+
+  Absorbed FE | Categories  - Redundant  = Num. Coefs |
+--------------+---------------------------------------|
+ fund_quarter |       721           0         721     |
+------------------------------------------------------+
 (dropped 671 singleton observations)
 (MWFE estimator converged in 1 iterations)
 
@@ -469,6 +582,13 @@ Absorbed degrees of freedom:
 . * positions in that country, one regression per collateral country with
 . * quarter fixed effects as in dealer_fragility_qe.do, funds with at least two
 . * dealers in the country
+. * restricted to the cells in which the fund level change aggregates the pair
+. * level changes of test 1 exactly, every pair of the fund in the country has a
+. * nonzero net on the same side in both windows, so no pair enters or leaves
+. * and the net shares are positive, the gap between the two tests is then
+. * substitution across the fund's dealers alone, for gross only the no entry
+. * or exit part is needed, the same cells are used to keep the two outcomes
+. * comparable
 . 
 . gen gross0 = borrowing_volume0 + lending_volume0
 
@@ -478,42 +598,105 @@ Absorbed degrees of freedom:
 
 . gen dress_gross0 = dress*gross0
 
-. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_gross0 n_dealers = active0, by(fund_id c
-> ountry quarter)
+. gen side0 = sign(borrowing_volume0 - lending_volume0) /*side of the pair's net, 1 borrowing, -1 lending, 0 flat*/
 
-. gen exposure_net = dress_gross0/gross0
+. gen side1 = sign(borrowing_volume1 - lending_volume1)
+
+. bysort fund_id country quarter: egen side_min = min(min(side0, side1))
+
+. bysort fund_id country quarter: egen side_max = max(max(side0, side1))
+
+. gen same_side = side_min == side_max & side_min != 0 /*every pair of the fund in the country has a nonzero net on the same side in both windows
+> */
+
+. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_gross0 n_dealers = active0 (first) same_
+> side, by(fund_id country quarter)
+
+. gen exposure = dress_gross0/gross0
 (113 missing values generated)
+
+. gen dlog_gross = log(gross1) - log(gross0)
+(771 missing values generated)
 
 . gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
 (771 missing values generated)
 
-. label var exposure_net "Reference share weighted contraction of the fund's dealers in the country"
+. label var exposure "Reference gross share weighted contraction of the fund's dealers in the country"
+
+. label var dlog_gross "Change in log gross, quarter-end minus reference"
+
+. label var dlog_net "Change in log absolute net, quarter-end minus reference"
+
+. label var same_side "All of the fund's pairs in the country have a nonzero net on the same side in both windows"
+note: label truncated to 80 characters
+
+. tab country same_side if n_dealers > 1 /*how much of the test 2 sample the restriction keeps*/
+
+           |   All of the fund's
+           | pairs in the country
+           | have a nonzero net on
+           |  the same side in bo
+   country |         0          1 |     Total
+-----------+----------------------+----------
+        DE |       645        367 |     1,012 
+        ES |       616        210 |       826 
+        FR |       925        370 |     1,295 
+        IT |       625        258 |       883 
+-----------+----------------------+----------
+     Total |     2,811      1,205 |     4,016 
 
 . 
 . foreach c of local countries {
   2.         di _n "Collateral country `c'"
-  3.         reghdfe dlog_net exposure_net if n_dealers > 1 & country == "`c'", a(quarter) vce(cluster fund_id) /*funds with at least two dealers
->  in the country in the reference window, the population that identifies test 1*/
-  4. }
+  3.         foreach y in dlog_gross dlog_net {
+  4.                 reghdfe `y' exposure if n_dealers > 1 & same_side & country == "`c'", a(quarter) vce(cluster fund_id) /*funds with at least 
+> two dealers in the country in the reference window, all of them in the test 1 sample*/
+  5.         }
+  6. }
 
 Collateral country DE
 (MWFE estimator converged in 1 iterations)
 
-HDFE Linear regression                            Number of obs   =        979
-Absorbing 1 HDFE group                            F(   1,    127) =       4.81
-Statistics robust to heteroskedasticity           Prob > F        =     0.0301
-                                                  R-squared       =     0.0205
-                                                  Adj R-squared   =     0.0011
-                                                  Within R-sq.    =     0.0023
-Number of clusters (fund_id) =        128         Root MSE        =     1.0610
+HDFE Linear regression                            Number of obs   =        367
+Absorbing 1 HDFE group                            F(   1,    103) =       0.55
+Statistics robust to heteroskedasticity           Prob > F        =     0.4604
+                                                  R-squared       =     0.0833
+                                                  Adj R-squared   =     0.0331
+                                                  Within R-sq.    =     0.0012
+Number of clusters (fund_id) =        104         Root MSE        =     0.4214
 
-                              (Std. err. adjusted for 128 clusters in fund_id)
+                              (Std. err. adjusted for 104 clusters in fund_id)
+------------------------------------------------------------------------------
+             |               Robust
+  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    exposure |  -.2790641    .376633    -0.74   0.460    -1.026027    .4678986
+       _cons |  -.0073545    .032677    -0.23   0.822    -.0721616    .0574527
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =        367
+Absorbing 1 HDFE group                            F(   1,    103) =       0.28
+Statistics robust to heteroskedasticity           Prob > F        =     0.5976
+                                                  R-squared       =     0.0843
+                                                  Adj R-squared   =     0.0342
+                                                  Within R-sq.    =     0.0006
+Number of clusters (fund_id) =        104         Root MSE        =     0.4738
+
+                              (Std. err. adjusted for 104 clusters in fund_id)
 ------------------------------------------------------------------------------
              |               Robust
     dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-exposure_net |  -1.068839   .4872592    -2.19   0.030    -2.033037   -.1046406
-       _cons |  -.0272899   .0418904    -0.65   0.516    -.1101834    .0556036
+    exposure |   -.223785   .4226632    -0.53   0.598    -1.062038    .6144678
+       _cons |   .0108349   .0372039     0.29   0.771    -.0629503      .08462
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -526,21 +709,46 @@ Absorbed degrees of freedom:
 Collateral country FR
 (MWFE estimator converged in 1 iterations)
 
-HDFE Linear regression                            Number of obs   =      1,217
-Absorbing 1 HDFE group                            F(   1,    136) =       3.67
-Statistics robust to heteroskedasticity           Prob > F        =     0.0575
-                                                  R-squared       =     0.0204
-                                                  Adj R-squared   =     0.0048
-                                                  Within R-sq.    =     0.0021
-Number of clusters (fund_id) =        137         Root MSE        =     1.1303
+HDFE Linear regression                            Number of obs   =        370
+Absorbing 1 HDFE group                            F(   1,     98) =       1.96
+Statistics robust to heteroskedasticity           Prob > F        =     0.1645
+                                                  R-squared       =     0.1473
+                                                  Adj R-squared   =     0.1010
+                                                  Within R-sq.    =     0.0033
+Number of clusters (fund_id) =         99         Root MSE        =     0.4148
 
-                              (Std. err. adjusted for 137 clusters in fund_id)
+                               (Std. err. adjusted for 99 clusters in fund_id)
+------------------------------------------------------------------------------
+             |               Robust
+  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    exposure |   -.600163   .4285498    -1.40   0.165    -1.450606      .25028
+       _cons |   .0011595   .0285862     0.04   0.968    -.0555688    .0578878
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =        370
+Absorbing 1 HDFE group                            F(   1,     98) =       4.31
+Statistics robust to heteroskedasticity           Prob > F        =     0.0405
+                                                  R-squared       =     0.1030
+                                                  Adj R-squared   =     0.0543
+                                                  Within R-sq.    =     0.0103
+Number of clusters (fund_id) =         99         Root MSE        =     0.4667
+
+                               (Std. err. adjusted for 99 clusters in fund_id)
 ------------------------------------------------------------------------------
              |               Robust
     dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-exposure_net |  -1.339075   .6989355    -1.92   0.057    -2.721262    .0431126
-       _cons |   .0589064   .0545072     1.08   0.282    -.0488849    .1666976
+    exposure |  -1.199666   .5778801    -2.08   0.041     -2.34645   -.0528815
+       _cons |   .0685811   .0368147     1.86   0.065    -.0044765    .1416388
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -553,21 +761,46 @@ Absorbed degrees of freedom:
 Collateral country IT
 (MWFE estimator converged in 1 iterations)
 
-HDFE Linear regression                            Number of obs   =        862
-Absorbing 1 HDFE group                            F(   1,    100) =       3.11
-Statistics robust to heteroskedasticity           Prob > F        =     0.0807
-                                                  R-squared       =     0.0411
-                                                  Adj R-squared   =     0.0195
-                                                  Within R-sq.    =     0.0033
-Number of clusters (fund_id) =        101         Root MSE        =     1.1201
+HDFE Linear regression                            Number of obs   =        258
+Absorbing 1 HDFE group                            F(   1,     77) =       0.16
+Statistics robust to heteroskedasticity           Prob > F        =     0.6940
+                                                  R-squared       =     0.2229
+                                                  Adj R-squared   =     0.1609
+                                                  Within R-sq.    =     0.0002
+Number of clusters (fund_id) =         78         Root MSE        =     0.3717
 
-                              (Std. err. adjusted for 101 clusters in fund_id)
+                               (Std. err. adjusted for 78 clusters in fund_id)
+------------------------------------------------------------------------------
+             |               Robust
+  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    exposure |   .1038568   .2630327     0.39   0.694    -.4199081    .6276218
+       _cons |  -.0110299   .0282102    -0.39   0.697    -.0672036    .0451438
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =        258
+Absorbing 1 HDFE group                            F(   1,     77) =       2.93
+Statistics robust to heteroskedasticity           Prob > F        =     0.0910
+                                                  R-squared       =     0.1067
+                                                  Adj R-squared   =     0.0354
+                                                  Within R-sq.    =     0.0048
+Number of clusters (fund_id) =         78         Root MSE        =     0.6118
+
+                               (Std. err. adjusted for 78 clusters in fund_id)
 ------------------------------------------------------------------------------
              |               Robust
     dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-exposure_net |    1.62824   .9228703     1.76   0.081    -.2027083    3.459188
-       _cons |  -.1266948    .070852    -1.79   0.077    -.2672631    .0138736
+    exposure |   .8994531   .5254499     1.71   0.091    -.1468514    1.945758
+       _cons |  -.0889136   .0630872    -1.41   0.163    -.2145362     .036709
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -580,21 +813,46 @@ Absorbed degrees of freedom:
 Collateral country ES
 (MWFE estimator converged in 1 iterations)
 
-HDFE Linear regression                            Number of obs   =        809
-Absorbing 1 HDFE group                            F(   1,     92) =       0.21
-Statistics robust to heteroskedasticity           Prob > F        =     0.6464
-                                                  R-squared       =     0.0507
-                                                  Adj R-squared   =     0.0279
-                                                  Within R-sq.    =     0.0003
-Number of clusters (fund_id) =         93         Root MSE        =     1.0422
+HDFE Linear regression                            Number of obs   =        210
+Absorbing 1 HDFE group                            F(   1,     63) =       0.32
+Statistics robust to heteroskedasticity           Prob > F        =     0.5720
+                                                  R-squared       =     0.2338
+                                                  Adj R-squared   =     0.1572
+                                                  Within R-sq.    =     0.0008
+Number of clusters (fund_id) =         64         Root MSE        =     0.3406
 
-                               (Std. err. adjusted for 93 clusters in fund_id)
+                               (Std. err. adjusted for 64 clusters in fund_id)
+------------------------------------------------------------------------------
+             |               Robust
+  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    exposure |   .2540911   .4472836     0.57   0.572    -.6397339    1.147916
+       _cons |  -.0861595   .0383837    -2.24   0.028    -.1628631   -.0094558
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =        210
+Absorbing 1 HDFE group                            F(   1,     63) =       0.96
+Statistics robust to heteroskedasticity           Prob > F        =     0.3316
+                                                  R-squared       =     0.2004
+                                                  Adj R-squared   =     0.1204
+                                                  Within R-sq.    =     0.0022
+Number of clusters (fund_id) =         64         Root MSE        =     0.3853
+
+                               (Std. err. adjusted for 64 clusters in fund_id)
 ------------------------------------------------------------------------------
              |               Robust
     dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-exposure_net |   .4652811   1.010914     0.46   0.646    -1.542481    2.473044
-       _cons |   -.143989   .0758427    -1.90   0.061    -.2946191    .0066411
+    exposure |   .4649608   .4752391     0.98   0.332    -.4847287     1.41465
+       _cons |  -.0917827   .0434535    -2.11   0.039    -.1786176   -.0049478
 ------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -609,5 +867,5 @@ Absorbed degrees of freedom:
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- closed on:  23 Sep 2026, 12:48:03
+ closed on:  23 Sep 2026, 14:15:39
 -------------------------------------------------------------------------------------------------------------------------------------------------
