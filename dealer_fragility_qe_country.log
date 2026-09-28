@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- opened on:  28 Sep 2026, 15:01:32
+ opened on:  28 Sep 2026, 17:04:04
 
 . 
 . **# Quarter-end window dressing, can funds diversify the dealer shock away
@@ -17,8 +17,11 @@
 . * fund and dealers, the financing, which is the mirror of the treatment and
 . * less noisy than net, the last block decomposes the dose model by collateral
 . * country in growth rates with a common denominator, where the country slopes
-. * add up to the pooled ones, the treatment is the dealer's quarter-end
-. * contraction of its non hedge fund repo book as in dealer_fragility_qe.do
+. * add up to the pooled ones, and then reruns it with the country's own dose,
+. * the number of the fund's dealers that intermediate that collateral at all,
+. * to test whether substitution works wherever a capable alternative exists,
+. * the treatment is the dealer's quarter-end contraction of its non hedge fund
+. * repo book as in dealer_fragility_qe.do
 . 
 . local K = 3 /*event window, the last K business days of the quarter*/
 
@@ -207,6 +210,86 @@ xij variables:
 file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000005.tmp saved as .dta format
 
 . 
+. **# Step 2b: which dealers intermediate which collateral, the premise
+. * a dealer is capable in a country in a quarter if it has repo volume with any
+. * hedge fund in that collateral in the reference window, the table shows per
+. * country the number of capable dealers and the share of the three largest,
+. * averaged over quarters, with the pooled book for comparison
+. 
+. use `panel', clear
+
+. merge m:1 date using `windows', keep(match) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                           263,334  
+    -----------------------------------------
+
+. keep if window == 0
+(43,908 observations deleted)
+
+. expand 2, gen(pooled)
+(219,426 observations created)
+
+. replace country = "Pooled" if pooled
+variable country was str2 now str6
+(219,426 real changes made)
+
+. collapse (sum) borrowing_volume lending_volume, by(dealer_id country quarter)
+
+. gen gross = borrowing_volume + lending_volume
+
+. bysort country quarter (gross): gen rank = _N - _n + 1
+
+. by country quarter: egen total = sum(gross)
+
+. by country quarter: egen top3 = sum(gross*(rank <= 3))
+
+. gen top3_share = top3/total
+
+. preserve
+
+.         collapse (count) n_dealers = gross (first) top3_share, by(country quarter)
+
+.         collapse (mean) n_dealers top3_share, by(country)
+
+.         list, clean noobs
+
+    country   n_deal~s   top3_s~e  
+         DE   15.26316   .6833684  
+         ES   15.47368   .7709777  
+         FR   16.15789   .6737649  
+         IT   16.47368   .7724802  
+     Pooled   21.31579   .7064932  
+
+. restore
+
+. keep if country != "Pooled"
+(405 observations deleted)
+
+. gen capable = 1
+
+. keep dealer_id country quarter capable
+
+. reshape wide capable, i(dealer_id quarter) j(country) string
+(j = DE ES FR IT)
+
+Data                               Long   ->   Wide
+-----------------------------------------------------------------------------
+Number of observations            1,204   ->   405         
+Number of variables                   4   ->   6           
+j variable (4 values)           country   ->   (dropped)
+xij variables:
+                                capable   ->   capableDE capableES ... capableIT
+-----------------------------------------------------------------------------
+
+. tempfile capable
+
+. save `capable'
+file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000007.tmp saved as .dta format
+
+. 
 . **# Step 3: fund level, one reference and one event observation per quarter
 . * pair level daily averages over each window pooled over the four countries,
 . * absent days count as zero, then the fund's totals, its exposure and its
@@ -271,11 +354,33 @@ xij variables:
 
 . gen dress_gross0 = dress*gross0
 
+. merge m:1 dealer_id quarter using `capable', keep(match master) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             1
+        from master                         1  
+        from using                          0  
+
+    Matched                             7,491  
+    -----------------------------------------
+
+. foreach c of local countries {
+  2.         replace capable`c' = 0 if missing(capable`c')
+  3.         gen n_capable`c' = capable`c'*active0 /*the fund's dealers active in the reference window that intermediate the country's collateral
+> */
+  4.         local ncap `ncap' n_capable`c'
+  5. }
+(227 real changes made)
+(177 real changes made)
+(345 real changes made)
+(238 real changes made)
+
 . bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the reference window, the unit of clu
 > stering*/
 
-. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (first) main_dealer,
->  by(fund_id quarter)
+. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 `ncap' (first) main_
+> dealer, by(fund_id quarter)
 
 . gen exposure = dress_gross0/gross0
 (35 missing values generated)
@@ -283,6 +388,15 @@ xij variables:
 . gen dose = n_dealers - 1
 
 . gen exposure_dose = exposure*dose
+(35 missing values generated)
+
+. foreach c of local countries {
+  2.         gen dose`c' = max(n_capable`c' - 1, 0) /*capable dealers beyond the first, zero for funds without one*/
+  3.         gen exposure_dose`c' = exposure*dose`c'
+  4. }
+(35 missing values generated)
+(35 missing values generated)
+(35 missing values generated)
 (35 missing values generated)
 
 . gen gross1 = borrowing_volume1 + lending_volume1
@@ -297,6 +411,10 @@ xij variables:
 
 . label var dose "Number of dealers in the reference window minus one"
 
+. foreach c of local countries {
+  2.         label var dose`c' "Capable dealers for `c' in the reference window minus one"
+  3. }
+
 . label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
 . label var dlog_gross "Change in log gross, quarter-end minus reference"
@@ -304,7 +422,7 @@ xij variables:
 . tempfile fund
 
 . save `fund'
-file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000006.tmp saved as .dta format
+file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000008.tmp saved as .dta format
 
 . 
 . **# The test: pass-through of a single dealer fund and the change per additional dealer
@@ -564,18 +682,19 @@ xij variables:
 . egen yPooled = rowtotal(yDE yFR yIT yES)
 
 . 
-. matrix slopes = J(5, 4, .)
+. matrix slopes = J(5, 6, .)
 
 . local i = 1
 
 . foreach c in `countries' Pooled {
   2.         reghdfe y`c' exposure exposure_dose dose, a(quarter) vce(cluster main_dealer)
-  3.         matrix slopes[`i', 1] = _b[exposure]
-  4.         matrix slopes[`i', 2] = _se[exposure]
-  5.         matrix slopes[`i', 3] = _b[exposure_dose]
-  6.         matrix slopes[`i', 4] = _se[exposure_dose]
-  7.         local ++i
-  8. }
+  3.         boottest exposure_dose, reps(9999) seed(1) nograph
+  4.         matrix slopes[`i', 1] = _b[exposure]
+  5.         matrix slopes[`i', 2] = _se[exposure]
+  6.         matrix slopes[`i', 3] = _b[exposure_dose]
+  7.         matrix slopes[`i', 4] = _se[exposure_dose]
+  8.         local ++i
+  9. }
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
@@ -603,6 +722,14 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_dose
+
+                           t(28) =     3.2897
+                        Prob>|t| =     0.0446
+
+95% confidence set for null hypothesis expression: [.002732, .1701]
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
@@ -630,6 +757,14 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_dose
+
+                           t(28) =     0.1278
+                        Prob>|t| =     0.9176
+
+95% confidence set for null hypothesis expression: [−.1435, .07843]
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
@@ -657,6 +792,14 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_dose
+
+                           t(28) =     1.0391
+                        Prob>|t| =     0.3718
+
+95% confidence set for null hypothesis expression: [−.04135, .1234]
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
@@ -684,6 +827,14 @@ Absorbed degrees of freedom:
 -------------+---------------------------------------|
      quarter |        19           0          19     |
 -----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_dose
+
+                           t(28) =     2.0817
+                        Prob>|t| =     0.0524
+
+95% confidence set for null hypothesis expression: [−.00005654, .1245]
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
@@ -712,6 +863,262 @@ Absorbed degrees of freedom:
      quarter |        19           0          19     |
 -----------------------------------------------------+
 
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_dose
+
+                           t(28) =     3.5312
+                        Prob>|t| =     0.0710
+
+95% confidence set for null hypothesis expression: [−.04245, .2788]
+
+. 
+. **# The test: the offset per capable dealer
+. * the same decomposition with the country's own dose, the number of the fund's
+. * dealers that intermediate that collateral for any fund in the quarter's
+. * reference window minus one, if the offset per capable dealer is as large for
+. * Bonos as for Bunds, substitution works wherever a capable alternative exists
+. * and the countries differ only in how rare such alternatives are, which the
+. * tab shows, if it stays at zero for Bonos even with a capable alternative, the
+. * capable dealers shrink together, no pooled row since the dose is country
+. * specific
+. 
+. local i = 1
+
+. foreach c of local countries {
+  2.         reghdfe y`c' exposure exposure_dose`c' dose`c', a(quarter) vce(cluster main_dealer)
+  3.         tab dose`c' if e(sample)
+  4.         boottest exposure_dose`c', reps(9999) seed(1) nograph
+  5.         matrix slopes[`i', 5] = _b[exposure_dose`c']
+  6.         matrix slopes[`i', 6] = _se[exposure_dose`c']
+  7.         local ++i
+  8. }
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,813
+Absorbing 1 HDFE group                            F(   3,     28) =       4.25
+Statistics robust to heteroskedasticity           Prob > F        =     0.0136
+                                                  R-squared       =     0.0362
+                                                  Adj R-squared   =     0.0289
+                                                  Within R-sq.    =     0.0070
+Number of clusters (main_dealer) =         29     Root MSE        =     0.3525
+
+                              (Std. err. adjusted for 29 clusters in main_dealer)
+---------------------------------------------------------------------------------
+                |               Robust
+            yDE | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+----------------+----------------------------------------------------------------
+       exposure |  -.1690554   .0975677    -1.73   0.094    -.3689137     .030803
+exposure_doseDE |   .1168006   .0329036     3.55   0.001     .0494007    .1842006
+         doseDE |   .0027347   .0026723     1.02   0.315    -.0027393    .0082088
+          _cons |  -.0651537    .011754    -5.54   0.000    -.0892307   -.0410766
+---------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+
+    Capable |
+dealers for |
+  DE in the |
+  reference |
+     window |
+  minus one |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |      1,113       39.57       39.57
+          1 |        592       21.05       60.61
+          2 |        473       16.81       77.43
+          3 |        309       10.98       88.41
+          4 |        105        3.73       92.14
+          5 |         62        2.20       94.35
+          6 |         56        1.99       96.34
+          7 |         33        1.17       97.51
+          8 |         44        1.56       99.08
+          9 |         19        0.68       99.75
+         10 |          5        0.18       99.93
+         11 |          2        0.07      100.00
+------------+-----------------------------------
+      Total |      2,813      100.00
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_doseDE
+
+                           t(28) =     3.5498
+                        Prob>|t| =     0.0470
+
+95% confidence set for null hypothesis expression: [.001731, .1743]
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,813
+Absorbing 1 HDFE group                            F(   3,     28) =       3.61
+Statistics robust to heteroskedasticity           Prob > F        =     0.0253
+                                                  R-squared       =     0.0327
+                                                  Adj R-squared   =     0.0254
+                                                  Within R-sq.    =     0.0030
+Number of clusters (main_dealer) =         29     Root MSE        =     0.3416
+
+                              (Std. err. adjusted for 29 clusters in main_dealer)
+---------------------------------------------------------------------------------
+                |               Robust
+            yFR | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+----------------+----------------------------------------------------------------
+       exposure |   -.241075   .1411783    -1.71   0.099    -.5302657    .0481156
+exposure_doseFR |   .0064918   .0366733     0.18   0.861      -.06863    .0816136
+         doseFR |    .004178   .0033549     1.25   0.223    -.0026942    .0110502
+          _cons |   -.039485   .0107905    -3.66   0.001    -.0615884   -.0173817
+---------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+
+    Capable |
+dealers for |
+  FR in the |
+  reference |
+     window |
+  minus one |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |      1,114       39.60       39.60
+          1 |        595       21.15       60.75
+          2 |        466       16.57       77.32
+          3 |        311       11.06       88.38
+          4 |        103        3.66       92.04
+          5 |         59        2.10       94.13
+          6 |         54        1.92       96.05
+          7 |         36        1.28       97.33
+          8 |         40        1.42       98.76
+          9 |         22        0.78       99.54
+         10 |         10        0.36       99.89
+         11 |          3        0.11      100.00
+------------+-----------------------------------
+      Total |      2,813      100.00
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_doseFR
+
+                           t(28) =     0.1770
+                        Prob>|t| =     0.8937
+
+95% confidence set for null hypothesis expression: [−.1513, .08091]
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,813
+Absorbing 1 HDFE group                            F(   3,     28) =       4.40
+Statistics robust to heteroskedasticity           Prob > F        =     0.0118
+                                                  R-squared       =     0.0248
+                                                  Adj R-squared   =     0.0175
+                                                  Within R-sq.    =     0.0011
+Number of clusters (main_dealer) =         29     Root MSE        =     0.2951
+
+                              (Std. err. adjusted for 29 clusters in main_dealer)
+---------------------------------------------------------------------------------
+                |               Robust
+            yIT | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+----------------+----------------------------------------------------------------
+       exposure |   -.017204   .1376278    -0.13   0.901    -.2991217    .2647138
+exposure_doseIT |   .0223753   .0293396     0.76   0.452    -.0377242    .0824748
+         doseIT |   .0033744   .0038441     0.88   0.388    -.0044999    .0112487
+          _cons |  -.0372957   .0147513    -2.53   0.017    -.0675123    -.007079
+---------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+
+    Capable |
+dealers for |
+  IT in the |
+  reference |
+     window |
+  minus one |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |      1,108       39.39       39.39
+          1 |        642       22.82       62.21
+          2 |        501       17.81       80.02
+          3 |        241        8.57       88.59
+          4 |        104        3.70       92.29
+          5 |         67        2.38       94.67
+          6 |         55        1.96       96.62
+          7 |         32        1.14       97.76
+          8 |         34        1.21       98.97
+          9 |         19        0.68       99.64
+         10 |         10        0.36      100.00
+------------+-----------------------------------
+      Total |      2,813      100.00
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_doseIT
+
+                           t(28) =     0.7626
+                        Prob>|t| =     0.5665
+
+95% confidence set for null hypothesis expression: [−.06246, .1269]
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,813
+Absorbing 1 HDFE group                            F(   3,     28) =       7.11
+Statistics robust to heteroskedasticity           Prob > F        =     0.0011
+                                                  R-squared       =     0.0408
+                                                  Adj R-squared   =     0.0336
+                                                  Within R-sq.    =     0.0158
+Number of clusters (main_dealer) =         29     Root MSE        =     0.2453
+
+                              (Std. err. adjusted for 29 clusters in main_dealer)
+---------------------------------------------------------------------------------
+                |               Robust
+            yES | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+----------------+----------------------------------------------------------------
+       exposure |  -.4408082   .1664207    -2.65   0.013    -.7817056   -.0999109
+exposure_doseES |   .0421707   .0215486     1.96   0.060    -.0019697    .0863111
+         doseES |   .0012199    .004522     0.27   0.789     -.008043    .0104827
+          _cons |   .0067498   .0158897     0.42   0.674    -.0257987    .0392984
+---------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+
+    Capable |
+dealers for |
+  ES in the |
+  reference |
+     window |
+  minus one |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |      1,110       39.46       39.46
+          1 |        616       21.90       61.36
+          2 |        462       16.42       77.78
+          3 |        290       10.31       88.09
+          4 |        117        4.16       92.25
+          5 |         57        2.03       94.28
+          6 |         55        1.96       96.23
+          7 |         39        1.39       97.62
+          8 |         41        1.46       99.08
+          9 |         20        0.71       99.79
+         10 |          6        0.21      100.00
+------------+-----------------------------------
+      Total |      2,813      100.00
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_doseES
+
+                           t(28) =     1.9570
+                        Prob>|t| =     0.0783
+
+95% confidence set for null hypothesis expression: [−.002582, .1218]
+
 . clear
 
 . svmat slopes
@@ -719,30 +1126,32 @@ number of observations will be reset to 5
 Press any key to continue, or Break to abort
 Number of observations (_N) was 0, now 5.
 
-. rename (slopes1 slopes2 slopes3 slopes4) (b1 se1 b2 se2)
+. rename (slopes1 slopes2 slopes3 slopes4 slopes5 slopes6) (b1 se1 b2 se2 b3 se3)
 
 . gen n = _n
 
 . reshape long b se, i(n) j(coef)
-(j = 1 2)
+(j = 1 2 3)
 
 Data                               Wide   ->   Long
 -----------------------------------------------------------------------------
-Number of observations                5   ->   10          
-Number of variables                   5   ->   4           
-j variable (2 values)                     ->   coef
+Number of observations                5   ->   15          
+Number of variables                   7   ->   4           
+j variable (3 values)                     ->   coef
 xij variables:
-                                  b1 b2   ->   b
-                                se1 se2   ->   se
+                               b1 b2 b3   ->   b
+                            se1 se2 se3   ->   se
 -----------------------------------------------------------------------------
 
-. label define coef 1 "Single dealer pass-through" 2 "Change per additional dealer"
+. label define coef 1 "Single dealer pass-through" 2 "Change per additional dealer" 3 "Change per capable dealer"
 
 . label values coef coef
 
 . gen lo = b - 1.96*se
+(1 missing value generated)
 
 . gen hi = b + 1.96*se
+(1 missing value generated)
 
 . twoway (bar b n, barwidth(0.6)) (rcap lo hi n), by(coef, note("") yrescale) yline(0) legend(off) ///
 >         xlabel(`panels') xtitle("") ///
@@ -756,5 +1165,5 @@ file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_dose.png s
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- closed on:  28 Sep 2026, 15:01:49
+ closed on:  28 Sep 2026, 17:04:22
 -------------------------------------------------------------------------------------------------------------------------------------------------
