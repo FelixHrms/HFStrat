@@ -18,12 +18,10 @@ log using "$key\\dealer_fragility_qe_country.log", replace text
 * diversification predicts a positive interaction, two outcomes, net is the
 * absolute net position the fund finances, gross is the repo volume between
 * fund and dealers, the financing, which is the mirror of the treatment and
-* less noisy than net, a second regression puts the smallest contraction
-* among the fund's dealers next to its average exposure to ask which of the
-* two the fund's total follows, the last block decomposes the dose model by
-* collateral country in levels, where the country slopes add up to the pooled
-* ones, the treatment is the dealer's quarter-end contraction of its non
-* hedge fund repo book as in dealer_fragility_qe.do
+* less noisy than net, the last block decomposes the dose model by collateral
+* country in growth rates with a common denominator, where the country slopes
+* add up to the pooled ones, the treatment is the dealer's quarter-end
+* contraction of its non hedge fund repo book as in dealer_fragility_qe.do
 
 local K = 3 /*event window, the last K business days of the quarter*/
 local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
@@ -123,9 +121,8 @@ merge m:1 dealer_id quarter using `dealers', keep(match) nogen
 gen gross0 = borrowing_volume0 + lending_volume0
 gen active0 = gross0 > 0 /*dealer active in the reference window*/
 gen dress_gross0 = dress*gross0
-gen dress_active0 = dress if active0 /*for the minimum over the dealers active in the reference window*/
 bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the reference window, the unit of clustering*/
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (min) min_dress = dress_active0 (first) main_dealer, by(fund_id quarter)
+collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (first) main_dealer, by(fund_id quarter)
 gen exposure = dress_gross0/gross0
 gen dose = n_dealers - 1
 gen exposure_dose = exposure*dose
@@ -134,7 +131,6 @@ gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing
 gen dlog_gross = log(gross1) - log(gross0)
 label var exposure "Reference share weighted contraction of the fund's dealers"
 label var dose "Number of dealers in the reference window minus one"
-label var min_dress "Smallest contraction among the fund's dealers in the reference window"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
 label var dlog_gross "Change in log gross, quarter-end minus reference"
 tempfile fund
@@ -155,30 +151,17 @@ foreach y in dlog_net dlog_gross {
 	boottest exposure + 2*exposure_dose = 0, reps(9999) seed(1) nograph
 }
 
-**# Which dealer does the fund follow, the average or its least constrained one
-* multi dealer funds, the fund's exposure next to the smallest contraction
-* among its dealers active in the reference window, under full substitution
-* within the dealer set the fund's total follows the minimum and the average
-* adds nothing, under no substitution the average carries it, the sum is the
-* pass-through when all of the fund's dealers shrink alike
-
-foreach y in dlog_net dlog_gross {
-	reghdfe `y' exposure min_dress if n_dealers > 1, a(quarter) vce(cluster main_dealer)
-	lincom exposure + min_dress /*the pass-through when all of the fund's dealers shrink alike*/
-	boottest exposure, reps(9999) seed(1) nograph
-	boottest min_dress, reps(9999) seed(1) nograph
-	boottest exposure + min_dress = 0, reps(9999) seed(1) nograph
-}
-
-**# Country decomposition of the dose model, in levels so the slopes add up
+**# Country decomposition of the dose model, growth rates that add up
 * the change in the fund's gross financing in each collateral country from the
-* reference to the event window, scaled by the fund's pooled reference gross,
-* the four country changes add up to the pooled change exactly, the dose
+* reference to the event window, divided by the average of the fund's pooled
+* gross over the two windows, the mid-point growth rate, which is bounded
+* between minus two and two, close to the log change for moderate changes and
+* immune to funds with a tiny reference gross, the four country changes add
+* up to the pooled change exactly because the denominator is common, the dose
 * model on the same sample and regressors for all five outcomes, so each
 * country's single dealer pass-through and per dealer offset add up to the
-* pooled ones, the pooled bars should sit near the log estimates above, if
-* they do not, funds with a tiny reference gross drive the levels, the graph
-* shows both slopes with 95 percent intervals
+* pooled ones, the pooled bars should sit near the log estimates above, the
+* graph shows both slopes with 95 percent intervals
 
 use `panel', clear
 merge m:1 date using `windows', keep(match) nogen
@@ -194,7 +177,7 @@ foreach c of local countries {
 	foreach w in 0 1 {
 		replace gross`w'`c' = 0 if missing(gross`w'`c') /*no financing in the country in that window*/
 	}
-	gen y`c' = (gross1`c' - gross0`c')/gross0
+	gen y`c' = (gross1`c' - gross0`c')/((gross0 + gross1)/2)
 }
 egen yPooled = rowtotal(yDE yFR yIT yES)
 
@@ -219,7 +202,7 @@ gen lo = b - 1.96*se
 gen hi = b + 1.96*se
 twoway (bar b n, barwidth(0.6)) (rcap lo hi n), by(coef, note("") yrescale) yline(0) legend(off) ///
 	xlabel(`panels') xtitle("") ///
-	ytitle("Slope, change in gross over the fund's reference gross")
+	ytitle("Slope, mid-point growth rate of the fund's gross")
 graph export "$fig\\qe_country_dose.png", replace width(3220)
 
 log close
