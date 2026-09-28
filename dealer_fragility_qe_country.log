@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- opened on:  28 Sep 2026, 13:56:54
+ opened on:  28 Sep 2026, 14:20:21
 
 . 
 . **# Quarter-end window dressing, can funds diversify the dealer shock away
@@ -15,7 +15,8 @@
 . * diversification predicts a positive interaction, two outcomes, net is the
 . * absolute net position the fund finances, gross is the repo volume between
 . * fund and dealers, the financing, which is the mirror of the treatment and
-. * less noisy than net, a second regression puts the smallest contraction
+. * less noisy than net, a second regression runs the dose against the fund's
+. * size to separate diversification from client importance, a third puts the smallest contraction
 . * among the fund's dealers next to its average exposure to ask which of the
 . * two the fund's total follows, the treatment is the dealer's quarter-end
 . * contraction of its non hedge fund repo book as in dealer_fragility_qe.do
@@ -284,6 +285,12 @@ xij variables:
 . gen exposure_dose = exposure*dose
 (35 missing values generated)
 
+. egen size = std(log(gross0)) /*log reference gross, standardised, so the other coefficients hold at the average fund*/
+(35 missing values generated)
+
+. gen exposure_size = exposure*size
+(35 missing values generated)
+
 . gen gross1 = borrowing_volume1 + lending_volume1
 
 . gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
@@ -295,6 +302,8 @@ xij variables:
 . label var exposure "Reference share weighted contraction of the fund's dealers"
 
 . label var dose "Number of dealers in the reference window minus one"
+
+. label var size "Log reference window gross, standardised"
 
 . label var min_dress "Smallest contraction among the fund's dealers in the reference window"
 
@@ -475,6 +484,126 @@ Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clusteri
 95% confidence set for null hypothesis expression: [−1.221, .101]
 
 . 
+. **# The dose against fund size, diversification or client importance
+. * multi dealer funds are also the large funds, and dealers may spare their
+. * large clients at quarter-end whatever their number of dealers, so the two
+. * interactions run together, if the dose survives it is diversification, if
+. * size takes the effect it is client importance
+. 
+. foreach y in dlog_net dlog_gross {
+  2.         reghdfe `y' exposure exposure_dose dose exposure_size size, a(quarter) vce(cluster main_dealer)
+  3.         boottest exposure, reps(9999) seed(1) nograph
+  4.         boottest exposure_dose, reps(9999) seed(1) nograph
+  5.         boottest exposure_size, reps(9999) seed(1) nograph
+  6. }
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,634
+Absorbing 1 HDFE group                            F(   5,     26) =      28.74
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.0389
+                                                  Adj R-squared   =     0.0304
+                                                  Within R-sq.    =     0.0144
+Number of clusters (main_dealer) =         27     Root MSE        =     0.9416
+
+                            (Std. err. adjusted for 27 clusters in main_dealer)
+-------------------------------------------------------------------------------
+              |               Robust
+     dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+     exposure |    -.21982   .3510012    -0.63   0.537    -.9413132    .5016732
+exposure_dose |   .0141245   .1176364     0.12   0.905    -.2276805    .2559295
+         dose |   -.011823   .0129029    -0.92   0.368    -.0383452    .0146992
+exposure_size |   .0960539   .2738711     0.35   0.729    -.4668963    .6590041
+         size |  -.1078799   .0247335    -4.36   0.000    -.1587202   -.0570395
+        _cons |   .0342317   .0317505     1.08   0.291    -.0310323    .0994958
+-------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(26) =    -0.6263
+                        Prob>|t| =     0.5454
+
+95% confidence set for null hypothesis expression: [−1.13, .5805]
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_dose
+
+                           t(26) =     0.1201
+                        Prob>|t| =     0.9122
+
+95% confidence set for null hypothesis expression: [−.3723, .2187]
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_size
+
+                           t(26) =     0.3507
+                        Prob>|t| =     0.7253
+
+95% confidence set for null hypothesis expression: [−.4537, .9665]
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,634
+Absorbing 1 HDFE group                            F(   5,     26) =     187.60
+Statistics robust to heteroskedasticity           Prob > F        =     0.0000
+                                                  R-squared       =     0.0853
+                                                  Adj R-squared   =     0.0773
+                                                  Within R-sq.    =     0.0397
+Number of clusters (main_dealer) =         27     Root MSE        =     0.5890
+
+                            (Std. err. adjusted for 27 clusters in main_dealer)
+-------------------------------------------------------------------------------
+              |               Robust
+   dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+     exposure |  -.8629966   .3414321    -2.53   0.018     -1.56482   -.1611729
+exposure_dose |   .2980077   .2021952     1.47   0.153    -.1176106    .7136259
+         dose |  -.0075702   .0109009    -0.69   0.494    -.0299774    .0148369
+exposure_size |   -.436851   .5365284    -0.81   0.423    -1.539701     .665999
+         size |   -.097949   .0379248    -2.58   0.016    -.1759046   -.0199934
+        _cons |    .018276   .0282095     0.65   0.523    -.0397094    .0762614
+-------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(26) =    -2.5276
+                        Prob>|t| =     0.0447
+
+95% confidence set for null hypothesis expression: [−1.723, −.02711]
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_dose
+
+                           t(26) =     1.4739
+                        Prob>|t| =     0.4568
+
+95% confidence set for null hypothesis expression: [−.2409, .6869]
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_size
+
+                           t(26) =    -0.8142
+                        Prob>|t| =     0.6671
+
+95% confidence set for null hypothesis expression: [−1.315, 1.118]
+
+. 
 . **# Which dealer does the fund follow, the average or its least constrained one
 . * multi dealer funds, the fund's exposure next to the smallest contraction
 . * among its dealers active in the reference window, under full substitution
@@ -611,5 +740,5 @@ Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clusteri
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- closed on:  28 Sep 2026, 13:57:05
+ closed on:  28 Sep 2026, 14:20:40
 -------------------------------------------------------------------------------------------------------------------------------------------------
