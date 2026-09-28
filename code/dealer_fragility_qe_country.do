@@ -320,7 +320,7 @@ gen others_dress = (sum_dress_gross0 - dress*gross0)/(sum_gross0 - gross0)
 label var others_dress "Reference gross weighted contraction of the fund's other dealers"
 local i = 1
 foreach c in `countries' Pooled {
-	reghdfe y`c' dress others_dress, a(fund_id quarter) vce(cluster dealer_id)
+	reghdfe y`c' dress others_dress i.quarter, a(fund_id) vce(cluster dealer_id) /*quarter dummies as regressors, boottest needs a single absorbed effect*/
 	boottest dress, reps(9999) seed(1) nograph
 	boottest others_dress, reps(9999) seed(1) nograph
 	matrix slopes[`i', 9] = _b[dress]
