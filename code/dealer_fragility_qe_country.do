@@ -20,8 +20,11 @@ log using "$key\\dealer_fragility_qe_country.log", replace text
 * fund and dealers, the financing, which is the mirror of the treatment and
 * less noisy than net, the last block decomposes the dose model by collateral
 * country in growth rates with a common denominator, where the country slopes
-* add up to the pooled ones, the treatment is the dealer's quarter-end
-* contraction of its non hedge fund repo book as in dealer_fragility_qe.do
+* add up to the pooled ones, and then reruns it with the country's own dose,
+* the number of the fund's dealers that intermediate that collateral at all,
+* to test whether substitution works wherever a capable alternative exists,
+* the treatment is the dealer's quarter-end contraction of its non hedge fund
+* repo book as in dealer_fragility_qe.do
 
 local K = 3 /*event window, the last K business days of the quarter*/
 local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
@@ -99,6 +102,35 @@ keep dealer_id quarter dress
 tempfile dealers
 save `dealers'
 
+**# Step 2b: which dealers intermediate which collateral, the premise
+* a dealer is capable in a country in a quarter if it has repo volume with any
+* hedge fund in that collateral in the reference window, the table shows per
+* country the number of capable dealers and the share of the three largest,
+* averaged over quarters, with the pooled book for comparison
+
+use `panel', clear
+merge m:1 date using `windows', keep(match) nogen
+keep if window == 0
+expand 2, gen(pooled)
+replace country = "Pooled" if pooled
+collapse (sum) borrowing_volume lending_volume, by(dealer_id country quarter)
+gen gross = borrowing_volume + lending_volume
+bysort country quarter (gross): gen rank = _N - _n + 1
+by country quarter: egen total = sum(gross)
+by country quarter: egen top3 = sum(gross*(rank <= 3))
+gen top3_share = top3/total
+preserve
+	collapse (count) n_dealers = gross (first) top3_share, by(country quarter)
+	collapse (mean) n_dealers top3_share, by(country)
+	list, clean noobs
+restore
+keep if country != "Pooled"
+gen capable = 1
+keep dealer_id country quarter capable
+reshape wide capable, i(dealer_id quarter) j(country) string
+tempfile capable
+save `capable'
+
 **# Step 3: fund level, one reference and one event observation per quarter
 * pair level daily averages over each window pooled over the four countries,
 * absent days count as zero, then the fund's totals, its exposure and its
@@ -121,16 +153,29 @@ merge m:1 dealer_id quarter using `dealers', keep(match) nogen
 gen gross0 = borrowing_volume0 + lending_volume0
 gen active0 = gross0 > 0 /*dealer active in the reference window*/
 gen dress_gross0 = dress*gross0
+merge m:1 dealer_id quarter using `capable', keep(match master) nogen
+foreach c of local countries {
+	replace capable`c' = 0 if missing(capable`c')
+	gen n_capable`c' = capable`c'*active0 /*the fund's dealers active in the reference window that intermediate the country's collateral*/
+	local ncap `ncap' n_capable`c'
+}
 bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the reference window, the unit of clustering*/
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (first) main_dealer, by(fund_id quarter)
+collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 `ncap' (first) main_dealer, by(fund_id quarter)
 gen exposure = dress_gross0/gross0
 gen dose = n_dealers - 1
 gen exposure_dose = exposure*dose
+foreach c of local countries {
+	gen dose`c' = max(n_capable`c' - 1, 0) /*capable dealers beyond the first, zero for funds without one*/
+	gen exposure_dose`c' = exposure*dose`c'
+}
 gen gross1 = borrowing_volume1 + lending_volume1
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
 gen dlog_gross = log(gross1) - log(gross0)
 label var exposure "Reference share weighted contraction of the fund's dealers"
 label var dose "Number of dealers in the reference window minus one"
+foreach c of local countries {
+	label var dose`c' "Capable dealers for `c' in the reference window minus one"
+}
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
 label var dlog_gross "Change in log gross, quarter-end minus reference"
 tempfile fund
@@ -181,22 +226,43 @@ foreach c of local countries {
 }
 egen yPooled = rowtotal(yDE yFR yIT yES)
 
-matrix slopes = J(5, 4, .)
+matrix slopes = J(5, 6, .)
 local i = 1
 foreach c in `countries' Pooled {
 	reghdfe y`c' exposure exposure_dose dose, a(quarter) vce(cluster main_dealer)
+	boottest exposure_dose, reps(9999) seed(1) nograph
 	matrix slopes[`i', 1] = _b[exposure]
 	matrix slopes[`i', 2] = _se[exposure]
 	matrix slopes[`i', 3] = _b[exposure_dose]
 	matrix slopes[`i', 4] = _se[exposure_dose]
 	local ++i
 }
+
+**# The test: the offset per capable dealer
+* the same decomposition with the country's own dose, the number of the fund's
+* dealers that intermediate that collateral for any fund in the quarter's
+* reference window minus one, if the offset per capable dealer is as large for
+* Bonos as for Bunds, substitution works wherever a capable alternative exists
+* and the countries differ only in how rare such alternatives are, which the
+* tab shows, if it stays at zero for Bonos even with a capable alternative, the
+* capable dealers shrink together, no pooled row since the dose is country
+* specific
+
+local i = 1
+foreach c of local countries {
+	reghdfe y`c' exposure exposure_dose`c' dose`c', a(quarter) vce(cluster main_dealer)
+	tab dose`c' if e(sample)
+	boottest exposure_dose`c', reps(9999) seed(1) nograph
+	matrix slopes[`i', 5] = _b[exposure_dose`c']
+	matrix slopes[`i', 6] = _se[exposure_dose`c']
+	local ++i
+}
 clear
 svmat slopes
-rename (slopes1 slopes2 slopes3 slopes4) (b1 se1 b2 se2)
+rename (slopes1 slopes2 slopes3 slopes4 slopes5 slopes6) (b1 se1 b2 se2 b3 se3)
 gen n = _n
 reshape long b se, i(n) j(coef)
-label define coef 1 "Single dealer pass-through" 2 "Change per additional dealer"
+label define coef 1 "Single dealer pass-through" 2 "Change per additional dealer" 3 "Change per capable dealer"
 label values coef coef
 gen lo = b - 1.96*se
 gen hi = b + 1.96*se
