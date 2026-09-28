@@ -2,29 +2,41 @@ clear all
 snapshot erase _all
 
 global key "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
+global fig "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures" /*figures for the slides, the Figures folder of the repository*/
+capture mkdir "$fig"
 
 cap log close
 log using "$key\\dealer_fragility_qe_country.log", replace text
 
-**# Quarter-end window dressing as the dealer shock, by collateral country
-* runs the two tests of dealer_fragility_qe.do separately for each collateral
-* country, the outcome is the fund x dealer x quarter panel of the country's
-* collateral, the treatment stays at the dealer level, test 1 compares the
-* same fund's dealers at the same quarter-end, test 2 asks whether the fund's
-* total in the country stays flat when its dealers dress, the slopes are free
-* to differ across the four sovereigns, two outcomes, gross is the repo
-* volume between fund and dealer, the financing, net is the absolute net
-* position the fund finances there
+**# Quarter-end window dressing by collateral country, two graphs in levels
+* the pooled test in dealer_fragility_qe.do finds substitution and the country
+* regressions do not, log outcomes do not add up across countries, so this
+* file looks at the question in levels, where the four country components add
+* up to the pooled position exactly, the position is the net position,
+* borrowing minus lending, scaled by the pooled reference window gross of the
+* pair or the fund and signed by its pooled reference window net, so positive
+* means the position grows in the direction of the reference position, the
+* treatment is the dealer's quarter-end contraction of its non hedge fund repo
+* book as in dealer_fragility_qe.do
+* graph 1, the fund level slope of the change in net on the fund's exposure,
+* one bar per country and one pooled, the pooled bar is the sum of the four
+* graph 2, the average net position day by day over the last business days of
+* the quarter, high versus low dressing dealers at the pair level and high
+* versus low exposure funds at the fund level, one panel per country and one
+* pooled, the pooled panel is the sum of the four
 
 local K = 3 /*event window, the last K business days of the quarter*/
 local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
 local R1 = 19
-local countries "DE FR IT ES" /*the four sovereigns, one regression per collateral country*/
+local D = 24 /*graph 2 shows business days D to 0 before the quarter's last day*/
+local countries "DE FR IT ES" /*the four sovereigns, the pooled position is their sum*/
+local panels 1 "DE" 2 "FR" 3 "IT" 4 "ES" 5 "Pooled"
 
 **# Step 0: the hedge fund panel, fund x dealer x country x day, cleaned as in DT.do
 
 import delimited "$key\\fund_dealer_country_day.csv", varnames(1) clear
 capture drop v1
+keep if inlist(country, "DE", "FR", "IT", "ES")
 gen date = date(business_date, "YMD")
 format date %td
 foreach v in borrowing_volume lending_volume {
@@ -37,14 +49,15 @@ gen tmp = borrowing_volume
 replace borrowing_volume = lending_volume if flip
 replace lending_volume = tmp if flip
 drop tmp flip
+gen net = borrowing_volume - lending_volume
 tempfile panel
 save `panel'
 
-**# Step 1: windows, from the business days in the panel
+**# Step 1: business days counted from the quarter's last day, the windows
 
 use `panel', clear
 preserve
-	keep dealer_id /*the dealers that finance hedge funds, the population of test 1*/
+	keep dealer_id /*the dealers that finance hedge funds, the population of the treatment*/
 	duplicates drop
 	tempfile hf_dealers
 	save `hf_dealers'
@@ -57,13 +70,13 @@ sort quarter date
 by quarter: gen n_from_end = _N - _n
 by quarter: gen n_days = _N
 keep if n_days >= 40 /*complete quarters only*/
+keep if n_from_end <= `D'
 gen window = .
 replace window = 1 if n_from_end < `K'
 replace window = 0 if inrange(n_from_end, `R0', `R1')
-drop if missing(window)
-keep date quarter window
-tempfile windows
-save `windows'
+keep date quarter n_from_end window
+tempfile days
+save `days'
 
 **# Step 2: dealer treatment, contraction of the non hedge fund repo book
 * dress = log of the daily book in the reference window minus log of the daily
@@ -74,7 +87,8 @@ import delimited "$key\\dealer_book_day.csv", varnames(1) clear
 capture drop v1
 gen date = date(business_date, "YMD")
 merge m:1 dealer_id using `hf_dealers', keep(match) nogen /*only dealers that face hedge funds*/
-merge m:1 date using `windows', keep(match) nogen
+merge m:1 date using `days', keep(match) nogen
+drop if missing(window)
 foreach v in borrowing_volume lending_volume {
 	replace `v' = 0 if missing(`v')
 }
@@ -84,86 +98,131 @@ reshape wide book, i(dealer_id quarter) j(window)
 replace book0 = book0/(`R1' - `R0' + 1) /*daily averages*/
 replace book1 = book1/`K'
 gen dress = log(book0) - log(book1)
-label var dress "Quarter-end contraction of the dealer's non HF repo book"
 drop if missing(dress) /*no book in one of the two windows, the dealer is not active that quarter*/
-tabstat dress, by(dealer_id) stat(mean sd n)
-keep dealer_id quarter dress
+egen median_dress = median(dress)
+gen high = dress > median_dress /*dealer quarters above the median contraction*/
+keep dealer_id quarter dress high
 tempfile dealers
 save `dealers'
 
-**# Step 3: pair x country level, one reference and one event observation per quarter
-* daily averages over each window, absent days count as zero, log differences
-* only for cells active in both windows as in KM's intensive margin
+**# Step 3: the reference window position of every pair and fund, the scale
+* daily averages over the reference window pooled over the four countries,
+* absent days count as zero, gross0 scales the positions and the sign of net0
+* orients them, the same scale and sign for all four countries of a pair or a
+* fund, which is what makes the country components add up
 
 use `panel', clear
-merge m:1 date using `windows', keep(match) nogen
-collapse (sum) borrowing_volume lending_volume, by(fund_id dealer_id country quarter window)
-reshape wide borrowing_volume lending_volume, i(fund_id dealer_id country quarter) j(window)
-foreach v in borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 {
-	replace `v' = 0 if missing(`v')
-}
-foreach v in borrowing_volume0 lending_volume0 {
-	replace `v' = `v'/(`R1' - `R0' + 1)
-}
-foreach v in borrowing_volume1 lending_volume1 {
-	replace `v' = `v'/`K'
-}
+merge m:1 date using `days', keep(match) nogen
+keep if window == 0
+collapse (sum) borrowing_volume lending_volume, by(fund_id dealer_id quarter)
+gen gross0 = (borrowing_volume + lending_volume)/(`R1' - `R0' + 1)
+gen net0 = (borrowing_volume - lending_volume)/(`R1' - `R0' + 1)
 merge m:1 dealer_id quarter using `dealers', keep(match) nogen
+bysort high: gen n_units = _N /*pair quarters in the group, the denominator of the daily means in graph 2*/
+keep fund_id dealer_id quarter gross0 net0 dress high n_units
+tempfile pair
+save `pair'
 
-gen dlog_gross = log(borrowing_volume1 + lending_volume1) - log(borrowing_volume0 + lending_volume0)
-gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
-egen fund_quarter = group(fund_id quarter)
-label var dlog_gross "Change in log gross, quarter-end minus reference"
-label var dlog_net "Change in log absolute net, quarter-end minus reference"
-
-**# Test 1: bank lending channel, KM equation 5 by collateral country
-* one regression per collateral country on the pairs in that country's
-* collateral, fund x quarter fixed effects compare the same fund's dealers at
-* the same quarter-end as in dealer_fragility_qe.do, beta = per log point of
-* the dealer's book contraction, standard errors clustered by dealer as in KM
-* with wild cluster bootstrap p values since there are only about twenty
-* dealers per country
-
-foreach c of local countries {
-	di _n "Collateral country `c'"
-	foreach y in dlog_gross dlog_net {
-		reghdfe `y' dress if country == "`c'", a(fund_quarter) vce(cluster dealer_id)
-		boottest dress, reps(9999) seed(1) nograph /*wild cluster bootstrap p value, Rademacher weights, the cluster robust standard errors are too small with this few dealers*/
-	}
-	preserve
-		keep if e(sample) /*the dealer quarters that identify the net regression*/
-		collapse (first) dress, by(dealer_id quarter)
-		tabstat dress, stat(mean sd n)
-	restore
-}
-
-**# Test 2: fund borrowing channel, KM equation 6 by collateral country
-* fund level change in log totals in the country's collateral on the reference
-* window share weighted contraction of the dealers that finance the fund's
-* positions in that country, one regression per collateral country with
-* quarter fixed effects as in dealer_fragility_qe.do, funds with at least two
-* dealers in the country, standard errors clustered by the fund's largest
-* dealer in the country in the reference window as in KM's table 6
-
-gen gross0 = borrowing_volume0 + lending_volume0
-gen gross1 = borrowing_volume1 + lending_volume1
-gen active0 = gross0 > 0 /*dealer active in the reference window*/
-bysort fund_id country quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the country in the reference window, the unit of clustering*/
+* fund level, the exposure is the gross share weighted contraction of the
+* fund's dealers as in test 2, funds with at least two dealers
 gen dress_gross0 = dress*gross0
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 gross1 dress_gross0 n_dealers = active0 (first) main_dealer, by(fund_id country quarter)
-gen exposure = dress_gross0/gross0 /*the same gross share weighted contraction for both outcomes*/
-gen dlog_gross = log(gross1) - log(gross0)
-gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
-label var exposure "Reference gross share weighted contraction of the fund's dealers in the country"
-label var dlog_gross "Change in log gross, quarter-end minus reference"
-label var dlog_net "Change in log absolute net, quarter-end minus reference"
+bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer, the unit of clustering*/
+collapse (sum) gross0 net0 dress_gross0 (count) n_dealers = gross0 (first) main_dealer, by(fund_id quarter)
+keep if n_dealers > 1
+gen exposure = dress_gross0/gross0
+egen median_exposure = median(exposure)
+gen high = exposure > median_exposure /*fund quarters above the median exposure*/
+bysort high: gen n_units = _N /*fund quarters in the group*/
+keep fund_id quarter gross0 net0 exposure main_dealer high n_units
+tempfile fund
+save `fund'
 
+**# Graph 1: the fund level slope by country, in levels so the slopes add up
+* the change in the fund's net position in the country from the reference to
+* the event window, scaled and signed by the fund's pooled reference position,
+* on the fund's exposure with quarter fixed effects as in test 2, the same
+* sample and regressor for all five outcomes, so the pooled slope is the sum
+* of the four country slopes
+
+use `panel', clear
+merge m:1 date using `days', keep(match) nogen
+drop if missing(window)
+collapse (sum) net, by(fund_id country quarter window)
+replace net = net/(`R1' - `R0' + 1) if window == 0 /*daily averages*/
+replace net = net/`K' if window == 1
+reshape wide net, i(fund_id country quarter) j(window)
+reshape wide net0 net1, i(fund_id quarter) j(country) string
+merge m:1 fund_id quarter using `fund', keep(match) nogen
 foreach c of local countries {
-	di _n "Collateral country `c'"
-	foreach y in dlog_gross dlog_net {
-		reghdfe `y' exposure if n_dealers > 1 & country == "`c'", a(quarter) vce(cluster main_dealer) /*funds with at least two dealers in the country in the reference window, the population that identifies test 1*/
-		boottest exposure, reps(9999) seed(1) nograph
+	foreach w in 0 1 {
+		replace net`w'`c' = 0 if missing(net`w'`c') /*no position in the country in that window*/
 	}
+	gen y`c' = sign(net0)*(net1`c' - net0`c')/gross0
+}
+egen yPooled = rowtotal(yDE yFR yIT yES)
+
+matrix slopes = J(5, 2, .)
+local i = 1
+foreach c in `countries' Pooled {
+	reghdfe y`c' exposure, a(quarter) vce(cluster main_dealer)
+	matrix slopes[`i', 1] = _b[exposure]
+	matrix slopes[`i', 2] = _se[exposure]
+	local ++i
+}
+clear
+svmat slopes
+rename (slopes1 slopes2) (b se)
+gen n = _n
+gen lo = b - 1.96*se
+gen hi = b + 1.96*se
+twoway (bar b n, barwidth(0.6)) (rcap lo hi n), yline(0) legend(off) ///
+	xlabel(`panels') xtitle("") ///
+	ytitle("Slope of the change in net on the fund's exposure")
+graph export "$fig\\qe_country_slopes.png", replace width(3220)
+
+**# Graph 2: the net position day by day into the quarter-end
+* the average net position over the last business days of the quarter, scaled
+* and signed by the pooled reference position of the pair or the fund, absent
+* days count as zero, dashed lines mark the reference and the event window,
+* high versus low dressing dealers at the pair level and high versus low
+* exposure funds at the fund level, one panel per country and one pooled, the
+* pooled panel is the sum of the four
+
+foreach u in pair fund {
+	if "`u'" == "pair" {
+		local id "fund_id dealer_id"
+		local group "dressing dealers"
+	}
+	else {
+		local id "fund_id"
+		local group "exposure funds"
+	}
+	use `panel', clear
+	merge m:1 date using `days', keep(match) nogen
+	collapse (sum) net, by(`id' country quarter n_from_end)
+	merge m:1 `id' quarter using ``u'', keep(match) nogen
+	gen y = sign(net0)*net/gross0
+	collapse (sum) y (first) n_units, by(high country n_from_end)
+	replace y = y/n_units /*mean over the unit quarters in the group, absent days count as zero*/
+	drop n_units
+	preserve
+		collapse (sum) y, by(high n_from_end)
+		gen country = "Pooled"
+		tempfile pooled
+		save `pooled'
+	restore
+	append using `pooled'
+	label define panel `panels', replace
+	encode country, gen(panel) label(panel)
+	gen day = -n_from_end
+	keep panel day high y
+	reshape wide y, i(panel day) j(high)
+	twoway (line y1 day) (line y0 day), by(panel, note("")) yline(0) ///
+		xline(`=-`R1'-0.5' `=-`R0'+0.5' `=-`K'+0.5', lpattern(dash)) ///
+		legend(order(1 "High `group'" 2 "Low `group'")) ///
+		xtitle("Business days to the quarter's last day") ///
+		ytitle("Net position, share of the reference window gross")
+	graph export "$fig\\qe_country_path_`u'.png", replace width(3220)
 }
 
 log close
