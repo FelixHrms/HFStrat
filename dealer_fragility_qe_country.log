@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- opened on:  28 Sep 2026, 14:33:10
+ opened on:  28 Sep 2026, 15:01:32
 
 . 
 . **# Quarter-end window dressing, can funds diversify the dealer shock away
@@ -15,12 +15,10 @@
 . * diversification predicts a positive interaction, two outcomes, net is the
 . * absolute net position the fund finances, gross is the repo volume between
 . * fund and dealers, the financing, which is the mirror of the treatment and
-. * less noisy than net, a second regression puts the smallest contraction
-. * among the fund's dealers next to its average exposure to ask which of the
-. * two the fund's total follows, the last block decomposes the dose model by
-. * collateral country in levels, where the country slopes add up to the pooled
-. * ones, the treatment is the dealer's quarter-end contraction of its non
-. * hedge fund repo book as in dealer_fragility_qe.do
+. * less noisy than net, the last block decomposes the dose model by collateral
+. * country in growth rates with a common denominator, where the country slopes
+. * add up to the pooled ones, the treatment is the dealer's quarter-end
+. * contraction of its non hedge fund repo book as in dealer_fragility_qe.do
 . 
 . local K = 3 /*event window, the last K business days of the quarter*/
 
@@ -273,14 +271,11 @@ xij variables:
 
 . gen dress_gross0 = dress*gross0
 
-. gen dress_active0 = dress if active0 /*for the minimum over the dealers active in the reference window*/
-(164 missing values generated)
-
 . bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the reference window, the unit of clu
 > stering*/
 
-. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (min) min_dress = dr
-> ess_active0 (first) main_dealer, by(fund_id quarter)
+. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (first) main_dealer,
+>  by(fund_id quarter)
 
 . gen exposure = dress_gross0/gross0
 (35 missing values generated)
@@ -301,8 +296,6 @@ xij variables:
 . label var exposure "Reference share weighted contraction of the fund's dealers"
 
 . label var dose "Number of dealers in the reference window minus one"
-
-. label var min_dress "Smallest contraction among the fund's dealers in the reference window"
 
 . label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
@@ -486,147 +479,17 @@ Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clusteri
 95% confidence set for null hypothesis expression: [−1.221, .101]
 
 . 
-. **# Which dealer does the fund follow, the average or its least constrained one
-. * multi dealer funds, the fund's exposure next to the smallest contraction
-. * among its dealers active in the reference window, under full substitution
-. * within the dealer set the fund's total follows the minimum and the average
-. * adds nothing, under no substitution the average carries it, the sum is the
-. * pass-through when all of the fund's dealers shrink alike
-. 
-. foreach y in dlog_net dlog_gross {
-  2.         reghdfe `y' exposure min_dress if n_dealers > 1, a(quarter) vce(cluster main_dealer)
-  3.         lincom exposure + min_dress /*the pass-through when all of the fund's dealers shrink alike*/
-  4.         boottest exposure, reps(9999) seed(1) nograph
-  5.         boottest min_dress, reps(9999) seed(1) nograph
-  6.         boottest exposure + min_dress = 0, reps(9999) seed(1) nograph
-  7. }
-(MWFE estimator converged in 1 iterations)
-
-HDFE Linear regression                            Number of obs   =      1,712
-Absorbing 1 HDFE group                            F(   2,     20) =       1.47
-Statistics robust to heteroskedasticity           Prob > F        =     0.2536
-                                                  R-squared       =     0.0298
-                                                  Adj R-squared   =     0.0183
-                                                  Within R-sq.    =     0.0013
-Number of clusters (main_dealer) =         21     Root MSE        =     0.9090
-
-                           (Std. err. adjusted for 21 clusters in main_dealer)
-------------------------------------------------------------------------------
-             |               Robust
-    dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-    exposure |   .0866457   .4963472     0.17   0.863    -.9487165    1.122008
-   min_dress |   .4869723   .2947535     1.65   0.114    -.1278727    1.101817
-       _cons |  -.1020302   .0460747    -2.21   0.039    -.1981403   -.0059202
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-     quarter |        19           0          19     |
------------------------------------------------------+
-
- ( 1)  exposure + min_dress = 0
-
-------------------------------------------------------------------------------
-    dlog_net | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-         (1) |    .573618   .5327158     1.08   0.294    -.5376076    1.684844
-------------------------------------------------------------------------------
-
-Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
-  exposure
-
-                           t(20) =     0.1746
-                        Prob>|t| =     0.8907
-
-95% confidence set for null hypothesis expression: [−1.309, 1.238]
-
-Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
-  min_dress
-
-                           t(20) =     1.6521
-                        Prob>|t| =     0.1745
-
-95% confidence set for null hypothesis expression: [−.2193, 1.345]
-
-Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
-  exposure + min_dress = 0
-
-                           t(20) =     1.0768
-                        Prob>|t| =     0.3497
-
-95% confidence set for null hypothesis expression: [−.6736, 1.866]
-(MWFE estimator converged in 1 iterations)
-
-HDFE Linear regression                            Number of obs   =      1,712
-Absorbing 1 HDFE group                            F(   2,     20) =       0.44
-Statistics robust to heteroskedasticity           Prob > F        =     0.6470
-                                                  R-squared       =     0.0366
-                                                  Adj R-squared   =     0.0252
-                                                  Within R-sq.    =     0.0008
-Number of clusters (main_dealer) =         21     Root MSE        =     0.4504
-
-                           (Std. err. adjusted for 21 clusters in main_dealer)
-------------------------------------------------------------------------------
-             |               Robust
-  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-    exposure |  -.1296394   .2059417    -0.63   0.536    -.5592262    .2999474
-   min_dress |  -.1485501   .2246782    -0.66   0.516    -.6172207    .3201205
-       _cons |  -.0939576   .0240336    -3.91   0.001    -.1440908   -.0438244
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-     quarter |        19           0          19     |
------------------------------------------------------+
-
- ( 1)  exposure + min_dress = 0
-
-------------------------------------------------------------------------------
-  dlog_gross | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-         (1) |  -.2781895   .2949643    -0.94   0.357    -.8934741    .3370952
-------------------------------------------------------------------------------
-
-Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
-  exposure
-
-                           t(20) =    -0.6295
-                        Prob>|t| =     0.5673
-
-95% confidence set for null hypothesis expression: [−.6809, .2883]
-
-Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
-  min_dress
-
-                           t(20) =    -0.6612
-                        Prob>|t| =     0.5913
-
-95% confidence set for null hypothesis expression: [−.6175, .6169]
-
-Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
-  exposure + min_dress = 0
-
-                           t(20) =    -0.9431
-                        Prob>|t| =     0.3178
-
-95% confidence set for null hypothesis expression: [−1.209, .5124]
-
-. 
-. **# Country decomposition of the dose model, in levels so the slopes add up
+. **# Country decomposition of the dose model, growth rates that add up
 . * the change in the fund's gross financing in each collateral country from the
-. * reference to the event window, scaled by the fund's pooled reference gross,
-. * the four country changes add up to the pooled change exactly, the dose
+. * reference to the event window, divided by the average of the fund's pooled
+. * gross over the two windows, the mid-point growth rate, which is bounded
+. * between minus two and two, close to the log change for moderate changes and
+. * immune to funds with a tiny reference gross, the four country changes add
+. * up to the pooled change exactly because the denominator is common, the dose
 . * model on the same sample and regressors for all five outcomes, so each
 . * country's single dealer pass-through and per dealer offset add up to the
-. * pooled ones, the pooled bars should sit near the log estimates above, if
-. * they do not, funds with a tiny reference gross drive the levels, the graph
-. * shows both slopes with 95 percent intervals
+. * pooled ones, the pooled bars should sit near the log estimates above, the
+. * graph shows both slopes with 95 percent intervals
 . 
 . use `panel', clear
 
@@ -687,20 +550,16 @@ xij variables:
   2.         foreach w in 0 1 {
   3.                 replace gross`w'`c' = 0 if missing(gross`w'`c') /*no financing in the country in that window*/
   4.         }
-  5.         gen y`c' = (gross1`c' - gross0`c')/gross0
+  5.         gen y`c' = (gross1`c' - gross0`c')/((gross0 + gross1)/2)
   6. }
 (1,104 real changes made)
 (1,242 real changes made)
-(35 missing values generated)
 (795 real changes made)
 (997 real changes made)
-(35 missing values generated)
 (1,187 real changes made)
 (1,298 real changes made)
-(35 missing values generated)
 (1,336 real changes made)
 (1,430 real changes made)
-(35 missing values generated)
 
 . egen yPooled = rowtotal(yDE yFR yIT yES)
 
@@ -720,22 +579,22 @@ xij variables:
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
-Absorbing 1 HDFE group                            F(   3,     28) =       5.01
-Statistics robust to heteroskedasticity           Prob > F        =     0.0066
-                                                  R-squared       =     0.0076
-                                                  Adj R-squared   =     0.0001
-                                                  Within R-sq.    =     0.0010
-Number of clusters (main_dealer) =         29     Root MSE        =     7.0522
+Absorbing 1 HDFE group                            F(   3,     28) =       3.76
+Statistics robust to heteroskedasticity           Prob > F        =     0.0219
+                                                  R-squared       =     0.0361
+                                                  Adj R-squared   =     0.0288
+                                                  Within R-sq.    =     0.0069
+Number of clusters (main_dealer) =         29     Root MSE        =     0.3525
 
                             (Std. err. adjusted for 29 clusters in main_dealer)
 -------------------------------------------------------------------------------
               |               Robust
           yDE | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 --------------+----------------------------------------------------------------
-     exposure |  -2.530829   2.623495    -0.96   0.343    -7.904816    2.843157
-exposure_dose |  -.0202054   .2070222    -0.10   0.923    -.4442712    .4038603
-         dose |  -.0617679   .0391709    -1.58   0.126    -.1420058    .0184701
-        _cons |   .4446709   .3926524     1.13   0.267    -.3596411    1.248983
+     exposure |  -.1690044   .0976296    -1.73   0.094    -.3689895    .0309808
+exposure_dose |   .1070755   .0325491     3.29   0.003     .0404017    .1737493
+         dose |   .0029412   .0024631     1.19   0.242    -.0021042    .0079867
+        _cons |  -.0649729   .0116268    -5.59   0.000    -.0887894   -.0411564
 -------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -747,22 +606,22 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
-Absorbing 1 HDFE group                            F(   3,     28) =       0.54
-Statistics robust to heteroskedasticity           Prob > F        =     0.6585
-                                                  R-squared       =     0.0078
-                                                  Adj R-squared   =     0.0003
-                                                  Within R-sq.    =     0.0012
-Number of clusters (main_dealer) =         29     Root MSE        =     9.9266
+Absorbing 1 HDFE group                            F(   3,     28) =       4.08
+Statistics robust to heteroskedasticity           Prob > F        =     0.0160
+                                                  R-squared       =     0.0327
+                                                  Adj R-squared   =     0.0255
+                                                  Within R-sq.    =     0.0030
+Number of clusters (main_dealer) =         29     Root MSE        =     0.3416
 
                             (Std. err. adjusted for 29 clusters in main_dealer)
 -------------------------------------------------------------------------------
               |               Robust
           yFR | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 --------------+----------------------------------------------------------------
-     exposure |   -3.83046   3.811566    -1.00   0.324     -11.6381    3.977178
-exposure_dose |  -.3063363   .2782832    -1.10   0.280    -.8763737     .263701
-         dose |  -.0686857     .05851    -1.17   0.250    -.1885381    .0511667
-        _cons |   .6711398   .5644348     1.19   0.244    -.4850524    1.827332
+     exposure |  -.2396746   .1419461    -1.69   0.102    -.5304379    .0510887
+exposure_dose |   .0045124   .0352986     0.13   0.899    -.0677936    .0768183
+         dose |   .0043601   .0032419     1.34   0.189    -.0022806    .0110009
+        _cons |  -.0398461   .0109513    -3.64   0.001    -.0622788   -.0174133
 -------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -774,22 +633,22 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
-Absorbing 1 HDFE group                            F(   3,     28) =       0.86
-Statistics robust to heteroskedasticity           Prob > F        =     0.4739
-                                                  R-squared       =     0.0104
-                                                  Adj R-squared   =     0.0030
-                                                  Within R-sq.    =     0.0017
-Number of clusters (main_dealer) =         29     Root MSE        =     2.1240
+Absorbing 1 HDFE group                            F(   3,     28) =       6.07
+Statistics robust to heteroskedasticity           Prob > F        =     0.0026
+                                                  R-squared       =     0.0250
+                                                  Adj R-squared   =     0.0177
+                                                  Within R-sq.    =     0.0013
+Number of clusters (main_dealer) =         29     Root MSE        =     0.2951
 
                             (Std. err. adjusted for 29 clusters in main_dealer)
 -------------------------------------------------------------------------------
               |               Robust
           yIT | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 --------------+----------------------------------------------------------------
-     exposure |  -.9531084   .9451534    -1.01   0.322    -2.889167    .9829505
-exposure_dose |   .1929502   .1458538     1.32   0.197    -.1058177    .4917182
-         dose |   -.039556   .0259938    -1.52   0.139    -.0928018    .0136899
-        _cons |     .17393   .1333502     1.30   0.203    -.0992256    .4470856
+     exposure |  -.0209575    .138929    -0.15   0.881    -.3055406    .2636257
+exposure_dose |   .0281759   .0271157     1.04   0.308    -.0273681      .08372
+         dose |   .0027399   .0036014     0.76   0.453    -.0046373    .0101172
+        _cons |  -.0372639    .014853    -2.51   0.018     -.067689   -.0068389
 -------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -801,22 +660,22 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
-Absorbing 1 HDFE group                            F(   3,     28) =      18.23
-Statistics robust to heteroskedasticity           Prob > F        =     0.0000
-                                                  R-squared       =     0.0340
-                                                  Adj R-squared   =     0.0267
-                                                  Within R-sq.    =     0.0017
-Number of clusters (main_dealer) =         29     Root MSE        =     2.4179
+Absorbing 1 HDFE group                            F(   3,     28) =       5.27
+Statistics robust to heteroskedasticity           Prob > F        =     0.0052
+                                                  R-squared       =     0.0409
+                                                  Adj R-squared   =     0.0337
+                                                  Within R-sq.    =     0.0159
+Number of clusters (main_dealer) =         29     Root MSE        =     0.2453
 
                             (Std. err. adjusted for 29 clusters in main_dealer)
 -------------------------------------------------------------------------------
               |               Robust
           yES | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 --------------+----------------------------------------------------------------
-     exposure |   .2677803   .5431603     0.49   0.626    -.8448332    1.380394
-exposure_dose |  -.2228073   .1982499    -1.12   0.271    -.6289038    .1832891
-         dose |  -.0301085   .0044251    -6.80   0.000    -.0391729   -.0210442
-        _cons |   .1694298   .0424248     3.99   0.000     .0825266     .256333
+     exposure |  -.4445508    .166319    -2.67   0.012    -.7852399   -.1038617
+exposure_dose |   .0442515   .0212573     2.08   0.047     .0007079    .0877951
+         dose |   .0007482   .0042994     0.17   0.863    -.0080588    .0095552
+        _cons |    .007315   .0159336     0.46   0.650    -.0253236    .0399536
 -------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -828,22 +687,22 @@ Absorbed degrees of freedom:
 (MWFE estimator converged in 1 iterations)
 
 HDFE Linear regression                            Number of obs   =      2,813
-Absorbing 1 HDFE group                            F(   3,     28) =       1.48
-Statistics robust to heteroskedasticity           Prob > F        =     0.2412
-                                                  R-squared       =     0.0126
-                                                  Adj R-squared   =     0.0052
-                                                  Within R-sq.    =     0.0016
-Number of clusters (main_dealer) =         29     Root MSE        =    17.1767
+Absorbing 1 HDFE group                            F(   3,     28) =       5.50
+Statistics robust to heteroskedasticity           Prob > F        =     0.0042
+                                                  R-squared       =     0.0589
+                                                  Adj R-squared   =     0.0519
+                                                  Within R-sq.    =     0.0147
+Number of clusters (main_dealer) =         29     Root MSE        =     0.6400
 
                             (Std. err. adjusted for 29 clusters in main_dealer)
 -------------------------------------------------------------------------------
               |               Robust
       yPooled | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
 --------------+----------------------------------------------------------------
-     exposure |  -7.046618   6.424671    -1.10   0.282    -20.20696    6.113724
-exposure_dose |  -.3563989   .4619664    -0.77   0.447    -1.302694    .5898963
-         dose |  -.2001181   .1038551    -1.93   0.064    -.4128557    .0126195
-        _cons |    1.45917   .9524978     1.53   0.137    -.4919328    3.410274
+     exposure |  -.8741872   .2904174    -3.01   0.005     -1.46908   -.2792942
+exposure_dose |   .1840153   .0521108     3.53   0.001     .0772713    .2907593
+         dose |   .0107895   .0067248     1.60   0.120    -.0029857    .0245647
+        _cons |   -.134768   .0359485    -3.75   0.001    -.2084051   -.0611308
 -------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
@@ -887,10 +746,9 @@ xij variables:
 
 . twoway (bar b n, barwidth(0.6)) (rcap lo hi n), by(coef, note("") yrescale) yline(0) legend(off) ///
 >         xlabel(`panels') xtitle("") ///
->         ytitle("Slope, change in gross over the fund's reference gross")
+>         ytitle("Slope, mid-point growth rate of the fund's gross")
 
 . graph export "$fig\\qe_country_dose.png", replace width(3220)
-(file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_dose.png not found)
 file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_dose.png saved as PNG format
 
 . 
@@ -898,5 +756,5 @@ file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_dose.png s
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- closed on:  28 Sep 2026, 14:33:30
+ closed on:  28 Sep 2026, 15:01:49
 -------------------------------------------------------------------------------------------------------------------------------------------------
