@@ -16,8 +16,10 @@ log using "$key\\dealer_fragility_qe_country.log", replace text
 * diversification predicts a positive interaction, two outcomes, net is the
 * absolute net position the fund finances, gross is the repo volume between
 * fund and dealers, the financing, which is the mirror of the treatment and
-* less noisy than net, the treatment is the dealer's quarter-end contraction
-* of its non hedge fund repo book as in dealer_fragility_qe.do
+* less noisy than net, a second regression puts the smallest contraction
+* among the fund's dealers next to its average exposure to ask which of the
+* two the fund's total follows, the treatment is the dealer's quarter-end
+* contraction of its non hedge fund repo book as in dealer_fragility_qe.do
 
 local K = 3 /*event window, the last K business days of the quarter*/
 local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
@@ -115,8 +117,9 @@ merge m:1 dealer_id quarter using `dealers', keep(match) nogen
 gen gross0 = borrowing_volume0 + lending_volume0
 gen active0 = gross0 > 0 /*dealer active in the reference window*/
 gen dress_gross0 = dress*gross0
+gen dress_active0 = dress if active0 /*for the minimum over the dealers active in the reference window*/
 bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the reference window, the unit of clustering*/
-collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (first) main_dealer, by(fund_id quarter)
+collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (min) min_dress = dress_active0 (first) main_dealer, by(fund_id quarter)
 gen exposure = dress_gross0/gross0
 gen dose = n_dealers - 1
 gen exposure_dose = exposure*dose
@@ -125,6 +128,7 @@ gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing
 gen dlog_gross = log(gross1) - log(gross0)
 label var exposure "Reference share weighted contraction of the fund's dealers"
 label var dose "Number of dealers in the reference window minus one"
+label var min_dress "Smallest contraction among the fund's dealers in the reference window"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
 label var dlog_gross "Change in log gross, quarter-end minus reference"
 
@@ -141,6 +145,21 @@ foreach y in dlog_net dlog_gross {
 	boottest exposure, reps(9999) seed(1) nograph
 	boottest exposure_dose, reps(9999) seed(1) nograph
 	boottest exposure + 2*exposure_dose = 0, reps(9999) seed(1) nograph
+}
+
+**# Which dealer does the fund follow, the average or its least constrained one
+* multi dealer funds, the fund's exposure next to the smallest contraction
+* among its dealers active in the reference window, under full substitution
+* within the dealer set the fund's total follows the minimum and the average
+* adds nothing, under no substitution the average carries it, the sum is the
+* pass-through when all of the fund's dealers shrink alike
+
+foreach y in dlog_net dlog_gross {
+	reghdfe `y' exposure min_dress if n_dealers > 1, a(quarter) vce(cluster main_dealer)
+	lincom exposure + min_dress /*the pass-through when all of the fund's dealers shrink alike*/
+	boottest exposure, reps(9999) seed(1) nograph
+	boottest min_dress, reps(9999) seed(1) nograph
+	boottest exposure + min_dress = 0, reps(9999) seed(1) nograph
 }
 
 log close
