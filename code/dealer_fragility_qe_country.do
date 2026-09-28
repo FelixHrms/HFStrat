@@ -7,17 +7,17 @@ cap log close
 log using "$key\\dealer_fragility_qe_country.log", replace text
 
 **# Quarter-end window dressing, can funds diversify the dealer shock away
-* the fund level test of dealer_fragility_qe.do on all funds, single and multi
-* dealer, pooled over the four collateral countries, exposure is the reference
-* gross share weighted contraction of the fund's dealers and it is interacted
-* with an indicator for funds with at least two dealers in the reference
-* window, a single dealer fund's exposure is its dealer's contraction and it
-* has no dealer to substitute with, so the coefficient on exposure is the
-* pass-through without substitution, the interaction is what having other
-* dealers buys, diversification predicts a positive interaction, the sum is
-* the pass-through of multi dealer funds, the estimate of test 2, the
-* treatment is the dealer's quarter-end contraction of its non hedge fund
-* repo book as in dealer_fragility_qe.do
+* the fund level test of dealer_fragility_qe.do on all funds pooled over the
+* four collateral countries, exposure is the reference gross share weighted
+* contraction of the fund's dealers and it is interacted with the fund's
+* number of dealers in the reference window minus one, so the coefficient on
+* exposure is the pass-through of a single dealer fund, which has no dealer to
+* substitute with, and the interaction is the change per additional dealer,
+* diversification predicts a positive interaction, two outcomes, net is the
+* absolute net position the fund finances, gross is the repo volume between
+* fund and dealers, the financing, which is the mirror of the treatment and
+* less noisy than net, the treatment is the dealer's quarter-end contraction
+* of its non hedge fund repo book as in dealer_fragility_qe.do
 
 local K = 3 /*event window, the last K business days of the quarter*/
 local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
@@ -118,23 +118,29 @@ gen dress_gross0 = dress*gross0
 bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the reference window, the unit of clustering*/
 collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (first) main_dealer, by(fund_id quarter)
 gen exposure = dress_gross0/gross0
-gen multi = n_dealers > 1
-gen exposure_multi = exposure*multi
+gen dose = n_dealers - 1
+gen exposure_dose = exposure*dose
+gen gross1 = borrowing_volume1 + lending_volume1
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
+gen dlog_gross = log(gross1) - log(gross0)
 label var exposure "Reference share weighted contraction of the fund's dealers"
-label var multi "Fund with at least two dealers in the reference window"
+label var dose "Number of dealers in the reference window minus one"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
+label var dlog_gross "Change in log gross, quarter-end minus reference"
 
-**# The test: pass-through for single dealer funds and the multi dealer difference
+**# The test: pass-through of a single dealer fund and the change per additional dealer
 * quarter fixed effects, standard errors clustered by the fund's largest
 * dealer as in test 2, wild cluster bootstrap p values since there are only
-* about twenty dealers
+* about twenty dealers, the pass-through of a fund with three dealers, about
+* the average multi dealer fund, is reported alongside
 
-reghdfe dlog_net exposure exposure_multi multi, a(quarter) vce(cluster main_dealer)
-tab multi if e(sample)
-lincom exposure + exposure_multi /*the pass-through of multi dealer funds*/
-boottest exposure, reps(9999) seed(1) nograph
-boottest exposure_multi, reps(9999) seed(1) nograph
-boottest exposure + exposure_multi = 0, reps(9999) seed(1) nograph
+foreach y in dlog_net dlog_gross {
+	reghdfe `y' exposure exposure_dose dose, a(quarter) vce(cluster main_dealer)
+	tab n_dealers if e(sample)
+	lincom exposure + 2*exposure_dose /*the pass-through of a fund with three dealers*/
+	boottest exposure, reps(9999) seed(1) nograph
+	boottest exposure_dose, reps(9999) seed(1) nograph
+	boottest exposure + 2*exposure_dose = 0, reps(9999) seed(1) nograph
+}
 
 log close
