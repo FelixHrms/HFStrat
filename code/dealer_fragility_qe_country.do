@@ -2,6 +2,8 @@ clear all
 snapshot erase _all
 
 global key "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
+global fig "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures" /*figures for the slides, the Figures folder of the repository*/
+capture mkdir "$fig"
 
 cap log close
 log using "$key\\dealer_fragility_qe_country.log", replace text
@@ -16,21 +18,24 @@ log using "$key\\dealer_fragility_qe_country.log", replace text
 * diversification predicts a positive interaction, two outcomes, net is the
 * absolute net position the fund finances, gross is the repo volume between
 * fund and dealers, the financing, which is the mirror of the treatment and
-* less noisy than net, a second regression runs the dose against the fund's
-* size to separate diversification from client importance, a third puts the smallest contraction
+* less noisy than net, a second regression puts the smallest contraction
 * among the fund's dealers next to its average exposure to ask which of the
-* two the fund's total follows, the treatment is the dealer's quarter-end
-* contraction of its non hedge fund repo book as in dealer_fragility_qe.do
+* two the fund's total follows, the last block decomposes the dose model by
+* collateral country in levels, where the country slopes add up to the pooled
+* ones, the treatment is the dealer's quarter-end contraction of its non
+* hedge fund repo book as in dealer_fragility_qe.do
 
 local K = 3 /*event window, the last K business days of the quarter*/
 local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
 local R1 = 19
+local countries "DE FR IT ES" /*the four sovereigns, the pooled position is their sum*/
+local panels 1 "DE" 2 "FR" 3 "IT" 4 "ES" 5 "Pooled"
 
 **# Step 0: the hedge fund panel, fund x dealer x country x day, cleaned as in DT.do
 
 import delimited "$key\\fund_dealer_country_day.csv", varnames(1) clear
 capture drop v1
-keep if inlist(country, "DE", "FR", "IT", "ES") /*the four sovereigns, the pooled position is their sum*/
+keep if inlist(country, "DE", "FR", "IT", "ES")
 gen date = date(business_date, "YMD")
 format date %td
 foreach v in borrowing_volume lending_volume {
@@ -124,17 +129,16 @@ collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volum
 gen exposure = dress_gross0/gross0
 gen dose = n_dealers - 1
 gen exposure_dose = exposure*dose
-egen size = std(log(gross0)) /*log reference gross, standardised, so the other coefficients hold at the average fund*/
-gen exposure_size = exposure*size
 gen gross1 = borrowing_volume1 + lending_volume1
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
 gen dlog_gross = log(gross1) - log(gross0)
 label var exposure "Reference share weighted contraction of the fund's dealers"
 label var dose "Number of dealers in the reference window minus one"
-label var size "Log reference window gross, standardised"
 label var min_dress "Smallest contraction among the fund's dealers in the reference window"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
 label var dlog_gross "Change in log gross, quarter-end minus reference"
+tempfile fund
+save `fund'
 
 **# The test: pass-through of a single dealer fund and the change per additional dealer
 * quarter fixed effects, standard errors clustered by the fund's largest
@@ -151,19 +155,6 @@ foreach y in dlog_net dlog_gross {
 	boottest exposure + 2*exposure_dose = 0, reps(9999) seed(1) nograph
 }
 
-**# The dose against fund size, diversification or client importance
-* multi dealer funds are also the large funds, and dealers may spare their
-* large clients at quarter-end whatever their number of dealers, so the two
-* interactions run together, if the dose survives it is diversification, if
-* size takes the effect it is client importance
-
-foreach y in dlog_net dlog_gross {
-	reghdfe `y' exposure exposure_dose dose exposure_size size, a(quarter) vce(cluster main_dealer)
-	boottest exposure, reps(9999) seed(1) nograph
-	boottest exposure_dose, reps(9999) seed(1) nograph
-	boottest exposure_size, reps(9999) seed(1) nograph
-}
-
 **# Which dealer does the fund follow, the average or its least constrained one
 * multi dealer funds, the fund's exposure next to the smallest contraction
 * among its dealers active in the reference window, under full substitution
@@ -178,5 +169,57 @@ foreach y in dlog_net dlog_gross {
 	boottest min_dress, reps(9999) seed(1) nograph
 	boottest exposure + min_dress = 0, reps(9999) seed(1) nograph
 }
+
+**# Country decomposition of the dose model, in levels so the slopes add up
+* the change in the fund's gross financing in each collateral country from the
+* reference to the event window, scaled by the fund's pooled reference gross,
+* the four country changes add up to the pooled change exactly, the dose
+* model on the same sample and regressors for all five outcomes, so each
+* country's single dealer pass-through and per dealer offset add up to the
+* pooled ones, the pooled bars should sit near the log estimates above, if
+* they do not, funds with a tiny reference gross drive the levels, the graph
+* shows both slopes with 95 percent intervals
+
+use `panel', clear
+merge m:1 date using `windows', keep(match) nogen
+collapse (sum) borrowing_volume lending_volume, by(fund_id country quarter window)
+gen gross = borrowing_volume + lending_volume
+replace gross = gross/(`R1' - `R0' + 1) if window == 0 /*daily averages*/
+replace gross = gross/`K' if window == 1
+keep fund_id country quarter window gross
+reshape wide gross, i(fund_id country quarter) j(window)
+reshape wide gross0 gross1, i(fund_id quarter) j(country) string
+merge 1:1 fund_id quarter using `fund', keep(match) nogen
+foreach c of local countries {
+	foreach w in 0 1 {
+		replace gross`w'`c' = 0 if missing(gross`w'`c') /*no financing in the country in that window*/
+	}
+	gen y`c' = (gross1`c' - gross0`c')/gross0
+}
+egen yPooled = rowtotal(yDE yFR yIT yES)
+
+matrix slopes = J(5, 4, .)
+local i = 1
+foreach c in `countries' Pooled {
+	reghdfe y`c' exposure exposure_dose dose, a(quarter) vce(cluster main_dealer)
+	matrix slopes[`i', 1] = _b[exposure]
+	matrix slopes[`i', 2] = _se[exposure]
+	matrix slopes[`i', 3] = _b[exposure_dose]
+	matrix slopes[`i', 4] = _se[exposure_dose]
+	local ++i
+}
+clear
+svmat slopes
+rename (slopes1 slopes2 slopes3 slopes4) (b1 se1 b2 se2)
+gen n = _n
+reshape long b se, i(n) j(coef)
+label define coef 1 "Single dealer pass-through" 2 "Change per additional dealer"
+label values coef coef
+gen lo = b - 1.96*se
+gen hi = b + 1.96*se
+twoway (bar b n, barwidth(0.6)) (rcap lo hi n), by(coef, note("") yrescale) yline(0) legend(off) ///
+	xlabel(`panels') xtitle("") ///
+	ytitle("Slope, change in gross over the fund's reference gross")
+graph export "$fig\\qe_country_dose.png", replace width(3220)
 
 log close
