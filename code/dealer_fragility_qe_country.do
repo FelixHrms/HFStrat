@@ -23,7 +23,9 @@ log using "$key\\dealer_fragility_qe_country.log", replace text
 * add up to the pooled ones, and then reruns it with the country's own dose,
 * the share of that collateral's market held by the fund's dealers other than
 * its largest, to test whether substitution works wherever the fund has the
-* capacity to move to,
+* capacity to move to, and finally runs the pair level test of
+* dealer_fragility_qe.do by collateral, to ask whether the dealer that dresses
+* more cuts the same fund's Bonos more than its Bunds,
 * the treatment is the dealer's quarter-end contraction of its non hedge fund
 * repo book as in dealer_fragility_qe.do
 
@@ -227,7 +229,7 @@ foreach c of local countries {
 }
 egen yPooled = rowtotal(yDE yFR yIT yES)
 
-matrix slopes = J(5, 6, .)
+matrix slopes = J(5, 8, .)
 local i = 1
 foreach c in `countries' Pooled {
 	reghdfe y`c' exposure exposure_dose dose, a(quarter) vce(cluster main_dealer)
@@ -258,18 +260,63 @@ foreach c of local countries {
 	matrix slopes[`i', 6] = _se[exposure_alt`c']
 	local ++i
 }
+**# The pair level cut by collateral, which collateral the dressing dealer sheds
+* test 1 of dealer_fragility_qe.do in the same growth rates, the change in the
+* pair's gross financing in each country divided by the average of the pair's
+* pooled gross over the two windows, pairs active in the reference window,
+* exits stay in, fund by quarter fixed effects compare the same fund's dealers
+* at the same quarter-end, standard errors clustered by dealer, the four
+* country slopes add up to the pooled one, a country's slope is the cut at the
+* dealer that dresses more relative to the fund's other dealers, so it also
+* contains what the fund moves to those dealers, for a collateral the fund
+* does not move it is the pure cut
+
+use `panel', clear
+merge m:1 date using `windows', keep(match) nogen
+collapse (sum) borrowing_volume lending_volume, by(fund_id dealer_id country quarter window)
+gen gross = borrowing_volume + lending_volume
+replace gross = gross/(`R1' - `R0' + 1) if window == 0 /*daily averages*/
+replace gross = gross/`K' if window == 1
+keep fund_id dealer_id country quarter window gross
+reshape wide gross, i(fund_id dealer_id country quarter) j(window)
+reshape wide gross0 gross1, i(fund_id dealer_id quarter) j(country) string
+foreach c of local countries {
+	foreach w in 0 1 {
+		replace gross`w'`c' = 0 if missing(gross`w'`c') /*no financing in the country in that window*/
+	}
+}
+egen gross0 = rowtotal(gross0DE gross0FR gross0IT gross0ES)
+egen gross1 = rowtotal(gross1DE gross1FR gross1IT gross1ES)
+keep if gross0 > 0 /*pairs active in the reference window*/
+merge m:1 dealer_id quarter using `dealers', keep(match) nogen
+foreach c of local countries {
+	gen y`c' = (gross1`c' - gross0`c')/((gross0 + gross1)/2)
+}
+egen yPooled = rowtotal(yDE yFR yIT yES)
+egen fund_quarter = group(fund_id quarter)
+local i = 1
+foreach c in `countries' Pooled {
+	reghdfe y`c' dress, a(fund_quarter) vce(cluster dealer_id)
+	boottest dress, reps(9999) seed(1) nograph
+	matrix slopes[`i', 7] = _b[dress]
+	matrix slopes[`i', 8] = _se[dress]
+	local ++i
+}
+
+**# The graph, the four slopes by country with 95 percent intervals
+
 clear
 svmat slopes
-rename (slopes1 slopes2 slopes3 slopes4 slopes5 slopes6) (b1 se1 b2 se2 b3 se3)
+rename (slopes1 slopes2 slopes3 slopes4 slopes5 slopes6 slopes7 slopes8) (b1 se1 b2 se2 b3 se3 b4 se4)
 gen n = _n
 reshape long b se, i(n) j(coef)
-label define coef 1 "Single dealer pass-through" 2 "Change per additional dealer" 3 "Change per unit of alternative capacity"
+label define coef 1 "Single dealer pass-through" 2 "Change per additional dealer" 3 "Change per unit of alternative capacity" 4 "Pair level cut at the dressing dealer"
 label values coef coef
 gen lo = b - 1.96*se
 gen hi = b + 1.96*se
 twoway (bar b n, barwidth(0.6)) (rcap lo hi n), by(coef, note("") yrescale) yline(0) legend(off) ///
 	xlabel(`panels') xtitle("") ///
-	ytitle("Slope, mid-point growth rate of the fund's gross")
+	ytitle("Slope, mid-point growth rate of gross financing")
 graph export "$fig\\qe_country_dose.png", replace width(3220)
 
 log close
