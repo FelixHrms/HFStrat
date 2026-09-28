@@ -16,7 +16,8 @@ log using "$key\\dealer_fragility_qe_country.log", replace text
 * diversification predicts a positive interaction, two outcomes, net is the
 * absolute net position the fund finances, gross is the repo volume between
 * fund and dealers, the financing, which is the mirror of the treatment and
-* less noisy than net, a second regression puts the smallest contraction
+* less noisy than net, a second regression runs the dose against the fund's
+* size to separate diversification from client importance, a third puts the smallest contraction
 * among the fund's dealers next to its average exposure to ask which of the
 * two the fund's total follows, the treatment is the dealer's quarter-end
 * contraction of its non hedge fund repo book as in dealer_fragility_qe.do
@@ -123,11 +124,14 @@ collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volum
 gen exposure = dress_gross0/gross0
 gen dose = n_dealers - 1
 gen exposure_dose = exposure*dose
+egen size = std(log(gross0)) /*log reference gross, standardised, so the other coefficients hold at the average fund*/
+gen exposure_size = exposure*size
 gen gross1 = borrowing_volume1 + lending_volume1
 gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
 gen dlog_gross = log(gross1) - log(gross0)
 label var exposure "Reference share weighted contraction of the fund's dealers"
 label var dose "Number of dealers in the reference window minus one"
+label var size "Log reference window gross, standardised"
 label var min_dress "Smallest contraction among the fund's dealers in the reference window"
 label var dlog_net "Change in log absolute net, quarter-end minus reference"
 label var dlog_gross "Change in log gross, quarter-end minus reference"
@@ -145,6 +149,19 @@ foreach y in dlog_net dlog_gross {
 	boottest exposure, reps(9999) seed(1) nograph
 	boottest exposure_dose, reps(9999) seed(1) nograph
 	boottest exposure + 2*exposure_dose = 0, reps(9999) seed(1) nograph
+}
+
+**# The dose against fund size, diversification or client importance
+* multi dealer funds are also the large funds, and dealers may spare their
+* large clients at quarter-end whatever their number of dealers, so the two
+* interactions run together, if the dose survives it is diversification, if
+* size takes the effect it is client importance
+
+foreach y in dlog_net dlog_gross {
+	reghdfe `y' exposure exposure_dose dose exposure_size size, a(quarter) vce(cluster main_dealer)
+	boottest exposure, reps(9999) seed(1) nograph
+	boottest exposure_dose, reps(9999) seed(1) nograph
+	boottest exposure_size, reps(9999) seed(1) nograph
 }
 
 **# Which dealer does the fund follow, the average or its least constrained one
