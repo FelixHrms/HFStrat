@@ -2,37 +2,27 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- opened on:  28 Sep 2026, 11:49:43
+ opened on:  28 Sep 2026, 13:28:42
 
 . 
-. **# Quarter-end window dressing by collateral country, two graphs in levels
-. * the pooled test in dealer_fragility_qe.do finds substitution and the country
-. * regressions do not, log outcomes do not add up across countries, so this
-. * file looks at the question in levels, where the four country components add
-. * up to the pooled position exactly, the position is the net position,
-. * borrowing minus lending, scaled by the pooled reference window gross of the
-. * pair or the fund and signed by its pooled reference window net, so positive
-. * means the position grows in the direction of the reference position, the
-. * treatment is the dealer's quarter-end contraction of its non hedge fund repo
-. * book as in dealer_fragility_qe.do
-. * graph 1, the fund level slope of the change in net on the fund's exposure,
-. * one bar per country and one pooled, the pooled bar is the sum of the four
-. * graph 2, the average net position day by day over the last business days of
-. * the quarter, high versus low dressing dealers at the pair level and high
-. * versus low exposure funds at the fund level, one panel per country and one
-. * pooled, the pooled panel is the sum of the four
+. **# Quarter-end window dressing, can funds diversify the dealer shock away
+. * the fund level test of dealer_fragility_qe.do on all funds, single and multi
+. * dealer, pooled over the four collateral countries, exposure is the reference
+. * gross share weighted contraction of the fund's dealers and it is interacted
+. * with an indicator for funds with at least two dealers in the reference
+. * window, a single dealer fund's exposure is its dealer's contraction and it
+. * has no dealer to substitute with, so the coefficient on exposure is the
+. * pass-through without substitution, the interaction is what having other
+. * dealers buys, diversification predicts a positive interaction, the sum is
+. * the pass-through of multi dealer funds, the estimate of test 2, the
+. * treatment is the dealer's quarter-end contraction of its non hedge fund
+. * repo book as in dealer_fragility_qe.do
 . 
 . local K = 3 /*event window, the last K business days of the quarter*/
 
 . local R0 = 5 /*reference window, business days R0 to R1 before the quarter's last day*/
 
 . local R1 = 19
-
-. local D = 24 /*graph 2 shows business days D to 0 before the quarter's last day*/
-
-. local countries "DE FR IT ES" /*the four sovereigns, the pooled position is their sum*/
-
-. local panels 1 "DE" 2 "FR" 3 "IT" 4 "ES" 5 "Pooled"
 
 . 
 . **# Step 0: the hedge fund panel, fund x dealer x country x day, cleaned as in DT.do
@@ -43,7 +33,7 @@
 
 . capture drop v1
 
-. keep if inlist(country, "DE", "FR", "IT", "ES")
+. keep if inlist(country, "DE", "FR", "IT", "ES") /*the four sovereigns, the pooled position is their sum*/
 (0 observations deleted)
 
 . gen date = date(business_date, "YMD")
@@ -70,15 +60,13 @@
 
 . drop tmp flip
 
-. gen net = borrowing_volume - lending_volume
-
 . tempfile panel
 
 . save `panel'
 file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000001.tmp saved as .dta format
 
 . 
-. **# Step 1: business days counted from the quarter's last day, the windows
+. **# Step 1: windows, from the business days in the panel
 . 
 . use `panel', clear
 
@@ -120,11 +108,8 @@ Duplicates in terms of all variables
 . keep if n_days >= 40 /*complete quarters only*/
 (1 observation deleted)
 
-. keep if n_from_end <= `D'
-(739 observations deleted)
-
 . gen window = .
-(475 missing values generated)
+(1,214 missing values generated)
 
 . replace window = 1 if n_from_end < `K'
 (57 real changes made)
@@ -132,11 +117,14 @@ Duplicates in terms of all variables
 . replace window = 0 if inrange(n_from_end, `R0', `R1')
 (285 real changes made)
 
-. keep date quarter n_from_end window
+. drop if missing(window)
+(872 observations deleted)
 
-. tempfile days
+. keep date quarter window
 
-. save `days'
+. tempfile windows
+
+. save `windows'
 file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000004.tmp saved as .dta format
 
 . 
@@ -161,16 +149,13 @@ file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000004.tmp saved as .dta format
     Matched                            45,170  
     -----------------------------------------
 
-. merge m:1 date using `days', keep(match) nogen
+. merge m:1 date using `windows', keep(match) nogen
 
     Result                      Number of obs
     -----------------------------------------
     Not matched                             0
-    Matched                            17,643  
+    Matched                            12,702  
     -----------------------------------------
-
-. drop if missing(window)
-(4,941 observations deleted)
 
 . foreach v in borrowing_volume lending_volume {
   2.         replace `v' = 0 if missing(`v')
@@ -203,14 +188,12 @@ xij variables:
 . gen dress = log(book0) - log(book1)
 (2 missing values generated)
 
+. label var dress "Quarter-end contraction of the dealer's non HF repo book"
+
 . drop if missing(dress) /*no book in one of the two windows, the dealer is not active that quarter*/
 (2 observations deleted)
 
-. egen median_dress = median(dress)
-
-. gen high = dress > median_dress /*dealer quarters above the median contraction*/
-
-. keep dealer_id quarter dress high
+. keep dealer_id quarter dress
 
 . tempfile dealers
 
@@ -218,283 +201,120 @@ xij variables:
 file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000005.tmp saved as .dta format
 
 . 
-. **# Step 3: the reference window position of every pair and fund, the scale
-. * daily averages over the reference window pooled over the four countries,
-. * absent days count as zero, gross0 scales the positions and the sign of net0
-. * orients them, the same scale and sign for all four countries of a pair or a
-. * fund, which is what makes the country components add up
+. **# Step 3: fund level, one reference and one event observation per quarter
+. * pair level daily averages over each window pooled over the four countries,
+. * absent days count as zero, then the fund's totals, its exposure and its
+. * number of dealers in the reference window as in test 2
 . 
 . use `panel', clear
 
-. merge m:1 date using `days', keep(match) nogen
+. merge m:1 date using `windows', keep(match) nogen
 
     Result                      Number of obs
     -----------------------------------------
     Not matched                             0
-    Matched                           365,811  
+    Matched                           263,334  
     -----------------------------------------
 
-. keep if window == 0
-(146,385 observations deleted)
+. collapse (sum) borrowing_volume lending_volume, by(fund_id dealer_id quarter window)
 
-. collapse (sum) borrowing_volume lending_volume, by(fund_id dealer_id quarter)
+. reshape wide borrowing_volume lending_volume, i(fund_id dealer_id quarter) j(window)
+(j = 0 1)
 
-. gen gross0 = (borrowing_volume + lending_volume)/(`R1' - `R0' + 1)
+Data                               Long   ->   Wide
+-----------------------------------------------------------------------------
+Number of observations           14,114   ->   7,492       
+Number of variables                   6   ->   7           
+j variable (2 values)            window   ->   (dropped)
+xij variables:
+                       borrowing_volume   ->   borrowing_volume0 borrowing_volume1
+                         lending_volume   ->   lending_volume0 lending_volume1
+-----------------------------------------------------------------------------
 
-. gen net0 = (borrowing_volume - lending_volume)/(`R1' - `R0' + 1)
+. foreach v in borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 {
+  2.         replace `v' = 0 if missing(`v')
+  3. }
+(164 real changes made)
+(706 real changes made)
+(164 real changes made)
+(706 real changes made)
+
+. foreach v in borrowing_volume0 lending_volume0 {
+  2.         replace `v' = `v'/(`R1' - `R0' + 1)
+  3. }
+(5,776 real changes made)
+(6,404 real changes made)
+
+. foreach v in borrowing_volume1 lending_volume1 {
+  2.         replace `v' = `v'/`K'
+  3. }
+(5,196 real changes made)
+(5,813 real changes made)
 
 . merge m:1 dealer_id quarter using `dealers', keep(match) nogen
 
     Result                      Number of obs
     -----------------------------------------
     Not matched                             0
-    Matched                             7,328  
+    Matched                             7,492  
     -----------------------------------------
 
-. bysort high: gen n_units = _N /*pair quarters in the group, the denominator of the daily means in graph 2*/
+. gen gross0 = borrowing_volume0 + lending_volume0
 
-. keep fund_id dealer_id quarter gross0 net0 dress high n_units
+. gen active0 = gross0 > 0 /*dealer active in the reference window*/
 
-. tempfile pair
-
-. save `pair'
-file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000006.tmp saved as .dta format
-
-. 
-. * fund level, the exposure is the gross share weighted contraction of the
-. * fund's dealers as in test 2, funds with at least two dealers
 . gen dress_gross0 = dress*gross0
 
-. bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer, the unit of clustering*/
+. bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the reference window, the unit of clu
+> stering*/
 
-. collapse (sum) gross0 net0 dress_gross0 (count) n_dealers = gross0 (first) main_dealer, by(fund_id quarter)
-
-. keep if n_dealers > 1
-(1,080 observations deleted)
+. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (first) main_dealer,
+>  by(fund_id quarter)
 
 . gen exposure = dress_gross0/gross0
+(35 missing values generated)
 
-. egen median_exposure = median(exposure)
+. gen multi = n_dealers > 1
 
-. gen high = exposure > median_exposure /*fund quarters above the median exposure*/
+. gen exposure_multi = exposure*multi
+(35 missing values generated)
 
-. bysort high: gen n_units = _N /*fund quarters in the group*/
+. gen dlog_net = log(abs(borrowing_volume1 - lending_volume1)) - log(abs(borrowing_volume0 - lending_volume0))
+(214 missing values generated)
 
-. keep fund_id quarter gross0 net0 exposure main_dealer high n_units
+. label var exposure "Reference share weighted contraction of the fund's dealers"
 
-. tempfile fund
+. label var multi "Fund with at least two dealers in the reference window"
 
-. save `fund'
-file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000007.tmp saved as .dta format
-
-. 
-. **# Graph 1: the fund level slope by country, in levels so the slopes add up
-. * the change in the fund's net position in the country from the reference to
-. * the event window, scaled and signed by the fund's pooled reference position,
-. * on the fund's exposure with quarter fixed effects as in test 2, the same
-. * sample and regressor for all five outcomes, so the pooled slope is the sum
-. * of the four country slopes
-. 
-. use `panel', clear
-
-. merge m:1 date using `days', keep(match) nogen
-
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                             0
-    Matched                           365,811  
-    -----------------------------------------
-
-. drop if missing(window)
-(102,477 observations deleted)
-
-. collapse (sum) net, by(fund_id country quarter window)
-
-. replace net = net/(`R1' - `R0' + 1) if window == 0 /*daily averages*/
-(6,970 real changes made)
-
-. replace net = net/`K' if window == 1
-(6,425 real changes made)
-
-. reshape wide net, i(fund_id country quarter) j(window)
-(j = 0 1)
-
-Data                               Long   ->   Wide
------------------------------------------------------------------------------
-Number of observations           13,395   ->   7,083       
-Number of variables                   5   ->   5           
-j variable (2 values)            window   ->   (dropped)
-xij variables:
-                                    net   ->   net0 net1
------------------------------------------------------------------------------
-
-. reshape wide net0 net1, i(fund_id quarter) j(country) string
-(j = DE ES FR IT)
-
-Data                               Long   ->   Wide
------------------------------------------------------------------------------
-Number of observations            7,083   ->   2,848       
-Number of variables                   5   ->   10          
-j variable (4 values)           country   ->   (dropped)
-xij variables:
-                                   net0   ->   net0DE net0ES ... net0IT
-                                   net1   ->   net1DE net1ES ... net1IT
------------------------------------------------------------------------------
-
-. merge m:1 fund_id quarter using `fund', keep(match) nogen
-
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                             0
-    Matched                             1,733  
-    -----------------------------------------
-
-. foreach c of local countries {
-  2.         foreach w in 0 1 {
-  3.                 replace net`w'`c' = 0 if missing(net`w'`c') /*no position in the country in that window*/
-  4.         }
-  5.         gen y`c' = sign(net0)*(net1`c' - net0`c')/gross0
-  6. }
-(476 real changes made)
-(536 real changes made)
-(197 real changes made)
-(335 real changes made)
-(541 real changes made)
-(597 real changes made)
-(573 real changes made)
-(616 real changes made)
-
-. egen yPooled = rowtotal(yDE yFR yIT yES)
+. label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
 . 
-. matrix slopes = J(5, 2, .)
-
-. local i = 1
-
-. foreach c in `countries' Pooled {
-  2.         reghdfe y`c' exposure, a(quarter) vce(cluster main_dealer)
-  3.         matrix slopes[`i', 1] = _b[exposure]
-  4.         matrix slopes[`i', 2] = _se[exposure]
-  5.         local ++i
-  6. }
+. **# The test: pass-through for single dealer funds and the multi dealer difference
+. * quarter fixed effects, standard errors clustered by the fund's largest
+. * dealer as in test 2, wild cluster bootstrap p values since there are only
+. * about twenty dealers
+. 
+. reghdfe dlog_net exposure exposure_multi multi, a(quarter) vce(cluster main_dealer)
 (MWFE estimator converged in 1 iterations)
 
-HDFE Linear regression                            Number of obs   =      1,733
-Absorbing 1 HDFE group                            F(   1,     20) =       0.07
-Statistics robust to heteroskedasticity           Prob > F        =     0.7937
-                                                  R-squared       =     0.0142
-                                                  Adj R-squared   =     0.0032
-                                                  Within R-sq.    =     0.0001
-Number of clusters (main_dealer) =         21     Root MSE        =     0.3440
+HDFE Linear regression                            Number of obs   =      2,634
+Absorbing 1 HDFE group                            F(   3,     26) =      10.08
+Statistics robust to heteroskedasticity           Prob > F        =     0.0001
+                                                  R-squared       =     0.0387
+                                                  Adj R-squared   =     0.0310
+                                                  Within R-sq.    =     0.0142
+Number of clusters (main_dealer) =         27     Root MSE        =     0.9413
 
-                           (Std. err. adjusted for 21 clusters in main_dealer)
-------------------------------------------------------------------------------
-             |               Robust
-         yDE | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-    exposure |   .0627765   .2368244     0.27   0.794    -.4312304    .5567835
-       _cons |  -.0097767   .0188887    -0.52   0.610    -.0491778    .0296244
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-     quarter |        19           0          19     |
------------------------------------------------------+
-(MWFE estimator converged in 1 iterations)
-
-HDFE Linear regression                            Number of obs   =      1,733
-Absorbing 1 HDFE group                            F(   1,     20) =       0.00
-Statistics robust to heteroskedasticity           Prob > F        =     0.9902
-                                                  R-squared       =     0.0116
-                                                  Adj R-squared   =     0.0006
-                                                  Within R-sq.    =     0.0000
-Number of clusters (main_dealer) =         21     Root MSE        =     0.3579
-
-                           (Std. err. adjusted for 21 clusters in main_dealer)
-------------------------------------------------------------------------------
-             |               Robust
-         yFR | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-    exposure |  -.0014368   .1153835    -0.01   0.990    -.2421226    .2392491
-       _cons |  -.0016419   .0041203    -0.40   0.694    -.0102367    .0069529
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-     quarter |        19           0          19     |
------------------------------------------------------+
-(MWFE estimator converged in 1 iterations)
-
-HDFE Linear regression                            Number of obs   =      1,733
-Absorbing 1 HDFE group                            F(   1,     20) =       1.91
-Statistics robust to heteroskedasticity           Prob > F        =     0.1826
-                                                  R-squared       =     0.0383
-                                                  Adj R-squared   =     0.0277
-                                                  Within R-sq.    =     0.0049
-Number of clusters (main_dealer) =         21     Root MSE        =     0.2249
-
-                           (Std. err. adjusted for 21 clusters in main_dealer)
-------------------------------------------------------------------------------
-             |               Robust
-         yIT | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-    exposure |  -.3722829   .2696535    -1.38   0.183    -.9347702    .1902044
-       _cons |   .0235441   .0254929     0.92   0.367    -.0296332    .0767213
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-     quarter |        19           0          19     |
------------------------------------------------------+
-(MWFE estimator converged in 1 iterations)
-
-HDFE Linear regression                            Number of obs   =      1,733
-Absorbing 1 HDFE group                            F(   1,     20) =       0.10
-Statistics robust to heteroskedasticity           Prob > F        =     0.7554
-                                                  R-squared       =     0.0221
-                                                  Adj R-squared   =     0.0112
-                                                  Within R-sq.    =     0.0000
-Number of clusters (main_dealer) =         21     Root MSE        =     0.0924
-
-                           (Std. err. adjusted for 21 clusters in main_dealer)
-------------------------------------------------------------------------------
-             |               Robust
-         yES | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-    exposure |  -.0145457   .0460516    -0.32   0.755    -.1106078    .0815163
-       _cons |  -.0052654   .0040002    -1.32   0.203    -.0136096    .0030788
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-     quarter |        19           0          19     |
------------------------------------------------------+
-(MWFE estimator converged in 1 iterations)
-
-HDFE Linear regression                            Number of obs   =      1,733
-Absorbing 1 HDFE group                            F(   1,     20) =       1.05
-Statistics robust to heteroskedasticity           Prob > F        =     0.3171
-                                                  R-squared       =     0.0177
-                                                  Adj R-squared   =     0.0068
-                                                  Within R-sq.    =     0.0006
-Number of clusters (main_dealer) =         21     Root MSE        =     0.5602
-
-                           (Std. err. adjusted for 21 clusters in main_dealer)
-------------------------------------------------------------------------------
-             |               Robust
-     yPooled | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-    exposure |  -.3254889   .3172294    -1.03   0.317    -.9872178      .33624
-       _cons |   .0068601   .0289076     0.24   0.815    -.0534402    .0671603
-------------------------------------------------------------------------------
+                             (Std. err. adjusted for 27 clusters in main_dealer)
+--------------------------------------------------------------------------------
+               |               Robust
+      dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+---------------+----------------------------------------------------------------
+      exposure |  -.3975604   .3943942    -1.01   0.323    -1.208249    .4131286
+exposure_multi |   .3841225   .1728955     2.22   0.035     .0287308    .7395142
+         multi |  -.2608924   .0492152    -5.30   0.000    -.3620558   -.1597291
+         _cons |   .1717545    .049997     3.44   0.002     .0689841    .2745249
+--------------------------------------------------------------------------------
 
 Absorbed degrees of freedom:
 -----------------------------------------------------+
@@ -503,133 +323,64 @@ Absorbed degrees of freedom:
      quarter |        19           0          19     |
 -----------------------------------------------------+
 
-. clear
+. tab multi if e(sample)
 
-. svmat slopes
-number of observations will be reset to 5
-Press any key to continue, or Break to abort
-Number of observations (_N) was 0, now 5.
+  Fund with |
+   at least |
+two dealers |
+     in the |
+  reference |
+     window |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |        922       35.00       35.00
+          1 |      1,712       65.00      100.00
+------------+-----------------------------------
+      Total |      2,634      100.00
 
-. rename (slopes1 slopes2) (b se)
+. lincom exposure + exposure_multi /*the pass-through of multi dealer funds*/
 
-. gen n = _n
+ ( 1)  exposure + exposure_multi = 0
 
-. gen lo = b - 1.96*se
+------------------------------------------------------------------------------
+    dlog_net | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         (1) |  -.0134379   .3267642    -0.04   0.968    -.6851112    .6582355
+------------------------------------------------------------------------------
 
-. gen hi = b + 1.96*se
+. boottest exposure, reps(9999) seed(1) nograph
 
-. twoway (bar b n, barwidth(0.6)) (rcap lo hi n), yline(0) legend(off) ///
->         xlabel(`panels') xtitle("") ///
->         ytitle("Slope of the change in net on the fund's exposure")
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
 
-. graph export "$fig\\qe_country_slopes.png", replace width(3220)
-(file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_slopes.png not found)
-file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_slopes.png saved as PNG format
+                           t(26) =    -1.0080
+                        Prob>|t| =     0.3285
 
-. 
-. **# Graph 2: the net position day by day into the quarter-end
-. * the average net position over the last business days of the quarter, scaled
-. * and signed by the pooled reference position of the pair or the fund, absent
-. * days count as zero, dashed lines mark the reference and the event window,
-. * high versus low dressing dealers at the pair level and high versus low
-. * exposure funds at the fund level, one panel per country and one pooled, the
-. * pooled panel is the sum of the four
-. 
-. foreach u in pair fund {
-  2.         if "`u'" == "pair" {
-  3.                 local id "fund_id dealer_id"
-  4.                 local group "dressing dealers"
-  5.         }
-  6.         else {
-  7.                 local id "fund_id"
-  8.                 local group "exposure funds"
-  9.         }
- 10.         use `panel', clear
- 11.         merge m:1 date using `days', keep(match) nogen
- 12.         collapse (sum) net, by(`id' country quarter n_from_end)
- 13.         merge m:1 `id' quarter using ``u'', keep(match) nogen
- 14.         gen y = sign(net0)*net/gross0
- 15.         collapse (sum) y (first) n_units, by(high country n_from_end)
- 16.         replace y = y/n_units /*mean over the unit quarters in the group, absent days count as zero*/
- 17.         drop n_units
- 18.         preserve
- 19.                 collapse (sum) y, by(high n_from_end)
- 20.                 gen country = "Pooled"
- 21.                 tempfile pooled
- 22.                 save `pooled'
- 23.         restore
- 24.         append using `pooled'
- 25.         label define panel `panels', replace
- 26.         encode country, gen(panel) label(panel)
- 27.         gen day = -n_from_end
- 28.         keep panel day high y
- 29.         reshape wide y, i(panel day) j(high)
- 30.         twoway (line y1 day) (line y0 day), by(panel, note("")) yline(0) ///
->                 xline(`=-`R1'-0.5' `=-`R0'+0.5' `=-`K'+0.5', lpattern(dash)) ///
->                 legend(order(1 "High `group'" 2 "Low `group'")) ///
->                 xtitle("Business days to the quarter's last day") ///
->                 ytitle("Net position, share of the reference window gross")
- 31.         graph export "$fig\\qe_country_path_`u'.png", replace width(3220)
- 32. }
+95% confidence set for null hypothesis expression: [−1.653, .4028]
 
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                             0
-    Matched                           365,811  
-    -----------------------------------------
+. boottest exposure_multi, reps(9999) seed(1) nograph
 
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                             0
-    Matched                           364,589  
-    -----------------------------------------
-(200 real changes made)
-file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_000009.tmp saved as .dta format
-(variable country was str2, now str6 to accommodate using data's values)
-(j = 0 1)
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure_multi
 
-Data                               Long   ->   Wide
------------------------------------------------------------------------------
-Number of observations              250   ->   125         
-Number of variables                   4   ->   4           
-j variable (2 values)              high   ->   (dropped)
-xij variables:
-                                      y   ->   y0 y1
------------------------------------------------------------------------------
-(file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_path_pair.png not found)
-file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_path_pair.png saved as PNG format
+                           t(26) =     2.2217
+                        Prob>|t| =     0.1142
 
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                             0
-    Matched                           365,811  
-    -----------------------------------------
+95% confidence set for null hypothesis expression: [−.2093, .8913]
 
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                             0
-    Matched                           120,767  
-    -----------------------------------------
-(200 real changes made)
-file C:\Users\hermesf\AppData\Local\Temp\ST_5ac8_00000b.tmp saved as .dta format
-(variable country was str2, now str6 to accommodate using data's values)
-(j = 0 1)
+. boottest exposure + exposure_multi = 0, reps(9999) seed(1) nograph
 
-Data                               Long   ->   Wide
------------------------------------------------------------------------------
-Number of observations              250   ->   125         
-Number of variables                   4   ->   4           
-j variable (2 values)              high   ->   (dropped)
-xij variables:
-                                      y   ->   y0 y1
------------------------------------------------------------------------------
-(file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_path_fund.png not found)
-file C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\qe_country_path_fund.png saved as PNG format
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure + exposure_multi = 0
+
+                           t(26) =    -0.0411
+                        Prob>|t| =     0.9711
+
+95% confidence set for null hypothesis expression: [−.8638, .6456]
 
 . 
 . log close
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- closed on:  28 Sep 2026, 11:50:10
+ closed on:  28 Sep 2026, 13:28:53
 -------------------------------------------------------------------------------------------------------------------------------------------------
