@@ -25,7 +25,8 @@ log using "$key\\dealer_fragility_qe_country.log", replace text
 * its largest, to test whether substitution works wherever the fund has the
 * capacity to move to, and finally runs the pair level test of
 * dealer_fragility_qe.do by collateral, to ask whether the dealer that dresses
-* more cuts the same fund's Bonos more than its Bunds,
+* more cuts the same fund's Bonos more than its Bunds, and separates the cut
+* from the move with the dressing of the fund's other dealers,
 * the treatment is the dealer's quarter-end contraction of its non hedge fund
 * repo book as in dealer_fragility_qe.do
 
@@ -229,7 +230,7 @@ foreach c of local countries {
 }
 egen yPooled = rowtotal(yDE yFR yIT yES)
 
-matrix slopes = J(5, 8, .)
+matrix slopes = J(5, 12, .)
 local i = 1
 foreach c in `countries' Pooled {
 	reghdfe y`c' exposure exposure_dose dose, a(quarter) vce(cluster main_dealer)
@@ -303,14 +304,40 @@ foreach c in `countries' Pooled {
 	local ++i
 }
 
-**# The graph, the four slopes by country with 95 percent intervals
+**# The cut and the move, own dressing against the dressing of the fund's other dealers
+* the pair level regression with fund and quarter effects instead of fund by
+* quarter effects, own dressing next to the reference gross weighted average
+* dressing of the fund's other dealers, the coefficient on own dressing is the
+* cut of the collateral at the dealer that dresses, the coefficient on the
+* others' dressing is what arrives at this dealer when the fund's other
+* dealers dress, the move, positive for a collateral the fund relocates and
+* zero for one it does not, single dealer funds have no other dealers and
+* drop out
+
+egen sum_dress_gross0 = total(dress*gross0), by(fund_id quarter)
+egen sum_gross0 = total(gross0), by(fund_id quarter)
+gen others_dress = (sum_dress_gross0 - dress*gross0)/(sum_gross0 - gross0)
+label var others_dress "Reference gross weighted contraction of the fund's other dealers"
+local i = 1
+foreach c in `countries' Pooled {
+	reghdfe y`c' dress others_dress, a(fund_id quarter) vce(cluster dealer_id)
+	boottest dress, reps(9999) seed(1) nograph
+	boottest others_dress, reps(9999) seed(1) nograph
+	matrix slopes[`i', 9] = _b[dress]
+	matrix slopes[`i', 10] = _se[dress]
+	matrix slopes[`i', 11] = _b[others_dress]
+	matrix slopes[`i', 12] = _se[others_dress]
+	local ++i
+}
+
+**# The graph, the six slopes by country with 95 percent intervals
 
 clear
 svmat slopes
-rename (slopes1 slopes2 slopes3 slopes4 slopes5 slopes6 slopes7 slopes8) (b1 se1 b2 se2 b3 se3 b4 se4)
+rename (slopes1 slopes2 slopes3 slopes4 slopes5 slopes6 slopes7 slopes8 slopes9 slopes10 slopes11 slopes12) (b1 se1 b2 se2 b3 se3 b4 se4 b5 se5 b6 se6)
 gen n = _n
 reshape long b se, i(n) j(coef)
-label define coef 1 "Single dealer pass-through" 2 "Change per additional dealer" 3 "Change per unit of alternative capacity" 4 "Pair level cut at the dressing dealer"
+label define coef 1 "Single dealer pass-through" 2 "Change per additional dealer" 3 "Change per unit of alternative capacity" 4 "Pair level cut at the dressing dealer" 5 "Cut, own dressing, fund and quarter effects" 6 "Move, the fund's other dealers' dressing"
 label values coef coef
 gen lo = b - 1.96*se
 gen hi = b + 1.96*se
