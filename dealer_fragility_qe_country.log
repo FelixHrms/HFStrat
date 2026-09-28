@@ -2,7 +2,7 @@
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- opened on:  28 Sep 2026, 13:40:49
+ opened on:  28 Sep 2026, 13:56:54
 
 . 
 . **# Quarter-end window dressing, can funds diversify the dealer shock away
@@ -15,8 +15,10 @@
 . * diversification predicts a positive interaction, two outcomes, net is the
 . * absolute net position the fund finances, gross is the repo volume between
 . * fund and dealers, the financing, which is the mirror of the treatment and
-. * less noisy than net, the treatment is the dealer's quarter-end contraction
-. * of its non hedge fund repo book as in dealer_fragility_qe.do
+. * less noisy than net, a second regression puts the smallest contraction
+. * among the fund's dealers next to its average exposure to ask which of the
+. * two the fund's total follows, the treatment is the dealer's quarter-end
+. * contraction of its non hedge fund repo book as in dealer_fragility_qe.do
 . 
 . local K = 3 /*event window, the last K business days of the quarter*/
 
@@ -265,11 +267,14 @@ xij variables:
 
 . gen dress_gross0 = dress*gross0
 
+. gen dress_active0 = dress if active0 /*for the minimum over the dealers active in the reference window*/
+(164 missing values generated)
+
 . bysort fund_id quarter (gross0 dealer_id): gen main_dealer = dealer_id[_N] /*the fund's largest dealer in the reference window, the unit of clu
 > stering*/
 
-. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (first) main_dealer,
->  by(fund_id quarter)
+. collapse (sum) borrowing_volume0 borrowing_volume1 lending_volume0 lending_volume1 gross0 dress_gross0 n_dealers = active0 (min) min_dress = dr
+> ess_active0 (first) main_dealer, by(fund_id quarter)
 
 . gen exposure = dress_gross0/gross0
 (35 missing values generated)
@@ -290,6 +295,8 @@ xij variables:
 . label var exposure "Reference share weighted contraction of the fund's dealers"
 
 . label var dose "Number of dealers in the reference window minus one"
+
+. label var min_dress "Smallest contraction among the fund's dealers in the reference window"
 
 . label var dlog_net "Change in log absolute net, quarter-end minus reference"
 
@@ -468,9 +475,141 @@ Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clusteri
 95% confidence set for null hypothesis expression: [−1.221, .101]
 
 . 
+. **# Which dealer does the fund follow, the average or its least constrained one
+. * multi dealer funds, the fund's exposure next to the smallest contraction
+. * among its dealers active in the reference window, under full substitution
+. * within the dealer set the fund's total follows the minimum and the average
+. * adds nothing, under no substitution the average carries it, the sum is the
+. * pass-through when all of the fund's dealers shrink alike
+. 
+. foreach y in dlog_net dlog_gross {
+  2.         reghdfe `y' exposure min_dress if n_dealers > 1, a(quarter) vce(cluster main_dealer)
+  3.         lincom exposure + min_dress /*the pass-through when all of the fund's dealers shrink alike*/
+  4.         boottest exposure, reps(9999) seed(1) nograph
+  5.         boottest min_dress, reps(9999) seed(1) nograph
+  6.         boottest exposure + min_dress = 0, reps(9999) seed(1) nograph
+  7. }
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,712
+Absorbing 1 HDFE group                            F(   2,     20) =       1.47
+Statistics robust to heteroskedasticity           Prob > F        =     0.2536
+                                                  R-squared       =     0.0298
+                                                  Adj R-squared   =     0.0183
+                                                  Within R-sq.    =     0.0013
+Number of clusters (main_dealer) =         21     Root MSE        =     0.9090
+
+                           (Std. err. adjusted for 21 clusters in main_dealer)
+------------------------------------------------------------------------------
+             |               Robust
+    dlog_net | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    exposure |   .0866457   .4963472     0.17   0.863    -.9487165    1.122008
+   min_dress |   .4869723   .2947535     1.65   0.114    -.1278727    1.101817
+       _cons |  -.1020302   .0460747    -2.21   0.039    -.1981403   -.0059202
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+
+ ( 1)  exposure + min_dress = 0
+
+------------------------------------------------------------------------------
+    dlog_net | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         (1) |    .573618   .5327158     1.08   0.294    -.5376076    1.684844
+------------------------------------------------------------------------------
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(20) =     0.1746
+                        Prob>|t| =     0.8907
+
+95% confidence set for null hypothesis expression: [−1.309, 1.238]
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  min_dress
+
+                           t(20) =     1.6521
+                        Prob>|t| =     0.1745
+
+95% confidence set for null hypothesis expression: [−.2193, 1.345]
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure + min_dress = 0
+
+                           t(20) =     1.0768
+                        Prob>|t| =     0.3497
+
+95% confidence set for null hypothesis expression: [−.6736, 1.866]
+(MWFE estimator converged in 1 iterations)
+
+HDFE Linear regression                            Number of obs   =      1,712
+Absorbing 1 HDFE group                            F(   2,     20) =       0.44
+Statistics robust to heteroskedasticity           Prob > F        =     0.6470
+                                                  R-squared       =     0.0366
+                                                  Adj R-squared   =     0.0252
+                                                  Within R-sq.    =     0.0008
+Number of clusters (main_dealer) =         21     Root MSE        =     0.4504
+
+                           (Std. err. adjusted for 21 clusters in main_dealer)
+------------------------------------------------------------------------------
+             |               Robust
+  dlog_gross | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    exposure |  -.1296394   .2059417    -0.63   0.536    -.5592262    .2999474
+   min_dress |  -.1485501   .2246782    -0.66   0.516    -.6172207    .3201205
+       _cons |  -.0939576   .0240336    -3.91   0.001    -.1440908   -.0438244
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+     quarter |        19           0          19     |
+-----------------------------------------------------+
+
+ ( 1)  exposure + min_dress = 0
+
+------------------------------------------------------------------------------
+  dlog_gross | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         (1) |  -.2781895   .2949643    -0.94   0.357    -.8934741    .3370952
+------------------------------------------------------------------------------
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure
+
+                           t(20) =    -0.6295
+                        Prob>|t| =     0.5673
+
+95% confidence set for null hypothesis expression: [−.6809, .2883]
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  min_dress
+
+                           t(20) =    -0.6612
+                        Prob>|t| =     0.5913
+
+95% confidence set for null hypothesis expression: [−.6175, .6169]
+
+Wild bootstrap-t, null imposed, 9999 replications, Wald test, bootstrap clustering by main_dealer, Rademacher weights:
+  exposure + min_dress = 0
+
+                           t(20) =    -0.9431
+                        Prob>|t| =     0.3178
+
+95% confidence set for null hypothesis expression: [−1.209, .5124]
+
+. 
 . log close
       name:  <unnamed>
        log:  C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe\\dealer_fragility_qe_country.log
   log type:  text
- closed on:  28 Sep 2026, 13:41:05
+ closed on:  28 Sep 2026, 13:57:05
 -------------------------------------------------------------------------------------------------------------------------------------------------
