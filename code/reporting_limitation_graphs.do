@@ -282,9 +282,10 @@ twoway ///
            position(6) rows(1)) ///
     ytitle("Net position") ///
     xtitle("") ///
-    title("Net german futures and repo positions of UK banks and Cayman funds") ///
     yline(0, lcolor(black)) ///
     ylabel(-400(100)400)
+
+graph export "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\net_repo_futures_DE.png", replace width(2400)
 	
 	
 	
