@@ -24,11 +24,39 @@ import delimited "$data\\hf_positions_US_svensson.csv", clear
 	drop if ttm < 0.25 /*eliminates short term bonds*/
 	drop if abs(dyield) > 0.5 /*drop if the bond clearly does not fit the curve*/
 
+tempfile us_panel
+save `us_panel'
+
 collapse (sum) net_long, by(date)
 tw (scatter net_long date), ///
 	ytitle("Billions") xtitle("") ///
 	yline(0, lcolor(black))
 graph export "$fig\\net_repo_US.png", replace width(3220)
+
+**# US: SFTDS net position against the OFR hedge fund monitor, quarter ends
+* same construction as ofrcomp.pdf in HF_TEMP_US.do, the last business day
+* of each quarter in SFTDS against the Form PF bond exposure from the OFR
+* monitor, with the slope of the fitted line printed on the chart
+
+use `us_panel', clear
+collapse (sum) net_long, by(date)
+gen year = year(date)
+gen quarter = quarter(date)
+sort year quarter date
+collapse (last) net_long, by(year quarter)
+merge 1:1 year quarter using "$data\\BondExposure.dta"
+drop if _merge == 2
+gen net = (BondExposureLong - BondExposureShort)/10^9
+
+reg net_long net
+local b  : display %4.2f _b[net]
+local se : display %4.2f _se[net]
+local r2 : display %4.2f e(r2)
+local n  = e(N)
+tw (scatter net_long net) (lfit net_long net), ///
+	ytitle("SFTDS net long positions") xtitle("OFR net long positions") legend(off) ///
+	note("Slope `b' (s.e. `se'), R{superscript:2} `r2', `n' quarters")
+graph export "$fig\\ofrcomp.png", replace width(3220)
 
 **# Euro area: net position in DE, IT, FR and ES sovereign bonds
 * input is hf_positions.csv, the file HF_TEMP.do reads from D:/mts
