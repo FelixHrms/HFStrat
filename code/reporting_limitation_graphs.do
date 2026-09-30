@@ -44,10 +44,11 @@ graph hbar (asis) pos neg, ///
     blabel(bar, format(%12.0fc)) ///
     legend(off) ///
     ytitle("Average net position") ///
-    title("DE: Average net position by country group (2021 & 2022)") ///
     subtitle("Net total: `total'") ///
     yline(0, lcolor(black)) ///
 	yscale(range(-35 5))
+
+graph export "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\DE_countries_2022.png", replace width(2400)
 
 restore
 
@@ -89,10 +90,11 @@ graph hbar (asis) pos neg, ///
     blabel(bar, format(%12.0fc)) ///
     legend(off) ///
     ytitle("Average net position") ///
-    title("DE: Average net position by country group (2025)") ///
     subtitle("Net total: `total'") ///
     yline(0, lcolor(black)) ///
 	yscale(range(-5 35))
+
+graph export "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\DE_countries_2025.png", replace width(2400)
 
 restore
 
@@ -156,11 +158,12 @@ graph hbar (asis) pos neg, ///
     blabel(bar, format(%12.0fc)) ///
     legend(off) ///
     ytitle("Average net position") ///
-    title("US: Average net position by country group (2021 & 2022)") ///
     subtitle("Net total: `total'") ///
     yline(0, lcolor(black)) ///
 	ylabel(-5(2.5)5) ///
 	yscale(range(-5 5))
+
+graph export "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\US_countries_2022.png", replace width(2400)
 
 restore
 
@@ -202,10 +205,11 @@ graph hbar (asis) pos neg, ///
     blabel(bar, format(%12.0fc)) ///
     legend(off) ///
     ytitle("Average net position") ///
-    title("US: Average net position by country group (2025)") ///
     subtitle("Net total: `total'") ///
     yline(0, lcolor(black)) ///
 	yscale(range(-45 35))
+
+graph export "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures\\US_countries_2025.png", replace width(2400)
 
 restore
 
