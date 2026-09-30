@@ -8,6 +8,7 @@ snapshot erase _all
 * the missing titles and the export lines differ.
 
 global data "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Data"
+global key  "C:\\Users\\hermesf\\Projects\\HF_Strategies\\key dataframe"
 global fig  "C:\\Users\\hermesf\\Projects\\HF_Strategies\\Figures" /*figures for the slides, the Figures folder of the repository*/
 capture mkdir "$fig"
 
@@ -44,7 +45,7 @@ gen year = year(date)
 gen quarter = quarter(date)
 sort year quarter date
 collapse (last) net_long, by(year quarter)
-merge 1:1 year quarter using "$data\\BondExposure.dta"
+merge 1:1 year quarter using "$key\\BondExposure.dta"
 drop if _merge == 2
 gen net = (BondExposureLong - BondExposureShort)/10^9
 
