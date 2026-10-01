@@ -22,6 +22,8 @@ import delimited "$data\\hf_positions_US_svensson.csv", clear
 	drop if itype > 4 /*keep bonds, notes and bills*/
 	gen dyield = yield - yield_curve
 	gen net_long = (borrowing_volume - lending_volume)/10^9 /*net long position in bn*/
+	gen net_long_dur = net_long*duration /*dollar duration*/
+	gen net_long_conv = net_long*convexity /*dollar convexity*/
 	drop if ttm < 0.25 /*eliminates short term bonds*/
 	drop if abs(dyield) > 0.5 /*drop if the bond clearly does not fit the curve*/
 
@@ -90,3 +92,39 @@ tw (scatter net_long date if country == "DE") ///
 	ytitle("Billions") xtitle("") ///
 	yline(0, lcolor(black))
 graph export "$fig\\net_repo_EA.png", replace width(3220)
+
+**# US: futures against bond exposure, dollar duration and dollar convexity
+* same construction as dur2.pdf and con2.pdf in HF_TEMP_US.do, one observation
+* per Tuesday, the bond side sums the net repo position times duration or
+* convexity across Treasuries, the futures side comes from futuresexposure.dta,
+* with the fitted line and its slope printed on the chart
+
+use `us_panel', clear
+collapse (sum) net_long net_long_dur net_long_conv, by(date)
+keep if dow(date) == 2
+rename date tuesday
+merge 1:m tuesday using "$key\\futuresexposure.dta"
+drop if _merge == 2
+replace futures_dolduration = futures_dolduration/10^9
+replace futures_dolconvexity = futures_dolconvexity/10^9
+collapse (sum) futures_dolduration futures_dolconvexity, by(tuesday net_long net_long_dur net_long_conv)
+
+reg futures_dolduration net_long_dur
+local b  : display %4.2f _b[net_long_dur]
+local se : display %4.2f _se[net_long_dur]
+local r2 : display %4.2f e(r2)
+local n  = e(N)
+tw (scatter futures_dolduration net_long_dur) (lfit futures_dolduration net_long_dur), ///
+	ytitle("Futures dollar duration") xtitle("Bond dollar duration") legend(off) ///
+	note("Slope `b' (s.e. `se'), R{superscript:2} `r2', `n' weeks")
+graph export "$fig\\duration_scatter.png", replace width(3220)
+
+reg futures_dolconvexity net_long_conv
+local b  : display %4.2f _b[net_long_conv]
+local se : display %4.2f _se[net_long_conv]
+local r2 : display %4.2f e(r2)
+local n  = e(N)
+tw (scatter futures_dolconvexity net_long_conv) (lfit futures_dolconvexity net_long_conv), ///
+	ytitle("Futures dollar convexity") xtitle("Bond dollar convexity") legend(off) ///
+	note("Slope `b' (s.e. `se'), R{superscript:2} `r2', `n' weeks")
+graph export "$fig\\convexity_scatter.png", replace width(3220)
