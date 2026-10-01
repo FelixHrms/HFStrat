@@ -381,6 +381,38 @@
   {\small\color{slate} US, weekly on Tuesdays from June 2021. The convexity gap is the dollar convexity of the futures leg, rescaled to its average hedge ratio against the bond leg, minus the dollar convexity of the bond leg, on a reversed left axis. Volatility on the right axis}
 \end{frame}
 
+\begin{frame}{Risk and return of the trade}{The futures hedge shrinks when volatility and the term premium rise}
+  \vspace{-0.6em}
+  \begin{center}\scriptsize
+  \begin{tabular}{lrrr}
+    \toprule
+    & \multicolumn{2}{c}{Futures dollar convexity} & Futures dollar duration \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-4}
+    & (1) & (2) & (3) \\
+    \midrule
+    Bond dollar convexity & $-1.225^{***}$ & $-1.358^{***}$ & \\
+                          & (0.129) & (0.128) & \\
+    Bond dollar duration  & & & $-3.121^{***}$ \\
+                          & & & (0.174) \\
+    Term premium, 10 year minus 2 year & $-17{,}232^{***}$ & & $-1{,}218^{***}$ \\
+                          & (932) & & (137) \\
+    Term premium, 10 year & & $-17{,}951^{***}$ & \\
+                          & & (945) & \\
+    Term premium, 2 year  & & $23{,}798^{***}$ & \\
+                          & & (2{,}320) & \\
+    MOVE index            & $-211.4^{***}$ & $-210.2^{***}$ & $-14.03^{***}$ \\
+                          & (18.3) & (18.7) & (1.77) \\
+    Constant              & $1{,}615$ & $4{,}662^{*}$ & $1{,}071^{***}$ \\
+                          & (2{,}174) & (2{,}560) & (149) \\
+    \midrule
+    Observations & 246 & 246 & 246 \\
+    R squared    & 0.666 & 0.678 & 0.858 \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  {\tiny\color{slate} One observation per Tuesday, US. The dependent variable is the dollar convexity or dollar duration of the futures leg, the bond regressor is the same measure for the bond leg, both in billions. Term premia are the ACM estimates. Robust standard errors in parentheses, stars mark significance at the 10, 5 and 1 percent level.\par}
+\end{frame}
+
 % ===========================================================================
 \section{The funding architecture}
 \begin{frame}{The funding architecture}{Repo terms by fund dealer pair and relationship stability}
