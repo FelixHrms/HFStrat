@@ -229,28 +229,47 @@ keep contract ctd1
 rename ctd1 cusip8
 duplicates drop
 joinby cusip8 using `bd'
-keep date contract duration_ctd convexity_ctd
 tempfile ctd
 save `ctd'
+keep date cusip8 duration_ctd convexity_ctd
+duplicates drop
+gen is_ctd = 1
+tempfile ctdset
+save `ctdset'
 
 use "$int/sftds_agg.dta", clear
 keep if country=="US" & ilb==0 & ttm>0.25 & net>0
 keep date cusip net duration convexity deliverable_contract1 isdlv
 rename deliverable_contract1 contract
 
-* deliverable bonds take the CTD of their own contract, the others the contract whose CTD is closest in duration
+* deliverable bonds take the CTD of their own contract
 preserve
 	keep if isdlv==1
 	merge m:1 date contract using `ctd', keep(3) nogen
+	drop cusip8
 	tempfile dlv
 	save `dlv'
 restore
+
+* the others take the CTD closest in duration on the day, nearest neighbour below and above in a sorted stack
 keep if isdlv==0
 drop contract
-joinby date using `ctd'
-gen dd = abs(duration - duration_ctd)
-bysort date cusip (dd): keep if _n==1
-drop dd
+gen is_ctd = 0
+append using `ctdset'
+gen dkey = cond(is_ctd==1, duration_ctd, duration)
+foreach side in below above {
+	if "`side'" == "below" sort date dkey
+	if "`side'" == "above" gsort date -dkey
+	by date: gen d_`side' = duration_ctd if is_ctd==1
+	by date: gen c_`side' = convexity_ctd if is_ctd==1
+	by date: replace d_`side' = d_`side'[_n-1] if missing(d_`side') & _n>1
+	by date: replace c_`side' = c_`side'[_n-1] if missing(c_`side') & _n>1
+}
+drop if is_ctd==1
+gen use_above = missing(d_below) | (!missing(d_above) & abs(duration-d_above) < abs(duration-d_below))
+replace duration_ctd  = cond(use_above, d_above, d_below)
+replace convexity_ctd = cond(use_above, c_above, c_below)
+drop is_ctd dkey d_below d_above c_below c_above use_above cusip8
 append using `dlv'
 
 gen gap_conv = convexity - convexity_ctd
