@@ -216,16 +216,12 @@ use "$int/sftds_agg.dta" , clear
 	tw (line fduration date) (line bond_dollarduration date, yaxis(2)) , legend(pos(6))
 
 
-**# Sign of the unhedged exposure: convexity of the bonds funds hold against the cheapest to deliver of their contract, US
+**# Sign of the unhedged exposure: the bonds funds hold against the cheapest to deliver of their contract, US
 
 use "$key/bond_day.dta", clear
 keep if country=="US"
 keep date cusip8 duration convexity
-reg convexity c.duration##c.duration
-predict xconv, residuals
-tempfile held
-save `held'
-rename (duration convexity xconv) (duration_ctd convexity_ctd xconv_ctd)
+rename (duration convexity) (duration_ctd convexity_ctd)
 tempfile bd
 save `bd'
 
@@ -236,7 +232,7 @@ duplicates drop
 joinby cusip8 using `bd'
 tempfile ctd
 save `ctd'
-keep date cusip8 duration_ctd convexity_ctd xconv_ctd
+keep date cusip8 duration_ctd convexity_ctd
 duplicates drop
 gen is_ctd = 1
 tempfile ctdset
@@ -246,11 +242,8 @@ use "$int/sftds_agg.dta", clear
 keep if country=="US" & ilb==0 & ttm>0.25 & net>0
 keep date cusip net duration convexity deliverable_contract1 isdlv
 rename deliverable_contract1 contract
-rename cusip cusip8
-merge m:1 date cusip8 using `held', keepusing(xconv) keep(1 3) nogen
-rename cusip8 cusip
 
-* deliverable bonds take the CTD of their own contract
+* deliverable bonds take the CTD of their own contract, the others the CTD closest in duration on the day
 preserve
 	keep if isdlv==1
 	merge m:1 date contract using `ctd', keep(3) nogen
@@ -258,8 +251,6 @@ preserve
 	tempfile dlv
 	save `dlv'
 restore
-
-* the others take the CTD closest in duration on the day, nearest neighbour below and above in a sorted stack
 keep if isdlv==0
 drop contract
 gen is_ctd = 0
@@ -270,68 +261,37 @@ foreach side in below above {
 	if "`side'" == "above" gsort date -dkey
 	by date: gen d_`side' = duration_ctd if is_ctd==1
 	by date: gen c_`side' = convexity_ctd if is_ctd==1
-	by date: gen x_`side' = xconv_ctd if is_ctd==1
 	by date: replace d_`side' = d_`side'[_n-1] if missing(d_`side') & _n>1
 	by date: replace c_`side' = c_`side'[_n-1] if missing(c_`side') & _n>1
-	by date: replace x_`side' = x_`side'[_n-1] if missing(x_`side') & _n>1
 }
 drop if is_ctd==1
 gen use_above = missing(d_below) | (!missing(d_above) & abs(duration-d_above) < abs(duration-d_below))
 replace duration_ctd  = cond(use_above, d_above, d_below)
 replace convexity_ctd = cond(use_above, c_above, c_below)
-replace xconv_ctd     = cond(use_above, x_above, x_below)
-drop is_ctd dkey d_below d_above c_below c_above x_below x_above use_above cusip8
+drop is_ctd dkey d_below d_above c_below c_above use_above cusip8
 append using `dlv'
 
-gen gap_conv  = convexity - convexity_ctd
-gen gap_dur   = duration - duration_ctd
-gen gap_xconv = xconv - xconv_ctd
-gen pos_gap   = gap_xconv > 0
+* duration gap, and net convexity of a dollar duration matched hedge with the CTD
+gen gap_dur = duration - duration_ctd
+gen net_conv = convexity - (duration/duration_ctd)*convexity_ctd
+sum gap_dur net_conv [aw=net]
 
-sum gap_conv gap_dur gap_xconv [aw=net]
-tab isdlv pos_gap [aw=net]
-
-* convexity gap at zero duration gap, and the gap in convexity beyond what duration implies
-reg gap_conv gap_dur [aw=net], vce(cluster date)
-reg gap_xconv [aw=net], vce(cluster date)
-reg gap_xconv gap_dur [aw=net], vce(cluster date)
-
-* concentration: share of the five largest contributions in the daily weighted excess gap, and bonds per day
-preserve
-	gen contrib = net*gap_xconv
-	gen abscontrib = abs(contrib)
-	gsort date -abscontrib
-	by date: gen n = _n
-	by date: egen top5 = total(abscontrib*(n<=5))
-	by date: egen tot = total(abscontrib)
-	by date: egen nbonds = count(contrib)
-	by date: egen npos = total(pos_gap)
-	gen share_top5 = top5/tot
-	keep date share_top5 nbonds npos
-	duplicates drop
-	gen year = year(date)
-	tabstat share_top5 nbonds npos, by(year) stat(mean p50)
-restore
-
-collapse (sum) net wconv=gap_conv wdur=gap_dur wxconv=gap_xconv (mean) share_pos=pos_gap [aw=net], by(date)
-foreach v in wconv wdur wxconv {
-	replace `v' = `v'/net
-}
-sum wconv wdur wxconv share_pos
-count if wxconv > 0
-tw (line wxconv date), yline(0, lcolor(black)) ytitle("Excess convexity of held bonds minus CTD") xtitle("")
-graph export "$fig/excess_convexity_gap_sign.png", replace width(3220)
-tw (line wconv date), yline(0, lcolor(black)) ytitle("Convexity of held bonds minus CTD convexity") xtitle("")
-graph export "$fig/convexity_gap_sign.png", replace width(3220)
+collapse (sum) net wdur=gap_dur wconv=net_conv [aw=net], by(date)
+replace wdur  = wdur/net
+replace wconv = wconv/net
+sum wdur wconv
+count if wdur > 0
+count if wconv > 0
 tw (line wdur date), yline(0, lcolor(black)) ytitle("Duration of held bonds minus CTD duration") xtitle("")
 graph export "$fig/duration_gap_sign.png", replace width(3220)
+tw (line wconv date), yline(0, lcolor(black)) ytitle("Net convexity of the duration matched position") xtitle("")
+graph export "$fig/net_convexity_sign.png", replace width(3220)
 
-* the excess gap against implied volatility, weekly as in the convexity gap chart
 gen tuesday = date - dow(date) + 2
 format tuesday %td
-collapse (mean) wxconv wconv wdur, by(tuesday)
+collapse (mean) wdur wconv, by(tuesday)
 merge 1:1 tuesday using "$key/ImplVolTreasury_weekly.dta", keep(3) nogen
-reg wxconv MOVE_Index___L1_, robust
-reg wxconv TY_1M_50D_VOL_BVOL_Comdty___R1_, robust
-tw (line wxconv tuesday) (line MOVE_Index___L1_ tuesday, yaxis(2)), legend(order(1 "Excess convexity gap" 2 "MOVE") pos(6)) xtitle("")
-graph export "$fig/excess_convexity_gap_move.png", replace width(3220)
+reg wdur MOVE_Index___L1_, robust
+reg wconv MOVE_Index___L1_, robust
+tw (line wdur tuesday) (line MOVE_Index___L1_ tuesday, yaxis(2)), legend(order(1 "Duration gap" 2 "MOVE") pos(6)) xtitle("")
+graph export "$fig/duration_gap_move.png", replace width(3220)
