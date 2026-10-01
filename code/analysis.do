@@ -218,11 +218,17 @@ use "$int/sftds_agg.dta" , clear
 
 **# Sign of the unhedged exposure: convexity of the bonds funds hold against the cheapest to deliver of their contract, US
 
+use "$key/bond_day.dta", clear
+keep date cusip8 duration convexity
+rename (duration convexity) (duration_ctd convexity_ctd)
+tempfile bd
+save `bd'
+
 use "$key/firstsecondctd.dta", clear
 keep contract ctd1
 rename ctd1 cusip8
-merge 1:m cusip8 using "$key/bond_day.dta", keepusing(date duration convexity) keep(3) nogen
-rename (duration convexity) (duration_ctd convexity_ctd)
+duplicates drop
+joinby cusip8 using `bd'
 keep date contract duration_ctd convexity_ctd
 tempfile ctd
 save `ctd'
