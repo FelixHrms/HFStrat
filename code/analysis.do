@@ -286,12 +286,3 @@ tw (line wdur date), yline(0, lcolor(black)) ytitle("Duration of held bonds minu
 graph export "$fig/duration_gap_sign.png", replace width(3220)
 tw (line wconv date), yline(0, lcolor(black)) ytitle("Net convexity of the duration matched position") xtitle("")
 graph export "$fig/net_convexity_sign.png", replace width(3220)
-
-gen tuesday = date - dow(date) + 2
-format tuesday %td
-collapse (mean) wdur wconv, by(tuesday)
-merge 1:1 tuesday using "$key/ImplVolTreasury_weekly.dta", keep(3) nogen
-reg wdur MOVE_Index___L1_, robust
-reg wconv MOVE_Index___L1_, robust
-tw (line wdur tuesday) (line MOVE_Index___L1_ tuesday, yaxis(2)), legend(order(1 "Duration gap" 2 "MOVE") pos(6)) xtitle("")
-graph export "$fig/duration_gap_move.png", replace width(3220)
