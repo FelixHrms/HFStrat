@@ -296,6 +296,23 @@ reg gap_conv gap_dur [aw=net], vce(cluster date)
 reg gap_xconv [aw=net], vce(cluster date)
 reg gap_xconv gap_dur [aw=net], vce(cluster date)
 
+* concentration: share of the five largest contributions in the daily weighted excess gap, and bonds per day
+preserve
+	gen contrib = net*gap_xconv
+	gen abscontrib = abs(contrib)
+	gsort date -abscontrib
+	by date: gen n = _n
+	by date: egen top5 = total(abscontrib*(n<=5))
+	by date: egen tot = total(abscontrib)
+	by date: egen nbonds = count(contrib)
+	by date: egen npos = total(pos_gap)
+	gen share_top5 = top5/tot
+	keep date share_top5 nbonds npos
+	duplicates drop
+	gen year = year(date)
+	tabstat share_top5 nbonds npos, by(year) stat(mean p50)
+restore
+
 collapse (sum) net wconv=gap_conv wdur=gap_dur wxconv=gap_xconv (mean) share_pos=pos_gap [aw=net], by(date)
 foreach v in wconv wdur wxconv {
 	replace `v' = `v'/net
@@ -308,3 +325,13 @@ tw (line wconv date), yline(0, lcolor(black)) ytitle("Convexity of held bonds mi
 graph export "$fig/convexity_gap_sign.png", replace width(3220)
 tw (line wdur date), yline(0, lcolor(black)) ytitle("Duration of held bonds minus CTD duration") xtitle("")
 graph export "$fig/duration_gap_sign.png", replace width(3220)
+
+* the excess gap against implied volatility, weekly as in the convexity gap chart
+gen tuesday = date - dow(date) + 2
+format tuesday %td
+collapse (mean) wxconv wconv wdur, by(tuesday)
+merge 1:1 tuesday using "$key/ImplVolTreasury_weekly.dta", keep(3) nogen
+reg wxconv MOVE_Index___L1_, robust
+reg wxconv TY_1M_50D_VOL_BVOL_Comdty___R1_, robust
+tw (line wxconv tuesday) (line MOVE_Index___L1_ tuesday, yaxis(2)), legend(order(1 "Excess convexity gap" 2 "MOVE") pos(6)) xtitle("")
+graph export "$fig/excess_convexity_gap_move.png", replace width(3220)
