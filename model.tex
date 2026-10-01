@@ -1,0 +1,190 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, amsthm, booktabs, geometry, hyperref, natbib, setspace}
+\geometry{left=1.25in, right=1.25in, top=1.25in, bottom=1.25in}
+\onehalfspacing
+\newtheorem{assumption}{Assumption}
+\newtheorem{result}{Result}
+
+\title{A two bond extension of the Kashyap, Stein, Wallen and Younger model\\ \large Working note}
+\author{Felix Hermes \and Davide Tomio}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{What the note does}
+
+\citet{kashyap2025} build a one period model of the Treasury market with one cash bond and one futures contract. The two have the same dollar duration, so the basis trade is a perfect hedge and the only thing hedge funds are paid for is balance sheet. We extend their model in one direction. The futures contract has two deliverable bonds instead of one. The two bonds have the same duration but different convexity. We ask three questions. Which bond does the futures contract track. Why can the bond with more convexity be the cheaper one in the data. And in what sense the convexity that the futures leg leaves unhedged is a risk for the fund.
+
+The note keeps everything linear and static where possible, in the spirit of the original. Section 2 recalls the original model in the notation we need. Section 3 adds the second bond. Section 4 prices the two bonds. Section 5 is about risk. Section 6 lists the places where the extension is on thin ice. \citet{davernas2025} is used as guidance on one point only, namely that part of the basis is compensation for funding risk rather than for balance sheet, and that this part moves with the probability of stress.
+
+\section{The original model in brief}
+
+There is a short rate $r$, a long zero coupon bond in supply $S$ with price $P$, and a futures contract on that bond in zero net supply with price $F$. Spot futures parity would give $F = P(1+r)$. The model allows a deviation and defines the basis $x$ through
+\begin{equation}
+F = P\,(1 + r + x).
+\label{eq:basis}
+\end{equation}
+Buying the bond and selling the future earns $r + x$. Three agents trade. Dealers and hedge funds are risk neutral and fully hedged, so they only care about $x$. Asset managers hold duration and split it between bonds and futures in a fixed proportion $\theta$.
+
+Hedge funds finance a bond position $D_H$ in repo and need a fraction $\gamma$ of equity per unit of position. The rest of their equity $E_H$ goes to an alternative activity with decreasing returns $c - \beta X_H / 2$. The resulting demand for the basis trade is
+\begin{equation}
+D_H = \frac{E_H}{\gamma} - \frac{c}{\beta \gamma} + \frac{x}{\beta \gamma^2}.
+\label{eq:dh}
+\end{equation}
+Dealers have a similar demand with balance sheet capacity $K_D$ in place of $E_H / \gamma$. Market clearing in the futures market gives the equilibrium basis, their equation (10). Everything that matters for us is captured by one sentence. The basis is the price that the duration holders pay to the balance sheet holders for carrying cash bonds that nobody else wants to hold.
+
+Two features of the original matter for what follows. First, the bond and the future have identical cash flows, so the hedge is exact for any size of rate move. Second, the model is one period, so there is no rebalancing and no second shock. Both features are what we relax.
+
+\section{Two deliverable bonds}
+
+\subsection{Setup}
+
+Keep the short rate, the agents and the demand curves of the original. Replace the single bond by two bonds, indexed $i = 1, 2$. Both are priced as a function of one common yield $y$. Let $D$ be their modified duration and $C_i$ their convexity. We assume
+\begin{assumption}
+Both bonds have the same duration $D$ and the same price $\bar P$ at the current yield $y_0$. Their convexities differ, $C_1 < C_2$.
+\label{as:bonds}
+\end{assumption}
+For a move $\varepsilon$ in the yield the second order approximation gives
+\begin{equation}
+P_i(y_0 + \varepsilon) \approx \bar P \left(1 - D \varepsilon + \tfrac{1}{2} C_i \varepsilon^2 \right).
+\label{eq:taylor}
+\end{equation}
+Equal duration is what makes the two bonds interchangeable for a first order hedge. Different convexity is what makes them differ once the move is large. The assumption of equal current prices is only there to keep the delivery decision clean. It can be relaxed with conversion factors but that adds notation and nothing else.
+
+\subsection{Which bond the future tracks}
+
+The seller of the future chooses which bond to deliver. Delivery happens after the yield has moved. The seller delivers the cheaper bond, so at delivery the future is worth
+\begin{equation}
+F(\varepsilon) = (1+r)\, \min\{ P_1(y_0+\varepsilon),\, P_2(y_0+\varepsilon) \}.
+\label{eq:ctd}
+\end{equation}
+Under Assumption \ref{as:bonds} the comparison is immediate. For any $\varepsilon \neq 0$ the difference $P_2 - P_1$ equals $\tfrac{1}{2}(C_2 - C_1)\bar P \varepsilon^2$, which is positive. The low convexity bond is cheapest to deliver after every move, up or down.
+\begin{result}
+With equal duration and equal current price, bond 1 is always the cheapest to deliver. The future inherits the convexity of bond 1. The delivery option is worthless because the cheapest bond never switches.
+\label{res:ctd}
+\end{result}
+This is a useful simplification and also the first place where the model departs from reality. In the data the cheapest to deliver does switch, because durations differ across the basket and conversion factors are built for a six percent coupon. We come back to this in Section 6.
+
+\subsection{The hedge fund position}
+
+A hedge fund that runs the basis trade in bond 2 holds $q$ units of bond 2 and is short $q$ futures. Define the net convexity of the position per unit as
+\begin{equation}
+\kappa = C_2 - C_1 > 0.
+\end{equation}
+Using \eqref{eq:taylor} and \eqref{eq:ctd}, the profit of the position after a move $\varepsilon$, before funding costs, is
+\begin{equation}
+\Pi(\varepsilon) = q \left[ P_2(y_0+\varepsilon) - \frac{F(\varepsilon)}{1+r} \right] = q\,\bar P\, \tfrac{1}{2} \kappa\, \varepsilon^2 .
+\label{eq:pnl}
+\end{equation}
+The duration terms cancel by construction. What remains is a term in $\varepsilon^2$ with a positive coefficient. A fund that holds the high convexity bond against the future is long convexity. It does not lose when rates move a lot. It gains, and the gain grows with the square of the move.
+
+This is the point to be clear about. Within a one factor model, unhedged convexity on the bond side is not a loss in a crash. It is a payoff that looks like a straddle. The cost of that payoff has to show up somewhere else, and that is the pricing question.
+
+\section{Pricing the two bonds}
+
+\subsection{Frictionless benchmark}
+
+Suppose the yield shock has mean zero and variance $\sigma^2$, and suppose for the moment that some agent is willing to hold either bond at a fair expected return. Then both bonds must offer the same expected return. From \eqref{eq:taylor} the expected price change of bond $i$ over the period is $\bar P \tfrac{1}{2} C_i \sigma^2$ plus the common duration term. For the two expected returns to be equal, bond 2 has to start from a higher price. To second order,
+\begin{equation}
+\frac{P_2(y_0) - P_1(y_0)}{\bar P} \approx \tfrac{1}{2} \kappa \sigma^2 .
+\label{eq:convpremium}
+\end{equation}
+This is the convexity premium. The bond with more convexity is richer, and its yield is lower by about $\tfrac{1}{2} \kappa \sigma^2$ per period. So the frictionless answer to the question in the title is no. Convexity makes a bond more expensive, not cheaper.
+
+It also tells us what the long convexity position in \eqref{eq:pnl} costs. Combining \eqref{eq:pnl} with \eqref{eq:convpremium}, the expected profit of the fund from the convexity leg is
+\begin{equation}
+\mathbb{E}\, \Pi = q \bar P\, \tfrac{1}{2} \kappa \left( \mathbb{E}\, \varepsilon^2 - \sigma^2 \right) = 0 .
+\end{equation}
+The fund pays the convexity premium through a lower yield on bond 2 and earns it back on average through the squared move. Its realised profit is $\tfrac{1}{2} \kappa \bar P q (\varepsilon^2 - \sigma^2)$. That is a bet that realised volatility exceeds the volatility priced into the bond. Calm markets lose, turbulent markets win.
+
+\subsection{Segmented demand}
+
+The data say that the bonds the funds hold are cheap relative to the fitted curve and have more convexity than the futures leg. The frictionless benchmark cannot deliver that. We need a reason why bond 2 is not held by the agents who would otherwise bid it up. The natural reason inside the Kashyap framework is that asset managers do not hold it.
+\begin{assumption}
+Asset managers take their duration in bond 1 and in futures only. Bond 2 is held only by dealers and hedge funds.
+\label{as:segment}
+\end{assumption}
+One can think of bond 1 as the benchmark or on the run issue and of bond 2 as an older issue outside the index. With this assumption the market for bond 2 looks exactly like the market for the cash bond in the original model. The agents who hold it are balance sheet constrained and risk neutral, so they demand a premium for holding it. Write the cheapness of bond 2 relative to bond 1, in yield per period, as $z$. The hedge fund demand for bond 2 against futures is \eqref{eq:dh} with $x$ replaced by the total excess return of the position, which is now
+\begin{equation}
+x + z - \tfrac{1}{2} \kappa \sigma^2 .
+\label{eq:excess}
+\end{equation}
+The first term is the basis as before. The second is the cheapness of bond 2, which is a direct gain to a buy and hold arbitrageur. The third is the convexity premium that the fund gives up in carry, which under Assumption \ref{as:segment} nobody pays for and which therefore enters as a cost rather than being embedded in the price.
+
+Market clearing for bond 2 then pins down $z$ the same way the original pins down $x$. If the supply of bond 2 is $S_2$ and only dealers and hedge funds absorb it, $z$ rises with $S_2$ and falls with $E_H$ and $K_D$. The combined compensation $x + z$ is the balance sheet premium of the original with the supply of the segmented bond added to the supply that balance sheet holders must carry.
+\begin{result}
+Under Assumption \ref{as:segment} the high convexity bond trades cheap, with a pricing error equal to the balance sheet premium $z$ net of the convexity premium, $z - \tfrac{1}{2} \kappa \sigma^2$. It is cheap when the balance sheet premium exceeds the value of its extra convexity.
+\label{res:cheap}
+\end{result}
+This matches the two facts in the deck. The bonds funds hold are cheap and they are the high convexity ones. But the cheapness comes from segmentation, not from convexity. Convexity works against cheapness and is overcome by it.
+
+\section{Where the risk is}
+
+Section 3 showed that a long convexity position gains from a single large move. So the risk has to enter through one of two doors. Either through the carry, as the end of Section 4.1 showed, or through what happens after the move. We take the second door because it connects to the balance sheet mechanism of the original.
+
+\subsection{Convexity mismatch becomes duration mismatch}
+
+Differentiate \eqref{eq:taylor} once more. After a move $\varepsilon$ the dollar duration of bond $i$ is no longer $D \bar P$ but approximately $\bar P (D - C_i \varepsilon)$. The two bonds started with the same duration and end with different ones. The fund's position, long bond 2 and short a future that tracks bond 1, has a net dollar duration after the move of
+\begin{equation}
+\Delta(\varepsilon) = q \bar P \left[ (D - C_2 \varepsilon) - (D - C_1 \varepsilon) \right] = - q \bar P\, \kappa\, \varepsilon .
+\label{eq:durgap}
+\end{equation}
+When rates fall, $\varepsilon < 0$, the fund becomes net long duration. When rates rise it becomes net short. A position that was hedged before the move is directional after it, and the size of the open exposure is proportional to the convexity mismatch and to the size of the move.
+
+\subsection{Rebalancing in stress}
+
+To restore the hedge the fund has to adjust its futures position by $\kappa \varepsilon / D$ contracts per unit of bond. This needs initial margin and, in a stressed market, needs it at a moment when margins have been raised. Let $\gamma$ be the capital per unit of position as in the original and let a stress event raise it to $\gamma' > \gamma$. The capital the fund needs to re-hedge is
+\begin{equation}
+\gamma' \, q \, \frac{\kappa\, |\varepsilon|}{D} .
+\end{equation}
+In the original model a rise in $\gamma$ is already the shock that forces hedge funds to unwind. The convexity mismatch adds a second claim on the same scarce capital, and this claim grows with the size of the move that caused the stress in the first place. If the fund cannot raise it, it carries the open duration \eqref{eq:durgap} into the next period. A reversal of rates then produces a first order loss $\Delta(\varepsilon) \cdot \varepsilon_2$, which can exceed the second order convexity gain from the first move.
+
+\begin{result}
+The unhedged convexity does not create a loss on the first move. It creates a directional exposure after the move of size $q \bar P \kappa |\varepsilon|$, which must be closed with capital at the moment when capital is scarce. The risk is a rebalancing risk, and it scales with the convexity mismatch, the size of the move, and the stress increase in margins.
+\label{res:risk}
+\end{result}
+
+\subsection{Interaction with the fire sale}
+
+The original model's stress scenario has hedge funds leave the basis trade and the basis widen to their equation (11). In the two bond version the same unwinding hits bond 2 harder than bond 1, because under Assumption \ref{as:segment} bond 2 has no other buyer. The cheapness $z$ widens together with $x$. A fund that holds on to bond 2 marks a loss on the cheapness even while the convexity term in \eqref{eq:pnl} pays off. The two effects have different orders. The fire sale loss is first order in the capital shock. The convexity gain is second order in the rate move. For a shock of the March 2020 type the first will dominate.
+
+\subsection{What this says about the empirical gap}
+
+The deck shows that the convexity gap between the two legs comoves with implied volatility. The model reads this in a simple way. Through \eqref{eq:excess} the carry cost of the mismatch is $\tfrac{1}{2} \kappa \sigma^2$, which rises with volatility. A fund that targets a given excess return will cut $\kappa$ when $\sigma$ rises, either by hedging more convexity in futures or by moving to bonds closer to the cheapest to deliver. That is consistent with the regression in the deck, where the futures convexity position grows with the MOVE index for a given bond convexity.
+
+\section{Where the challenges lie}
+
+This section is the honest part.
+
+\paragraph{The sign of the exposure has to be established at the fund level.}
+The model assumes the fund is long convexity, which is what the aggregate regressions in the deck suggest. But the two legs in the deck come from different data with different coverage, and the gap is computed after rescaling the futures leg by a regression slope. A different hedge ratio flips the sign of the measured gap. Before the model can be matched to the data we need the net convexity of the same funds, with the repo leg from SFTDS and the futures leg from EMIR, without rescaling. If funds turn out to be net short convexity, Section 5 simplifies to the classic story where large moves lose money, and Section 4 has to explain why they would hold the low convexity bond.
+
+\paragraph{A static model cannot make long convexity lose.}
+In one period and with one factor, equation \eqref{eq:pnl} is a square and cannot be negative. Everything in Section 5 relies on a second period and on a friction that prevents costless rebalancing. The original model is one period on purpose. Adding a second period is not hard to write down but it means we have to take a stand on how margins and the basis respond to the first move, which the original leaves outside the model.
+
+\paragraph{Cheapness is assumed, not derived.}
+Result \ref{res:cheap} needs Assumption \ref{as:segment}. The model does not explain why asset managers avoid bond 2. In the data the answer is probably liquidity, index membership and the preference of duration holders for on the run issues. None of that is in the model. The convexity itself pushes the other way, so the assumption has to be strong enough to overcome the convexity premium.
+
+\paragraph{The delivery option is absent.}
+Result \ref{res:ctd} makes the cheapest to deliver never switch. That removes the delivery option, which in reality is a large part of why the basis exists and why it comoves with volatility. Allowing the switch requires unequal durations or conversion factors, and then the futures convexity itself depends on the level of rates. This is the most natural next step but it makes the model considerably less transparent.
+
+\paragraph{Volatility is exogenous.}
+The variance $\sigma^2$ is a parameter. The link between the convexity gap and the MOVE index in the deck is therefore an assumption about behaviour, not an equilibrium outcome. A version where volatility rises in stress and feeds back into margins would make Section 5 much more powerful, but that is a different model.
+
+\paragraph{Calibration.}
+The one quantity the model needs from the data is $\kappa$ in dollar terms, together with $\gamma$ and the stress rise in margins. The deck has the dollar convexity of both legs. Mapping it into $\kappa$ requires the fund level exposure of the first point.
+
+\bibliographystyle{plainnat}
+\begin{thebibliography}{2}
+\bibitem[d'Avernas et al.(2025)]{davernas2025}
+d'Avernas, A., D. Petersen, and Q. Vandeweyer (2025).
+\newblock The central bank's balance sheet and Treasury market disruptions.
+\newblock Working paper.
+\bibitem[Kashyap et al.(2025)]{kashyap2025}
+Kashyap, A. K., J. C. Stein, J. L. Wallen, and J. Younger (2025).
+\newblock Treasury market dysfunction and the role of the central bank.
+\newblock Brookings Papers on Economic Activity, conference draft.
+\end{thebibliography}
+
+\end{document}
