@@ -5,7 +5,7 @@
 \newtheorem{assumption}{Assumption}
 \newtheorem{result}{Result}
 
-\title{A two bond extension of the Kashyap, Stein, Wallen and Younger model\\ \large Working note}
+\title{A two factor extension of the Kashyap, Stein, Wallen and Younger model\\ \large Working note}
 \author{Felix Hermes \and Davide Tomio}
 \date{\today}
 
@@ -14,166 +14,169 @@
 
 \section{What the note does}
 
-\citet{kashyap2025} build a one period model of the Treasury market with one cash bond and one futures contract. The two have the same dollar duration, so the basis trade is a perfect hedge and the only thing hedge funds are paid for is balance sheet. We extend their model in one direction. The futures contract has two deliverable bonds instead of one. The two bonds have the same duration but different convexity. We ask three questions. Which bond does the futures contract track. Why can the bond with more convexity be the cheaper one in the data. And in what sense the convexity that the futures leg leaves unhedged is a risk for the fund.
+\citet{kashyap2025} build a one period model of the Treasury market with one cash bond and one futures contract on it. The two move one for one, so the basis trade is a perfect hedge and the only thing hedge funds are paid for is balance sheet. We extend the model by one factor and one bond. Bond prices are driven by two factors, a level and a slope. There are three assets. Two of them, a bond and the futures contract, have identical exposures to both factors. The third asset is a second bond with the same level exposure but a larger slope exposure. A fund that holds the second bond against the future hedges the level and keeps the slope. The excess return of that trade is the basis plus the slope premium, and the slope realisation is the risk.
 
-The note keeps everything linear and static where possible, in the spirit of the original. Section 2 recalls the original model in the notation we need. Section 3 adds the second bond. Section 4 prices the two bonds. Section 5 is about risk. Section 6 lists the places where the extension is on thin ice. \citet{davernas2025} is used as guidance on one point only, namely that part of the basis is compensation for funding risk rather than for balance sheet, and that this part moves with the probability of stress.
+The second bond is our stand in for the bonds that funds hold in the data. Those bonds have the same duration as the futures leg but more convexity. Equal duration with more convexity means more dispersed cash flows, and more dispersed cash flows means more exposure to the slope of the curve. So the second factor is what the convexity gap in the data measures once the curve has more than one factor.
+
+Section 2 recalls the original model. Section 3 sets up the assets. Section 4 prices them. Section 5 solves for the compensation of the trade. Section 6 shows how a slope realisation triggers the unwinding of the original model. Section 7 lists what has to be checked and what the model leaves out. \citet{davernas2025} is used for one point only, namely that the basis also contains compensation for funding risk, which we leave out.
 
 \section{The original model in brief}
 
-There is a short rate $r$, a long zero coupon bond in supply $S$ with price $P$, and a futures contract on that bond in zero net supply with price $F$. Spot futures parity would give $F = P(1+r)$. The model allows a deviation and defines the basis $x$ through
-\begin{equation}
-F = P\,(1 + r + x).
-\label{eq:basis}
-\end{equation}
-Buying the bond and selling the future earns $r + x$. Three agents trade. Dealers and hedge funds are risk neutral and fully hedged, so they only care about $x$. Asset managers hold duration and split it between bonds and futures in a fixed proportion $\theta$.
+There is a short rate $r$, a long bond in supply $S$ with yield $r_T$, and a futures contract on that bond in zero net supply with implied yield $r_F = r_T - x$. The basis $x$ is the return of buying the bond and selling the future in excess of the short rate. Three agents trade. Dealers and hedge funds are risk neutral and hedge interest rate risk fully, so they only care about $x$. Asset managers are the only agents who bear interest rate risk. They choose their total duration by mean variance and place a fixed fraction $\theta$ of it in futures.
 
-Hedge funds finance a bond position $D_H$ in repo and need a fraction $\gamma$ of equity per unit of position. The rest of their equity $E_H$ goes to an alternative activity with decreasing returns $c - \beta X_H / 2$. The resulting demand for the basis trade is
+Hedge funds finance a bond position $D_H$ in repo and need a fraction $\gamma$ of equity per unit of position. The rest of their equity $E_H$ earns a decreasing return $c - \beta X_H / 2$ in an alternative activity. Their demand for the basis trade is
 \begin{equation}
-D_H = \frac{E_H}{\gamma} - \frac{c}{\beta \gamma} + \frac{x}{\beta \gamma^2}.
+D_H = \frac{E_H}{\gamma} - \frac{c}{\beta \gamma} + \frac{x}{\beta \gamma^2} .
 \label{eq:dh}
 \end{equation}
-Dealers have a similar demand with balance sheet capacity $K_D$ in place of $E_H / \gamma$. Market clearing in the futures market gives the equilibrium basis, their equation (10). Everything that matters for us is captured by one sentence. The basis is the price that the duration holders pay to the balance sheet holders for carrying cash bonds that nobody else wants to hold.
+Dealers have the same form with capacity $K_D$ in place of $E_H / \gamma$ and market making parameters $a, b, \phi$ in place of $c, \beta$,
+\begin{equation}
+D_D = K_D - \frac{a}{b} + \frac{x}{b \phi} .
+\label{eq:dd}
+\end{equation}
+Market clearing in the futures market gives $x$. The term premium $r_T - r$ is pinned down by the asset managers alone, as supply over risk tolerance, their equation (9). The basis is what duration holders pay balance sheet holders for carrying cash bonds.
 
-Two features of the original matter for what follows. First, the bond and the future have identical cash flows, so the hedge is exact for any size of rate move. Second, the model is one period, so there is no rebalancing and no second shock. Both features are what we relax.
+\section{Two factors and three assets}
 
-\section{Two deliverable bonds}
+\subsection{Factors}
 
-\subsection{Setup}
+Bond returns are driven by two shocks, a level shock $\varepsilon_L$ and a slope shock $\varepsilon_S$. Both have mean zero, variances $\sigma_L^2$ and $\sigma_S^2$, and are uncorrelated. A positive shock lowers prices.
 
-Keep the short rate, the agents and the demand curves of the original. Replace the single bond by two bonds, indexed $i = 1, 2$. Both are priced as a function of one common yield $y$. Let $D$ be their modified duration and $C_i$ their convexity. We assume
+\subsection{Assets}
+
+There are two bonds and one futures contract. Returns in excess of the short rate over the period are
+\begin{align}
+R_1 &= \pi_1 - \ell\, \varepsilon_L - s\, \varepsilon_S , \label{eq:r1}\\
+R_2 &= \pi_2 - \ell\, \varepsilon_L - (s + \Delta)\, \varepsilon_S , \label{eq:r2}\\
+R_F &= \pi_F - \ell\, \varepsilon_L - s\, \varepsilon_S . \label{eq:rf}
+\end{align}
+The $\pi$ are expected excess returns and are determined in equilibrium. The loadings $\ell$ and $s$ are the same for bond 1 and the future, and bond 2 differs only by $\Delta$ on the slope.
 \begin{assumption}
-Both bonds have the same duration $D$ and the same price $\bar P$ at the current yield $y_0$. Their convexities differ, $C_1 < C_2$.
-\label{as:bonds}
+$\Delta > 0$. Bond 2 has the same level exposure as bond 1 and the future, and a larger slope exposure.
+\label{as:delta}
 \end{assumption}
-For a move $\varepsilon$ in the yield the second order approximation gives
-\begin{equation}
-P_i(y_0 + \varepsilon) \approx \bar P \left(1 - D \varepsilon + \tfrac{1}{2} C_i \varepsilon^2 \right).
-\label{eq:taylor}
-\end{equation}
-Equal duration is what makes the two bonds interchangeable for a first order hedge. Different convexity is what makes them differ once the move is large. The assumption of equal current prices is only there to keep the delivery decision clean. It can be relaxed with conversion factors but that adds notation and nothing else.
-
-\subsection{Which bond the future tracks}
-
-The seller of the future chooses which bond to deliver. Delivery happens after the yield has moved. The seller delivers the cheaper bond, so at delivery the future is worth
-\begin{equation}
-F(\varepsilon) = (1+r)\, \min\{ P_1(y_0+\varepsilon),\, P_2(y_0+\varepsilon) \}.
-\label{eq:ctd}
-\end{equation}
-Under Assumption \ref{as:bonds} the comparison is immediate. For any $\varepsilon \neq 0$ the difference $P_2 - P_1$ equals $\tfrac{1}{2}(C_2 - C_1)\bar P \varepsilon^2$, which is positive. The low convexity bond is cheapest to deliver after every move, up or down.
-\begin{result}
-With equal duration and equal current price, bond 1 is always the cheapest to deliver. The future inherits the convexity of bond 1. The delivery option is worthless because the cheapest bond never switches.
-\label{res:ctd}
-\end{result}
-This is a useful simplification and also the first place where the model departs from reality. In the data the cheapest to deliver does switch, because durations differ across the basket and conversion factors are built for a six percent coupon. We come back to this in Section 6.
-
-\subsection{The hedge fund position}
-
-A hedge fund that runs the basis trade in bond 2 holds $q$ units of bond 2 and is short $q$ futures. Define the net convexity of the position per unit as
-\begin{equation}
-\kappa = C_2 - C_1 > 0.
-\end{equation}
-Using \eqref{eq:taylor} and \eqref{eq:ctd}, the profit of the position after a move $\varepsilon$, before funding costs, is
-\begin{equation}
-\Pi(\varepsilon) = q \left[ P_2(y_0+\varepsilon) - \frac{F(\varepsilon)}{1+r} \right] = q\,\bar P\, \tfrac{1}{2} \kappa\, \varepsilon^2 .
-\label{eq:pnl}
-\end{equation}
-The duration terms cancel by construction. What remains is a term in $\varepsilon^2$ with a positive coefficient. A fund that holds the high convexity bond against the future is long convexity. It does not lose when rates move a lot. It gains, and the gain grows with the square of the move.
-
-This is the point to be clear about. Within a one factor model, unhedged convexity on the bond side is not a loss in a crash. It is a payoff that looks like a straddle. The cost of that payoff has to show up somewhere else, and that is the pricing question.
-
-\section{Pricing the two bonds}
-
-\subsection{Frictionless benchmark}
-
-Suppose the yield shock has mean zero and variance $\sigma^2$, and suppose for the moment that some agent is willing to hold either bond at a fair expected return. Then both bonds must offer the same expected return. From \eqref{eq:taylor} the expected price change of bond $i$ over the period is $\bar P \tfrac{1}{2} C_i \sigma^2$ plus the common duration term. For the two expected returns to be equal, bond 2 has to start from a higher price. To second order,
-\begin{equation}
-\frac{P_2(y_0) - P_1(y_0)}{\bar P} \approx \tfrac{1}{2} \kappa \sigma^2 .
-\label{eq:convpremium}
-\end{equation}
-This is the convexity premium. The bond with more convexity is richer, and its yield is lower by about $\tfrac{1}{2} \kappa \sigma^2$ per period. So the frictionless answer to the question in the title is no. Convexity makes a bond more expensive, not cheaper.
-
-It also tells us what the long convexity position in \eqref{eq:pnl} costs. Combining \eqref{eq:pnl} with \eqref{eq:convpremium}, the expected profit of the fund from the convexity leg is
-\begin{equation}
-\mathbb{E}\, \Pi = q \bar P\, \tfrac{1}{2} \kappa \left( \mathbb{E}\, \varepsilon^2 - \sigma^2 \right) = 0 .
-\end{equation}
-The fund pays the convexity premium through a lower yield on bond 2 and earns it back on average through the squared move. Its realised profit is $\tfrac{1}{2} \kappa \bar P q (\varepsilon^2 - \sigma^2)$. That is a bet that realised volatility exceeds the volatility priced into the bond. Calm markets lose, turbulent markets win.
-
-\subsection{Segmented demand}
-
-The data say that the bonds the funds hold are cheap relative to the fitted curve and have more convexity than the futures leg. The frictionless benchmark cannot deliver that. We need a reason why bond 2 is not held by the agents who would otherwise bid it up. The natural reason inside the Kashyap framework is that asset managers do not hold it.
 \begin{assumption}
-Asset managers take their duration in bond 1 and in futures only. Bond 2 is held only by dealers and hedge funds.
-\label{as:segment}
+There is one futures contract and it delivers bond 1.
+\label{as:onefuture}
 \end{assumption}
-One can think of bond 1 as the benchmark or on the run issue and of bond 2 as an older issue outside the index. With this assumption the market for bond 2 looks exactly like the market for the cash bond in the original model. The agents who hold it are balance sheet constrained and risk neutral, so they demand a premium for holding it. Write the cheapness of bond 2 relative to bond 1, in yield per period, as $z$. The hedge fund demand for bond 2 against futures is \eqref{eq:dh} with $x$ replaced by the total excess return of the position, which is now
-\begin{equation}
-x + z - \tfrac{1}{2} \kappa \sigma^2 .
-\label{eq:excess}
-\end{equation}
-The first term is the basis as before. The second is the cheapness of bond 2, which is a direct gain to a buy and hold arbitrageur. The third is the convexity premium that the fund gives up in carry, which under Assumption \ref{as:segment} nobody pays for and which therefore enters as a cost rather than being embedded in the price.
+Assumption \ref{as:onefuture} is what makes the slope exposure of bond 2 unhedgeable with futures. A second contract on bond 2 would let the fund hedge it, at the cost of a second margin. In the data the futures contract tracks the cheapest to deliver, and the bonds funds hold are not the cheapest to deliver, so this is the right starting point.
 
-Market clearing for bond 2 then pins down $z$ the same way the original pins down $x$. If the supply of bond 2 is $S_2$ and only dealers and hedge funds absorb it, $z$ rises with $S_2$ and falls with $E_H$ and $K_D$. The combined compensation $x + z$ is the balance sheet premium of the original with the supply of the segmented bond added to the supply that balance sheet holders must carry.
+In Section 2 the basis was defined through yields. Here it is simplest to define it through expected returns. Asset managers pay the basis for holding duration off balance sheet, so
+\begin{equation}
+\pi_F = \pi_1 - x .
+\label{eq:xdef}
+\end{equation}
+
+\subsection{Trades available to the arbitrageurs}
+
+Dealers and hedge funds hedge the level factor fully, as in the original. With one futures contract there are two hedged trades. Long bond 1 against the future earns $\pi_1 - \pi_F = x$ and bears no risk at all. Long bond 2 against the future earns
+\begin{equation}
+R_2 - R_F = (\pi_2 - \pi_1) + x - \Delta\, \varepsilon_S .
+\label{eq:trade2}
+\end{equation}
+The level cancels. The trade earns the basis plus the expected return difference between the two bonds, and it is exposed to the slope with loading $\Delta$.
+
+\section{Pricing}
+
+\subsection{Asset managers}
+
+Asset managers have mean variance preferences with risk tolerance $A$. Let $e_L$ and $e_S$ be the total exposure to the two factors that they end up holding. Their first order conditions price every asset by its loadings,
+\begin{equation}
+\pi_i = \ell\, \lambda_L + s_i\, \lambda_S , \qquad
+\lambda_L = \frac{\sigma_L^2\, e_L}{A}, \qquad
+\lambda_S = \frac{\sigma_S^2\, e_S}{A} ,
+\label{eq:premia}
+\end{equation}
+where $s_1 = s$ and $s_2 = s + \Delta$. Each factor premium is the variance of the factor times the exposure asset managers carry, divided by their risk tolerance. This is the two factor version of their equation (9). As in the original we keep the futures allocation rule, a fraction $\theta$ of the bond 1 type exposure is held in futures regardless of $x$.
+
+The expected return difference between the two bonds follows at once,
+\begin{equation}
+\pi_2 - \pi_1 = \Delta\, \lambda_S .
+\label{eq:cheap}
+\end{equation}
 \begin{result}
-Under Assumption \ref{as:segment} the high convexity bond trades cheap, with a pricing error equal to the balance sheet premium $z$ net of the convexity premium, $z - \tfrac{1}{2} \kappa \sigma^2$. It is cheap when the balance sheet premium exceeds the value of its extra convexity.
+Bond 2 has a higher expected return than bond 1, and is therefore cheaper, if and only if $\lambda_S > 0$. Its cheapness equals its extra slope exposure times the slope premium.
 \label{res:cheap}
 \end{result}
-This matches the two facts in the deck. The bonds funds hold are cheap and they are the high convexity ones. But the cheapness comes from segmentation, not from convexity. Convexity works against cheapness and is overcome by it.
+Cheapness here is a risk premium, not a mispricing. Bond 2 is cheap because whoever holds it carries slope risk that asset managers want to be paid for.
 
-\section{Where the risk is}
+\subsection{Dealers and hedge funds}
 
-Section 3 showed that a long convexity position gains from a single large move. So the risk has to enter through one of two doors. Either through the carry, as the end of Section 4.1 showed, or through what happens after the move. We take the second door because it connects to the balance sheet mechanism of the original.
-
-\subsection{Convexity mismatch becomes duration mismatch}
-
-Differentiate \eqref{eq:taylor} once more. After a move $\varepsilon$ the dollar duration of bond $i$ is no longer $D \bar P$ but approximately $\bar P (D - C_i \varepsilon)$. The two bonds started with the same duration and end with different ones. The fund's position, long bond 2 and short a future that tracks bond 1, has a net dollar duration after the move of
+Dealers and hedge funds are risk neutral. Comparing the two hedged trades, bond 2 against the future dominates bond 1 against the future whenever $\lambda_S > 0$, because it earns $\Delta \lambda_S$ more and risk does not enter their objective. So under Result \ref{res:cheap} the arbitrageurs hold bond 2. Their demand curves are \eqref{eq:dh} and \eqref{eq:dd} with the basis $x$ replaced by the full excess return of the trade,
 \begin{equation}
-\Delta(\varepsilon) = q \bar P \left[ (D - C_2 \varepsilon) - (D - C_1 \varepsilon) \right] = - q \bar P\, \kappa\, \varepsilon .
-\label{eq:durgap}
+x + \Delta\, \lambda_S .
+\label{eq:comp}
 \end{equation}
-When rates fall, $\varepsilon < 0$, the fund becomes net long duration. When rates rise it becomes net short. A position that was hedged before the move is directional after it, and the size of the open exposure is proportional to the convexity mismatch and to the size of the move.
+This is the sentence in the note that matters most. The compensation of the basis trade is a joint payment for balance sheet and for slope risk.
 
-\subsection{Rebalancing in stress}
+\section{Equilibrium}
 
-To restore the hedge the fund has to adjust its futures position by $\kappa \varepsilon / D$ contracts per unit of bond. This needs initial margin and, in a stressed market, needs it at a moment when margins have been raised. Let $\gamma$ be the capital per unit of position as in the original and let a stress event raise it to $\gamma' > \gamma$. The capital the fund needs to re-hedge is
+Supplies are $S_1$ and $S_2$. Futures are in zero net supply. Dealers and hedge funds hold bond 2 against futures. Asset managers hold bond 1, futures, and whatever of bond 2 is left.
+
+\paragraph{Level premium.} Arbitrageurs are level neutral, so asset managers carry the level exposure of all bonds, $e_L = \ell (S_1 + S_2)$, and
 \begin{equation}
-\gamma' \, q \, \frac{\kappa\, |\varepsilon|}{D} .
+\lambda_L = \frac{\sigma_L^2\, \ell\, (S_1 + S_2)}{A} .
 \end{equation}
-In the original model a rise in $\gamma$ is already the shock that forces hedge funds to unwind. The convexity mismatch adds a second claim on the same scarce capital, and this claim grows with the size of the move that caused the stress in the first place. If the fund cannot raise it, it carries the open duration \eqref{eq:durgap} into the next period. A reversal of rates then produces a first order loss $\Delta(\varepsilon) \cdot \varepsilon_2$, which can exceed the second order convexity gain from the first move.
+This is the term premium of the original, supply over risk tolerance.
 
+\paragraph{Slope premium.} Each unit of the arbitrageurs' trade removes $\Delta$ of slope exposure from the asset managers. Hence
+\begin{equation}
+e_S = s S_1 + (s + \Delta) S_2 - \Delta (D_D + D_H) ,
+\qquad
+\lambda_S = \frac{\sigma_S^2}{A}\, e_S .
+\label{eq:lambdas}
+\end{equation}
+The more the arbitrageurs hold, the less slope risk asset managers carry and the lower the premium.
+
+\paragraph{Basis.} Futures clear when the short positions of dealers and hedge funds equal the long positions of asset managers, $D_D + D_H = \theta\, A_1$, where $A_1$ is the asset managers' bond 1 type position. As in the original, this condition together with \eqref{eq:dh} and \eqref{eq:dd} determines $x$.
+
+\paragraph{Solution.} Equations \eqref{eq:dh}, \eqref{eq:dd} with $x$ replaced by \eqref{eq:comp}, the futures clearing condition and \eqref{eq:lambdas} form a linear system in $D_H, D_D, x, \lambda_S$. It has a unique solution. Writing it out adds nothing, so we state the properties instead.
 \begin{result}
-The unhedged convexity does not create a loss on the first move. It creates a directional exposure after the move of size $q \bar P \kappa |\varepsilon|$, which must be closed with capital at the moment when capital is scarce. The risk is a rebalancing risk, and it scales with the convexity mismatch, the size of the move, and the stress increase in margins.
-\label{res:risk}
+In equilibrium the compensation $x + \Delta \lambda_S$ of the basis trade is positive, decreasing in hedge fund equity $E_H$ and dealer capacity $K_D$, and increasing in the supply $S_2$ of the high exposure bond and in the slope variance $\sigma_S^2$. Hedge fund positions $D_H$ are increasing in $\sigma_S^2$ and in $S_2$.
+\label{res:eq}
 \end{result}
+The first two properties are those of the original basis. The last two are new. A rise in slope volatility raises the premium on bond 2, which draws more risk neutral capital into the trade. That is the mechanism we read into the comovement of the convexity gap with implied volatility in the data, with one caveat noted in Section 7.
 
-\subsection{Interaction with the fire sale}
+\section{Fragility}
 
-The original model's stress scenario has hedge funds leave the basis trade and the basis widen to their equation (11). In the two bond version the same unwinding hits bond 2 harder than bond 1, because under Assumption \ref{as:segment} bond 2 has no other buyer. The cheapness $z$ widens together with $x$. A fund that holds on to bond 2 marks a loss on the cheapness even while the convexity term in \eqref{eq:pnl} pays off. The two effects have different orders. The fire sale loss is first order in the capital shock. The convexity gain is second order in the rate move. For a shock of the March 2020 type the first will dominate.
+The original model studies an unanticipated shock to hedge fund capital, for instance a margin increase, and shows that the basis widens sharply when the sector unwinds. The two factor version delivers that shock from inside the model.
 
-\subsection{What this says about the empirical gap}
+\paragraph{The slope realisation.} Suppose the slope shock takes the value $\varepsilon_S > 0$. From \eqref{eq:trade2} the hedge fund sector loses
+\begin{equation}
+L = \Delta\, D_H\, \varepsilon_S
+\end{equation}
+on positions that were hedged against the level and therefore looked safe. Equity falls to $E_H - L$. From \eqref{eq:dh} the position the sector can carry falls by
+\begin{equation}
+\frac{L}{\gamma} = \frac{\Delta\, D_H\, \varepsilon_S}{\gamma} .
+\end{equation}
+Because $\gamma$ is small, a modest slope realisation forces a large unwind. This is the deleveraging of the original with the shock replaced by the realisation of the factor that the trade left unhedged.
 
-The deck shows that the convexity gap between the two legs comoves with implied volatility. The model reads this in a simple way. Through \eqref{eq:excess} the carry cost of the mismatch is $\tfrac{1}{2} \kappa \sigma^2$, which rises with volatility. A fund that targets a given excess return will cut $\kappa$ when $\sigma$ rises, either by hedging more convexity in futures or by moving to bonds closer to the cheapest to deliver. That is consistent with the regression in the deck, where the futures convexity position grows with the MOVE index for a given bond convexity.
+\paragraph{The second round.} As $D_H$ falls, the slope exposure that asset managers must carry rises through \eqref{eq:lambdas}, so $\lambda_S$ rises and bond 2 cheapens further. At the same time the basis $x$ widens through futures clearing, as in the original. Both raise the compensation of the trade, which is the fire sale discount seen from the other side. Funds that hold on mark a loss on bond 2 of $\Delta$ times the rise in $\lambda_S$, which comes on top of $L$.
+\begin{result}
+The unhedged slope exposure is a risk in two steps. The realisation of the factor is a first order loss on a position that is hedged against the level. The loss reduces capital, forces an unwind through the margin constraint, and raises both the basis and the slope premium, which deepens the loss for anyone who stays.
+\label{res:fragile}
+\end{result}
+The same logic applies to a rise in $\sigma_S^2$ without any realisation of the factor. A higher slope variance raises $\lambda_S$ through \eqref{eq:lambdas} and cheapens bond 2, which is a mark to market loss for existing holders even though nothing has happened to the curve.
 
-\section{Where the challenges lie}
+\section{What has to be checked and what is left out}
 
-This section is the honest part.
+\paragraph{The sign condition.}
+The model needs two signs. Assumption \ref{as:delta} says the bonds funds hold load more on the second factor than the futures leg. Result \ref{res:cheap} says the second factor carries a positive premium, so that those bonds are cheap. Together they say that funds hold the bond with more slope exposure and are paid for it. The deck supports the second sign, the bonds funds hold have positive pricing errors. The first sign is suggested by the aggregate regressions, but the two legs there come from different data with different coverage, and the gap is computed after rescaling the futures leg. It has to be measured for the same funds, with the repo leg from SFTDS and the futures leg from EMIR, without rescaling. If funds turn out to hold the bond with less exposure, the trade in \eqref{eq:trade2} earns $x - \Delta \lambda_S$, the funds pay the premium rather than earn it, and the cheapness has to come from somewhere else.
 
-\paragraph{The sign of the exposure has to be established at the fund level.}
-The model assumes the fund is long convexity, which is what the aggregate regressions in the deck suggest. But the two legs in the deck come from different data with different coverage, and the gap is computed after rescaling the futures leg by a regression slope. A different hedge ratio flips the sign of the measured gap. Before the model can be matched to the data we need the net convexity of the same funds, with the repo leg from SFTDS and the futures leg from EMIR, without rescaling. If funds turn out to be net short convexity, Section 5 simplifies to the classic story where large moves lose money, and Section 4 has to explain why they would hold the low convexity bond.
+\paragraph{One futures contract.}
+Assumption \ref{as:onefuture} is what keeps the slope unhedged. In reality funds could hedge it with a second contract or with swaps. The model would then need a margin cost per hedge to explain why they do not. We leave this out.
 
-\paragraph{A static model cannot make long convexity lose.}
-In one period and with one factor, equation \eqref{eq:pnl} is a square and cannot be negative. Everything in Section 5 relies on a second period and on a friction that prevents costless rebalancing. The original model is one period on purpose. Adding a second period is not hard to write down but it means we have to take a stand on how margins and the basis respond to the first move, which the original leaves outside the model.
+\paragraph{The futures allocation of asset managers.}
+We keep the fixed fraction $\theta$ of the original. A mean variance asset manager would compare the future to bond 1 and drive $x$ to zero. The original makes the same assumption for the same reason.
 
-\paragraph{Cheapness is assumed, not derived.}
-Result \ref{res:cheap} needs Assumption \ref{as:segment}. The model does not explain why asset managers avoid bond 2. In the data the answer is probably liquidity, index membership and the preference of duration holders for on the run issues. None of that is in the model. The convexity itself pushes the other way, so the assumption has to be strong enough to overcome the convexity premium.
+\paragraph{One period.}
+The second round in Section 6 is a comparative static, not a dynamic. There is no rebalancing and no repeated shock.
 
-\paragraph{The delivery option is absent.}
-Result \ref{res:ctd} makes the cheapest to deliver never switch. That removes the delivery option, which in reality is a large part of why the basis exists and why it comoves with volatility. Allowing the switch requires unequal durations or conversion factors, and then the futures convexity itself depends on the level of rates. This is the most natural next step but it makes the model considerably less transparent.
+\paragraph{Volatility.}
+$\sigma_S^2$ is a parameter. The link between the convexity gap and the MOVE index is a comparative static in $\sigma_S^2$. Result \ref{res:eq} predicts that positions rise with slope volatility, while the deck suggests that the futures leg grows relative to the bond leg. Which of the two the data show at fund level is part of the sign check above.
 
-\paragraph{Volatility is exogenous.}
-The variance $\sigma^2$ is a parameter. The link between the convexity gap and the MOVE index in the deck is therefore an assumption about behaviour, not an equilibrium outcome. A version where volatility rises in stress and feeds back into margins would make Section 5 much more powerful, but that is a different model.
-
-\paragraph{Calibration.}
-The one quantity the model needs from the data is $\kappa$ in dollar terms, together with $\gamma$ and the stress rise in margins. The deck has the dollar convexity of both legs. Mapping it into $\kappa$ requires the fund level exposure of the first point.
+\paragraph{The factor interpretation.}
+The second factor is identified with the cash flow dispersion that makes equal duration bonds differ in convexity. This is an interpretation. The empirical counterpart should be the loading of the funds' bonds and of the cheapest to deliver on a slope factor estimated from the curve.
 
 \bibliographystyle{plainnat}
 \begin{thebibliography}{2}
