@@ -5,6 +5,7 @@ if "`who'" == "felix" global root "C:/Users/hermesf/Projects/HF_Strategies"
 if "`who'" == "davide" global root "J:/hf strategies/hedge-fund-strategies"
 global key "$root/key dataframe"
 global int "$root/data/intermediate"
+global fig "$root/Figures"
 capture mkdir "$root/data"
 capture mkdir "$int"
 
@@ -331,7 +332,9 @@ use "$int/sftds_agg.dta" , clear
 	tw (line gapconv3 tuesday ) (line MOVE_Index___L1_ tuesday, yaxis(2)) if tuesday>mdy(6,1,2021), legend(pos(6))
 	
 	tw (line gapconv3 tuesday ,ysc(reverse)) (line  TY_1M_50D_VOL_BVOL_Comdty___R1_ tuesday, yaxis(2)) if tuesday>mdy(6,1,2021), legend(pos(6))
+		graph export "$fig/convexity_gap_tyvol.png", replace width(3220)
 	tw (line gapconv3 tuesday ,ysc(reverse)) (line  MOVE_Index___L1_ tuesday, yaxis(2)) if tuesday>mdy(6,1,2021), legend(pos(6))
+		graph export "$fig/convexity_gap_move.png", replace width(3220)
 
 	merge 1:1 tuesday using "$key/ACMtermpremium_weekly.dta" , keep(1 3) nogen
 	gen term= ACMTP10 -    ACMTP02
