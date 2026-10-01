@@ -189,3 +189,36 @@ gen isctd=ctd1!=""|ctd2!=""
  
 gen dyield=yield_check- yield_curve_sv
 save "$int/sftds_agg.dta" , replace
+
+foreach f in fund_dealer_day fund_dealer_day_USD {
+	import delimited "$key/`f'.csv", varnames(1) clear
+	capture drop v1
+	gen date = date(business_date, "YMD")
+	format date %td
+	foreach v in borrowing_volume lending_volume {
+		replace `v' = 0 if missing(`v')
+	}
+	gen flip = inlist(fund_id, "P5XEQYFJP74DYQX88M80", "O1XNTICYRCAHEAMEQI31") & date < td(24apr2021)
+	foreach s in volume haircut tenor {
+		gen tmp = borrowing_`s'
+		replace borrowing_`s' = lending_`s' if flip
+		replace lending_`s' = tmp if flip
+		drop tmp
+	}
+	drop flip
+	save "$int/`f'.dta", replace
+}
+
+import delimited "$key/fund_dealer_bond_day.csv", varnames(1) clear
+capture drop v1
+gen date = date(business_date, "YMD")
+format date %td
+gen flip = inlist(fund_id, "P5XEQYFJP74DYQX88M80", "O1XNTICYRCAHEAMEQI31") & date < td(24apr2021)
+foreach s in volume rate trades {
+	gen tmp = borrowing_`s'
+	replace borrowing_`s' = lending_`s' if flip
+	replace lending_`s' = tmp if flip
+	drop tmp
+}
+drop flip
+save "$int/fund_dealer_bond_day.dta", replace

@@ -262,153 +262,54 @@ twoway ///
 
 graph export "$fig/net_repo_futures_DE.png", replace width(2400)
 
-**# Net repo positions, OFR comparison, duration and convexity
+**# Net repo positions and OFR comparison
 
-**# US: net position in Treasuries, one series for the whole market
-* input is hf_positions_US_svensson.csv, the file HF_TEMP_US.do reads from $dir
+use "$int/sftds_agg.dta", clear
 
-import delimited "$data/hf_positions_US_svensson.csv", clear
-	drop date
-	gen date = date(business_date, "YMD")
-	format date %td
-	drop if itype > 4 /*keep bonds, notes and bills*/
-	gen dyield = yield - yield_curve
-	gen net_long = (borrowing_volume - lending_volume)/10^9 /*net long position in bn*/
-	gen net_long_dur = net_long*duration /*dollar duration*/
-	gen net_long_conv = net_long*convexity /*dollar convexity*/
-	drop if ttm < 0.25 /*eliminates short term bonds*/
-	drop if abs(dyield) > 0.5 /*drop if the bond clearly does not fit the curve*/
+preserve
+	keep if country=="US" & ilb==0
+	collapse (sum) net, by(date)
+	tw (scatter net date), ytitle("Billions") xtitle("") yline(0, lcolor(black))
+	graph export "$fig/net_repo_US.png", replace width(3220)
+restore
 
-tempfile us_panel
-save `us_panel'
+preserve
+	keep if inlist(country, "DE", "IT", "FR", "ES") & ilb==0
+	collapse (sum) net, by(date country)
+	tw (scatter net date if country=="DE") (scatter net date if country=="IT") (scatter net date if country=="FR") (scatter net date if country=="ES"), ///
+		legend(order(1 "DE" 2 "IT" 3 "FR" 4 "ES") position(6) cols(4) region(lstyle(none))) ytitle("Billions") xtitle("") yline(0, lcolor(black))
+	graph export "$fig/net_repo_EA.png", replace width(3220)
+restore
 
-collapse (sum) net_long, by(date)
-tw (scatter net_long date), ///
-	ytitle("Billions") xtitle("") ///
-	yline(0, lcolor(black))
-graph export "$fig/net_repo_US.png", replace width(3220)
-
-**# US: SFTDS net position against the OFR hedge fund monitor, quarter ends
-* same construction as ofrcomp.pdf in HF_TEMP_US.do, the last business day
-* of each quarter in SFTDS against the Form PF bond exposure from the OFR
-* monitor, with the slope of the fitted line printed on the chart
-
-use `us_panel', clear
-collapse (sum) net_long, by(date)
-gen year = year(date)
-gen quarter = quarter(date)
-sort year quarter date
-collapse (last) net_long, by(year quarter)
-merge 1:1 year quarter using "$key/BondExposure.dta"
-drop if _merge == 2
-gen net = (BondExposureLong - BondExposureShort)/10^9
-
-reg net_long net
-local b  : display %4.2f _b[net]
-local se : display %4.2f _se[net]
-local r2 : display %4.2f e(r2)
-local n  = e(N)
-tw (scatter net_long net) (lfit net_long net), ///
-	ytitle("SFTDS net long positions") xtitle("OFR net long positions") legend(off) ///
-	note("Slope `b' (s.e. `se'), R{superscript:2} `r2', `n' quarters")
-graph export "$fig/ofrcomp.png", replace width(3220)
-
-**# Euro area: net position in DE, IT, FR and ES sovereign bonds
-* input is hf_positions.csv, the file HF_TEMP.do reads from D:/mts
-
-import delimited "$data/hf_positions.csv", clear
-	drop date
-	gen date = date(business_date, "YMD")
-	format date %td
-	replace yield = "" if substr(yield, 1, 3) == "inf"
-	destring yield, replace
-	replace amt_out = amt_out/10^9
-	drop if strip != ""
-	drop if !inlist(coupontype, 0, 1)
-	gen diff_y  = yield - refyield
-	gen diff_y2 = yield - yield_curve
-	bysort date country: egen absmse = median(abs(diff_y2))
-	drop if absmse > 0.2
-	drop if yield > 7 | yield < -2 | refyield > 7 | refyield < -2
-	drop if ttm < 0.25
-	drop if abs(diff_y) > 0.25
-	drop if abs(diff_y2) > 1
-	gen net_long = (borrowing_volume - lending_volume)/10^9 /*net long position in bn*/
-
-collapse (sum) net_long, by(date country)
-tw (scatter net_long date if country == "DE") ///
-   (scatter net_long date if country == "IT") ///
-   (scatter net_long date if country == "FR") ///
-   (scatter net_long date if country == "ES"), ///
-	legend(order(1 "DE" 2 "IT" 3 "FR" 4 "ES") position(6) cols(4) region(lstyle(none))) ///
-	ytitle("Billions") xtitle("") ///
-	yline(0, lcolor(black))
-graph export "$fig/net_repo_EA.png", replace width(3220)
-
-**# US: futures against bond exposure, dollar duration and dollar convexity
-* same construction as dur2.pdf and con2.pdf in HF_TEMP_US.do, one observation
-* per Tuesday, the bond side sums the net repo position times duration or
-* convexity across Treasuries, the futures side comes from futuresexposure.dta,
-* with the fitted line and its slope printed on the chart
-
-use `us_panel', clear
-collapse (sum) net_long net_long_dur net_long_conv, by(date)
-keep if dow(date) == 2
-rename date tuesday
-merge 1:m tuesday using "$key/futuresexposure.dta"
-drop if _merge == 2
-replace futures_dolduration = futures_dolduration/10^9
-replace futures_dolconvexity = futures_dolconvexity/10^9
-collapse (sum) futures_dolduration futures_dolconvexity, by(tuesday net_long net_long_dur net_long_conv)
-
-tw (scatter futures_dolduration tuesday, ysc(reverse)) (scatter net_long_dur tuesday, yaxis(2) ) ,  legend(order(1 "DollarDuration: Futures" 2  "DollarDuration: Bond")           position(6) cols(2) region(lstyle(none))) ytitle("") ytitle("", axis(2))
-	graph export "$fig/dur1.png", replace width(3220)
-tw (scatter futures_dolconvexity tuesday, ysc(reverse)) (scatter net_long_conv tuesday, yaxis(2) ) ,  legend(order(1 "DollarConvexity: Futures" 2  "DollarConvexity: Bond")           position(6) cols(2) region(lstyle(none))) ytitle("") ytitle("", axis(2))
-	graph export "$fig/con1.png", replace width(3220)
-
-reg futures_dolduration net_long_dur
-local b  : display %4.2f _b[net_long_dur]
-local se : display %4.2f _se[net_long_dur]
-local r2 : display %4.2f e(r2)
-local n  = e(N)
-tw (scatter futures_dolduration net_long_dur) (lfit futures_dolduration net_long_dur), ///
-	ytitle("Futures dollar duration") xtitle("Bond dollar duration") legend(off) ///
-	note("Slope `b' (s.e. `se'), R{superscript:2} `r2', `n' weeks")
-graph export "$fig/duration_scatter.png", replace width(3220)
-
-reg futures_dolconvexity net_long_conv
-local b  : display %4.2f _b[net_long_conv]
-local se : display %4.2f _se[net_long_conv]
-local r2 : display %4.2f e(r2)
-local n  = e(N)
-tw (scatter futures_dolconvexity net_long_conv) (lfit futures_dolconvexity net_long_conv), ///
-	ytitle("Futures dollar convexity") xtitle("Bond dollar convexity") legend(off) ///
-	note("Slope `b' (s.e. `se'), R{superscript:2} `r2', `n' weeks")
-graph export "$fig/convexity_scatter.png", replace width(3220)
+preserve
+	keep if  country=="US"
+	gen bond_dollarduration=net*duration
+	gen bond_dollarconvexity=net*convexity	
+	collapse (sum) net bond_dollarduration bond_dollarconvexity, by(date )
+	gen year=year(date)
+	gen quarter=quarter(date)
+	collapse (last) net bond_dollarduration bond_dollarconvexity , by(year quarter )
+	merge 1:1 year quarter using "$key/BondExposure.dta" , nogen keep(1 3)
+	gen netOFR=(BondExposureLong-BondExposureShort)/10^9
+	reg net netOFR
+	local b  : display %4.2f _b[netOFR]
+	local se : display %4.2f _se[netOFR]
+	local r2 : display %4.2f e(r2)
+	local n  = e(N)
+	tw (scatter net netOFR)(lfit net netOFR) , ytitle("SFTDS net long positions") xtitle("OFR net long positions") legend(off) ///
+		note("Slope `b' (s.e. `se'), R{superscript:2} `r2', `n' quarters")
+	graph export "$fig/ofrcomp.png", replace width(3220)
+restore
 
 **# Concentration of funds and dealers
 
 **# Funds: each day funds are ranked by the absolute value of their net repo
 * position, the figure shows the share of the five largest in the total across
-* all funds trading directly, same filters as Graph.do
+* all funds trading directly
 
-import delimited "$key/sftds_dataframe.csv", clear
-gen date = date(business_date, "YMD")
-format date %td
-drop business_date
-rename security_isin isin
-
-drop if borrowing_volume > 3*10^9
-drop if lending_volume > 3*10^9
-gen net = (borrowing_volume - lending_volume)/10^9
+use "$int/sftds.dta", clear
 gen us = substr(isin, 1, 2) == "US"
-
-* days with a thin cross section of bonds are dropped, as in Graph.do
-egen tag = tag(date isin)
-bysort date: egen nbonds = total(tag)
 drop if nbonds < 600
-
-* positions routed via banks are dropped, the figure is about funds trading directly
 drop if bank_indicator == 1
 
 tempfile funds
@@ -436,26 +337,11 @@ foreach m in EA US {
 
 **# Dealers: each day dealers are ranked by the absolute value of their net repo
 * position with all hedge funds, the figure shows the share of the five largest
-* in the total across all dealers, same cleaning as dealer_fragility_qe.do
-* inputs are fund_dealer_day.csv (EUR) and fund_dealer_day_USD.csv (USD), both
-* from dealer_fragility_data.ipynb
+* in the total across all dealers
 
 foreach m in EA US {
-	if "`m'" == "EA" import delimited "$key/fund_dealer_day.csv", varnames(1) clear
-	if "`m'" == "US" import delimited "$key/fund_dealer_day_USD.csv", varnames(1) clear
-	capture drop v1
-	gen date = date(business_date, "YMD")
-	format date %td
-	foreach v in borrowing_volume lending_volume {
-		replace `v' = 0 if missing(`v')
-	}
-	* two funds report borrowing and lending the wrong way round at the beginning
-	* of the sample, flip the two sides for them before 24 April 2021 as in DT.do
-	gen flip = inlist(fund_id, "P5XEQYFJP74DYQX88M80", "O1XNTICYRCAHEAMEQI31") & date < td(24apr2021)
-	gen tmp = borrowing_volume
-	replace borrowing_volume = lending_volume if flip
-	replace lending_volume = tmp if flip
-	drop tmp flip
+	if "`m'" == "EA" use "$int/fund_dealer_day.dta", clear
+	if "`m'" == "US" use "$int/fund_dealer_day_USD.dta", clear
 
 	collapse (sum) borrowing_volume lending_volume, by(date dealer_id)
 	gen net = borrowing_volume - lending_volume
@@ -491,17 +377,7 @@ keep date security_isin ratesum_all market_trades
 tempfile market
 save `market'
 
-import delimited "$key/fund_dealer_bond_day.csv", varnames(1) clear
-capture drop v1
-gen date = date(business_date, "YMD")
-format date %td
-gen flip = inlist(fund_id, "P5XEQYFJP74DYQX88M80", "O1XNTICYRCAHEAMEQI31") & date < td(24apr2021) /*as in DT.do*/
-foreach s in volume rate trades {
-	gen tmp = borrowing_`s'
-	replace borrowing_`s' = lending_`s' if flip
-	replace lending_`s' = tmp if flip
-	drop tmp
-}
+use "$int/fund_dealer_bond_day.dta", clear
 foreach v in borrowing_trades lending_trades {
 	replace `v' = 0 if missing(`v')
 }
@@ -526,20 +402,7 @@ save `spreads'
 
 **# Step 2: terms per pair and day, mean and percentiles by side
 
-import delimited "$key/fund_dealer_day.csv", varnames(1) clear
-capture drop v1
-gen date = date(business_date, "YMD")
-format date %td
-gen flip = inlist(fund_id, "P5XEQYFJP74DYQX88M80", "O1XNTICYRCAHEAMEQI31") & date < td(24apr2021)
-foreach s in volume haircut tenor {
-	gen tmp = borrowing_`s'
-	replace borrowing_`s' = lending_`s' if flip
-	replace lending_`s' = tmp if flip
-	drop tmp
-}
-foreach v in borrowing_volume lending_volume {
-	replace `v' = 0 if missing(`v')
-}
+use "$int/fund_dealer_day.dta", clear
 merge 1:1 fund_id dealer_id date using `spreads', keep(master match) nogen
 foreach l in borrowing lending {
 	gen zero_haircut_`l' = `l'_haircut <= 0 if !missing(`l'_haircut)
@@ -585,7 +448,7 @@ graph export "$fig/rate_gap_within_fund.png", replace width(3220)
 
 log close
 
-**# Pricing errors, CTD and OTR positions, convexity gap and volatility
+**# Pricing errors, CTD and OTR positions, duration and convexity, convexity gap and volatility
 
 use "$int/sftds_agg.dta", clear
 
@@ -628,9 +491,28 @@ use "$int/sftds_agg.dta" , clear
 	sort tuesday 
 	replace futures_dolduration=futures_dolduration/10^9
 	replace futures_dolconvexity=futures_dolconvexity/10^9
-	
-	scatter futures_dolduration bond_dollarduration
-	scatter futures_dolconvexity bond_dollarconvexity
+
+	tw (scatter futures_dolduration tuesday, ysc(reverse)) (scatter bond_dollarduration tuesday, yaxis(2) ) ,  legend(order(1 "DollarDuration: Futures" 2  "DollarDuration: Bond")           position(6) cols(2) region(lstyle(none))) ytitle("") ytitle("", axis(2))
+		graph export "$fig/dur1.png", replace width(3220)
+	tw (scatter futures_dolconvexity tuesday, ysc(reverse)) (scatter bond_dollarconvexity tuesday, yaxis(2) ) ,  legend(order(1 "DollarConvexity: Futures" 2  "DollarConvexity: Bond")           position(6) cols(2) region(lstyle(none))) ytitle("") ytitle("", axis(2))
+		graph export "$fig/con1.png", replace width(3220)
+
+	reg futures_dolduration bond_dollarduration
+	local b  : display %4.2f _b[bond_dollarduration]
+	local se : display %4.2f _se[bond_dollarduration]
+	local r2 : display %4.2f e(r2)
+	local n  = e(N)
+	tw (scatter futures_dolduration bond_dollarduration) (lfit futures_dolduration bond_dollarduration), ytitle("Futures dollar duration") xtitle("Bond dollar duration") legend(off) ///
+		note("Slope `b' (s.e. `se'), R{superscript:2} `r2', `n' weeks")
+		graph export "$fig/duration_scatter.png", replace width(3220)
+	reg futures_dolconvexity bond_dollarconvexity
+	local b  : display %4.2f _b[bond_dollarconvexity]
+	local se : display %4.2f _se[bond_dollarconvexity]
+	local r2 : display %4.2f e(r2)
+	local n  = e(N)
+	tw (scatter futures_dolconvexity bond_dollarconvexity) (lfit futures_dolconvexity bond_dollarconvexity), ytitle("Futures dollar convexity") xtitle("Bond dollar convexity") legend(off) ///
+		note("Slope `b' (s.e. `se'), R{superscript:2} `r2', `n' weeks")
+		graph export "$fig/convexity_scatter.png", replace width(3220)
 	tw (line futures_dolduration tuesday, ysc(reverse)) (line bond_dollarduration tuesday, yaxis(2)) , legend(pos(6))
 	tw (line futures_dolconvexity tuesday, ysc(reverse)) (line bond_dollarconvexity tuesday, yaxis(2)) , legend(pos(6))
 	
