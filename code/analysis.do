@@ -214,3 +214,52 @@ use "$int/sftds_agg.dta" , clear
 	tsset date
 	gen fduration=l90.futures_dolduration
 	tw (line fduration date) (line bond_dollarduration date, yaxis(2)) , legend(pos(6))
+
+
+**# Sign of the unhedged exposure: convexity of the bonds funds hold against the cheapest to deliver of their contract, US
+
+use "$key/firstsecondctd.dta", clear
+keep contract ctd1
+rename ctd1 cusip8
+merge 1:m cusip8 using "$key/bond_day.dta", keepusing(date duration convexity) keep(3) nogen
+rename (duration convexity) (duration_ctd convexity_ctd)
+keep date contract duration_ctd convexity_ctd
+tempfile ctd
+save `ctd'
+
+use "$int/sftds_agg.dta", clear
+keep if country=="US" & ilb==0 & ttm>0.25 & net>0
+keep date cusip net duration convexity deliverable_contract1 isdlv
+rename deliverable_contract1 contract
+
+* deliverable bonds take the CTD of their own contract, the others the contract whose CTD is closest in duration
+preserve
+	keep if isdlv==1
+	merge m:1 date contract using `ctd', keep(3) nogen
+	tempfile dlv
+	save `dlv'
+restore
+keep if isdlv==0
+drop contract
+joinby date using `ctd'
+gen dd = abs(duration - duration_ctd)
+bysort date cusip (dd): keep if _n==1
+drop dd
+append using `dlv'
+
+gen gap_conv = convexity - convexity_ctd
+gen gap_dur  = duration - duration_ctd
+gen pos_gap  = gap_conv > 0
+
+sum gap_conv gap_dur [aw=net]
+tab isdlv pos_gap [aw=net]
+
+collapse (sum) net wconv=gap_conv wdur=gap_dur (mean) share_pos=pos_gap [aw=net], by(date)
+replace wconv = wconv/net
+replace wdur  = wdur/net
+sum wconv wdur share_pos
+count if wconv > 0
+tw (line wconv date), yline(0, lcolor(black)) ytitle("Convexity of held bonds minus CTD convexity") xtitle("")
+graph export "$fig/convexity_gap_sign.png", replace width(3220)
+tw (line wdur date), yline(0, lcolor(black)) ytitle("Duration of held bonds minus CTD duration") xtitle("")
+graph export "$fig/duration_gap_sign.png", replace width(3220)
