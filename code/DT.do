@@ -1,24 +1,34 @@
+/* Path switch: set who to "felix" or "davide", everything else follows
+   key is the key dataframe folder, int the folder for intermediate files */
+local who "felix"
+if "`who'" == "felix" global root "C:/Users/hermesf/Projects/HF_Strategies"
+if "`who'" == "davide" global root "J:/hf strategies/hedge-fund-strategies"
+global key "$root/key dataframe"
+global int "$root/data/intermediate"
+capture mkdir "$root/data"
+capture mkdir "$int"
+
 /*Each bond is CTD for one contract only ever*/
-use "J:/hf strategies/hedge-fund-strategies/key dataframe/basis_stacked.dta",clear
+use "$key/basis_stacked.dta",clear
 collapse (count) net_basis = n,by(date cusip)
 tab net_basis
 
 /*create bonds info*/
-use "J:/hf strategies/hedge-fund-strategies/key dataframe/bond_day.dta" ,clear 
+use "$key/bond_day.dta" ,clear 
 keep isin bondtype country issuedate maturitydate coupontype couponfreq couponrate  cusip8 cusip9
 duplicates drop
 sort isin
 by isin: egen n=count(issuedate)
 tab count
-save "J:/hf strategies/hedge-fund-strategies/data/intermediate/bond_info.dta" , replace
+save "$int/bond_info.dta" , replace
 
 /*create futures exposures US*/
-use "J:\HF Strategies\hedge-fund-strategies\Key dataframe\futuresexposure.dta" ,clear 
+use "$key/futuresexposure.dta" ,clear 
 collapse (sum) futures_dolduration futures_dolconvexity , by(tuesday)
-save "J:/hf strategies/hedge-fund-strategies/data/intermediate/sumfutexp.dta" , replace
+save "$int/sumfutexp.dta" , replace
 
 /*create futures exposures EU*/
-use "J:/hf strategies/hedge-fund-strategies/key dataframe/emir_dataframe.dta",clear
+use "$key/emir_dataframe.dta",clear
 drop if is_bond_future==0
 drop if date > mdy(10,1,2024)
 gen net = long_futures-short_futures
@@ -27,21 +37,21 @@ drop if abs(net)>3*10^8
 collapse (sum) net , by(date futures_identifier)
 drop if futures_identifier==""
 rename futures_identifier contract
-merge m:1 contract using "J:/hf strategies/hedge-fund-strategies/key dataframe/firstsecondctd.dta", keep(1 3) nogen
+merge m:1 contract using "$key/firstsecondctd.dta", keep(1 3) nogen
 drop ctd2
 rename ctd1 cusip8
 collapse (sum) net , by(date cusip8)
-merge 1:1 date cusip8 using "J:/hf strategies/hedge-fund-strategies/key dataframe/bond_day.dta" , keepusing(duration convexity isin) keep(1 3)
+merge 1:1 date cusip8 using "$key/bond_day.dta" , keepusing(duration convexity isin) keep(1 3)
 gen country=substr(isin,1,2)
 gen futures_dolduration = net*duration
 gen futures_dolconvexity = net*convexity
 collapse futures_dolduration futures_dolconvexity net, by(date country)
 sepscatter net date ,separate(country)
 sepscatter futures_dolduration date ,separate(country)
-save "J:/hf strategies/hedge-fund-strategies/data/intermediate/sumfutexpEU.dta" , replace
+save "$int/sumfutexpEU.dta" , replace
 
 /*resuts*/
-use "J:/hf strategies/hedge-fund-strategies/key dataframe/sftds_dataframe.dta" , clear
+use "$key/sftds_dataframe.dta" , clear
 
 encode isin, g(bond)
 encode entity_id, g(fund)
@@ -77,7 +87,7 @@ preserve
 	scatter nbonds nfunds
 restore
 
-save "J:/hf strategies/hedge-fund-strategies/data/intermediate/sftds.dta" , replace
+save "$int/sftds.dta" , replace
 
 drop if nbonds < 600 
 
@@ -125,13 +135,13 @@ restore
 
 
 /*CTD and OTR*/
-use "J:/hf strategies/hedge-fund-strategies/data/intermediate/sftds.dta", clear
+use "$int/sftds.dta", clear
 collapse (sum) net, by(date isin)
 *keep net date isin entity_id
 encode isin, g(bond)
-merge m:1 isin using  "J:/hf strategies/hedge-fund-strategies/data/intermediate/bond_info.dta" , keep(1 3) nogen 
+merge m:1 isin using  "$int/bond_info.dta" , keep(1 3) nogen 
 gen cusip=cusip8
-merge 1:1 date cusip using "J:/hf strategies/hedge-fund-strategies/key dataframe/basis_stacked.dta" , gen(mergebasis)
+merge 1:1 date cusip using "$key/basis_stacked.dta" , gen(mergebasis)
 drop if date <mdy(1,4,2021)|date>mdy(9,30,2025)
 bysort date: egen nbonds=nvals(cusip)
 drop if nbonds<600
@@ -140,10 +150,10 @@ gen ttm=(maturitydate-date)/365
 gen ilb=inlist(bondtype,"11","12")|coupontype==3
 encode bondtype, gen(bondtype_n)
 
-merge 1:1 date isin using "J:/hf strategies/hedge-fund-strategies/key dataframe/bond_day.dta" , keep(1 3) gen(mergeprices) ///
+merge 1:1 date isin using "$key/bond_day.dta" , keep(1 3) gen(mergeprices) ///
 keepusing(refprice refyield selected_ns price_curve_ns yield_curve_ns selected_sv price_curve_sv yield_curve_sv yield_check duration convexity perconvexity amt_pub amt_tot matgroup otr_number)
 
-merge 1:1 date cusip using "J:/hf strategies/hedge-fund-strategies/key dataframe/day_bond_deliverable_ctd.dta" , keep(1 3) gen(mergectddlv) 
+merge 1:1 date cusip using "$key/day_bond_deliverable_ctd.dta" , keep(1 3) gen(mergectddlv) 
 
 gen newotrnumb=otr_number
 replace newotrnumb=3 if otr_number>=3
@@ -157,7 +167,7 @@ gen isdlv=deliverable_contract1!=""|deliverable_contract2!=""
 gen isctd=ctd1!=""|ctd2!=""
  
 gen dyield=yield_check- yield_curve_sv
-save "J:/hf strategies/hedge-fund-strategies/data/intermediate/sftds_agg.dta" , replace
+save "$int/sftds_agg.dta" , replace
 
 sepscatter dyield ttm if abs(dyield)<10 & month(date)==4 & year(date)==2022 & country=="US" ,separate(bondtype )
 
@@ -254,7 +264,7 @@ preserve
 	gen year=year(date)
 	gen quarter=quarter(date)
 	collapse (last) net bond_dollarduration bond_dollarconvexity , by(year quarter )
-	merge 1:1 year quarter using "J:\HF Strategies\hedge-fund-strategies\key dataframe/BondExposure.dta" , nogen keep(1 3)
+	merge 1:1 year quarter using "$key/BondExposure.dta" , nogen keep(1 3)
 	gen netOFR=(BondExposureLong-BondExposureShort)/10^9
 	tw (scatter net netOFR)(lfit net netOFR) , ytitle("SFTDS Net Long Positions") xtitle("OFR Net Long Positions") legend(off)
 	reg   net netOFR
@@ -265,7 +275,7 @@ restore
 
 
 
-use "J:/hf strategies/hedge-fund-strategies/data/intermediate/sftds_agg.dta" , clear
+use "$int/sftds_agg.dta" , clear
 	keep if  country=="US" & ilb==0
 	gen weekn=week(date)+year(date)*100
 	gen tuesday=date-dow(date)+2
@@ -275,7 +285,7 @@ use "J:/hf strategies/hedge-fund-strategies/data/intermediate/sftds_agg.dta" , c
 	collapse (sum) bond_dollarduration bond_dollarconvexity ,by(date tuesday)
 	collapse (mean) bond_dollarduration bond_dollarconvexity ,by(tuesday)
 	drop if tuesday==mdy(7,4,2023)
-	merge 1:1 tuesday using "J:/hf strategies/hedge-fund-strategies/data/intermediate/sumfutexp.dta" , keep(1 3)
+	merge 1:1 tuesday using "$int/sumfutexp.dta" , keep(1 3)
 	
 	sort tuesday 
 	replace futures_dolduration=futures_dolduration/10^9
@@ -317,13 +327,13 @@ use "J:/hf strategies/hedge-fund-strategies/data/intermediate/sftds_agg.dta" , c
 	line gapconv1 tuesday 
 	line gapconvraw tuesday 
 
-	merge 1:1 tuesday using "J:\HF Strategies\hedge-fund-strategies\Key dataframe\ImplVolTreasury_weekly.dta" , keep(1 3) nogen
+	merge 1:1 tuesday using "$key/ImplVolTreasury_weekly.dta" , keep(1 3) nogen
 	tw (line gapconv3 tuesday ) (line MOVE_Index___L1_ tuesday, yaxis(2)) if tuesday>mdy(6,1,2021), legend(pos(6))
 	
 	tw (line gapconv3 tuesday ,ysc(reverse)) (line  TY_1M_50D_VOL_BVOL_Comdty___R1_ tuesday, yaxis(2)) if tuesday>mdy(6,1,2021), legend(pos(6))
 	tw (line gapconv3 tuesday ,ysc(reverse)) (line  MOVE_Index___L1_ tuesday, yaxis(2)) if tuesday>mdy(6,1,2021), legend(pos(6))
 
-	merge 1:1 tuesday using "J:\HF Strategies\hedge-fund-strategies\Key dataframe\ACMtermpremium_weekly.dta" , keep(1 3) nogen
+	merge 1:1 tuesday using "$key/ACMtermpremium_weekly.dta" , keep(1 3) nogen
 	gen term= ACMTP10 -    ACMTP02
 		
 	tw (line gapconv1 tuesday ) (line  ACMTP10 tuesday, yaxis(2)) if tuesday>mdy(6,1,2021), legend(pos(6))	
@@ -341,12 +351,12 @@ tsset tuesday_n
  reg  d.futures_dolduration  d.bond_dollarduration d.term d.MOVE_Index___L1_,robust
 
 
-use "J:/hf strategies/hedge-fund-strategies/data/intermediate/sftds_agg.dta" , clear
+use "$int/sftds_agg.dta" , clear
 	keep if  country=="DE" & ilb==0
 	gen bond_dollarduration=net*duration
 	gen bond_dollarconvexity=net*convexity
 	collapse (sum) bond_dollarduration bond_dollarconvexity ,by(date country)
-	merge 1:1 date country using "J:/hf strategies/hedge-fund-strategies/data/intermediate/sumfutexpEU.dta" , keep(1 3)
+	merge 1:1 date country using "$int/sumfutexpEU.dta" , keep(1 3)
 	
 	replace futures_dolduration=futures_dolduration/10^9
 	replace futures_dolconvexity=futures_dolconvexity/10^9
