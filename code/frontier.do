@@ -100,22 +100,17 @@ bysort cusip8 (gap): keep if _n == 1
 drop gap dur_ctd
 save `bonds', replace
 
-* long positions of the funds on that day, one point per fund and bucket, and one aggregate point per bucket
+* long positions of all funds on that day, one portfolio point per bucket
 use "$int/sftds.dta", clear
 keep if date == `day' & country == "US" & net > 0
 merge m:1 isin using `bonds', keep(3) nogen keepusing(bucket duration carry)
 gen wd = net*duration
 gen wc = net*carry
-collapse (sum) net wd wc, by(entity_id bucket)
-gen fund = 1
-tempfile funds
-save `funds'
 collapse (sum) net wd wc, by(bucket)
-gen fund = 2
-append using `funds'
 gen duration = wd/net
 gen carry = wc/net
-keep bucket entity_id net duration carry fund
+gen fund = 1
+keep bucket net duration carry fund
 tempfile portfolios
 save `portfolios'
 
@@ -129,19 +124,10 @@ gen frontier = 1
 append using `bonds'
 append using `portfolios'
 
-* the aggregate fund portfolio per bucket against its CTD and against the frontier at the same duration
-gen fcarry = carry if frontier == 1
-ipolate fcarry duration, gen(front)
-gen tmp = carry if ctd == 1
-bysort bucket: egen ctd_carry = max(tmp)
-drop tmp fcarry
-list bucket net duration carry ctd_carry front if fund == 2, noobs
-
 tw (line carry duration if frontier == 1, sort lcolor(black)) ///
-   (scatter carry duration if frontier != 1 & ctd == 0 & fund == ., mcolor(gs10) msize(small)) ///
+   (scatter carry duration if frontier != 1 & ctd == 0, mcolor(gs10) msize(small)) ///
    (scatter carry duration if frontier != 1 & ctd == 1, mcolor(red) msymbol(D) mlabel(series) mlabcolor(red)) ///
-   (scatter carry duration [aw=net] if fund == 1, mcolor(blue%30) msymbol(Oh)) ///
-   (scatter carry duration if fund == 2, mcolor(blue) msymbol(S) mlabel(bucket) mlabcolor(blue)) , ///
-   legend(order(1 "Portfolio frontier" 2 "Treasuries" 3 "CTD" 4 "Fund portfolios" 5 "All funds") position(6) cols(5) region(lstyle(none))) ///
+   (scatter carry duration if fund == 1, mcolor(blue) msymbol(S) mlabel(bucket) mlabcolor(blue)) , ///
+   legend(order(1 "Portfolio frontier" 2 "Treasuries" 3 "CTD" 4 "Fund portfolios") position(6) cols(4) region(lstyle(none))) ///
    ytitle("Yield minus repo rate, pp") xtitle("Duration") yline(0, lcolor(black))
 graph export "$fig/frontier_US.png", replace width(3220)
