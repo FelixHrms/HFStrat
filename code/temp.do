@@ -33,7 +33,7 @@ gsort newcountry -weight
 by newcountry: gen rank = _n
 list newcountry isin country bondtype net weight nfunds if rank <= 10, noobs sepby(newcountry)
 
-* one example bond per bill code, and all codes by country to see whether anything is missing
+* one example bond per bill code
 use "$int/bond_info.dta", clear
 keep if inlist(bondtype, "4", "GTC", "LET", "FTB", "BOT")
 gen ormat = (maturitydate - issuedate) / 365
