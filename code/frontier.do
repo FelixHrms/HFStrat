@@ -14,12 +14,12 @@ local day = td(15jan2025)
 
 * marks the bonds on the upper hull of the point cloud. Duration and carry are linear in weights, so the hull is the portfolio frontier
 mata:
-void markhull(string scalar xv, string scalar yv, string scalar hv)
+void markhull(string scalar xv, string scalar yv, string scalar hv, string scalar sel)
 {
 	real matrix P, H
 	real colvector h
 	real scalar i, k, turn
-	P = sort((st_data(., xv), st_data(., yv), (1::st_nobs())), (1, -2))
+	P = sort((st_data(., xv, sel), st_data(., yv, sel), (1::rows(st_data(., xv, sel)))), (1, -2))
 	H = J(rows(P), 3, .)
 	k = 0
 	for (i = 1; i <= rows(P); i++) {
@@ -39,7 +39,7 @@ void markhull(string scalar xv, string scalar yv, string scalar hv)
 	for (i = 1; i <= k; i++) {
 		h[H[i,3]] = 1
 	}
-	st_store(., hv, h)
+	st_store(., hv, sel, h)
 }
 end
 
@@ -89,9 +89,33 @@ keep cusip8 isin series ctd duration convexity carry ttm bondtype
 sum duration carry
 list series cusip8 duration carry if ctd, noobs
 
-* the frontier
+tempfile bonds
+save `bonds'
+
+* long US book of each fund on that day, value weighted duration and carry, one dot per fund
+use "$int/sftds.dta", clear
+keep if date == `day' & country == "US" & net > 0
+merge m:1 isin using `bonds', keep(3) nogen keepusing(duration carry convexity)
+gen wd = net*duration
+gen wc = net*carry
+gen wx = net*convexity
+collapse (sum) net wd wc wx, by(entity_id)
+drop if net < 0.1
+gen duration = wd/net
+gen carry = wc/net
+gen convexity = wx/net
+gen fund = 1
+keep entity_id net duration carry convexity fund
+tempfile funds
+save `funds'
+
+* the frontier, and the line a fund holding only CTDs can reach
+use `bonds', clear
+gen all = 1
 gen hull = .
-mata: markhull("duration", "carry", "hull")
+mata: markhull("duration", "carry", "hull", "all")
+gen ctdline = .
+mata: markhull("duration", "carry", "ctdline", "ctd")
 
 * for each CTD, the frontier portfolio at its duration, a mix of the two hull bonds around it, with its carry and convexity
 preserve
@@ -119,9 +143,21 @@ preserve
 	list series duration carry carry_f dcarry convexity conv_f dconv, noobs
 restore
 
+* funds between the two lines, share of the carry gap captured, zero on the CTD line and one on the frontier
+append using `funds'
+gen fc = carry if hull == 1
+ipolate fc duration, gen(front)
+gen cc = carry if ctdline == 1
+ipolate cc duration, gen(ctdc)
+gen share = (carry - ctdc) / (front - ctdc) if fund == 1
+sum share if fund == 1, detail
+sum share [aw=net] if fund == 1
+
 tw (line carry duration if hull == 1, sort lcolor(black)) ///
+   (line carry duration if ctdline == 1, sort lcolor(red) lpattern(dash)) ///
    (scatter carry duration if ctd == 0, mcolor(gs10) msize(small)) ///
-   (scatter carry duration if ctd == 1, mcolor(red) msymbol(D) mlabel(series) mlabcolor(red)) , ///
-   legend(order(1 "Portfolio frontier" 2 "Treasuries" 3 "CTD") position(6) cols(3) region(lstyle(none))) ///
+   (scatter carry duration if ctd == 1, mcolor(red) msymbol(D) mlabel(series) mlabcolor(red)) ///
+   (scatter carry duration if fund == 1, mcolor(blue) msymbol(O)) , ///
+   legend(order(1 "Portfolio frontier" 2 "CTD line" 3 "Treasuries" 4 "CTD" 5 "Funds") position(6) cols(5) region(lstyle(none))) ///
    ytitle("Yield minus repo rate, pp") xtitle("Duration") yline(0, lcolor(black))
 graph export "$fig/frontier_US.png", replace width(3220)
