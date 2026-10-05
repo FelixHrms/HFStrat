@@ -58,6 +58,8 @@ rename security_isin isin
 keep isin market_rate
 count
 assert r(N) > 0
+sum market_rate, detail
+local gc = r(p50)
 tempfile repo
 save `repo'
 
@@ -70,12 +72,12 @@ drop if ttm < 0.25
 merge m:1 cusip8 using `ctd', keep(1 3)
 gen ctd = _merge == 3
 drop _merge
-merge 1:1 isin using `repo', keep(1 3) nogen
-count if missing(market_rate)
-sum market_rate, detail
-replace market_rate = r(p50) if missing(market_rate)
+merge 1:1 isin using `repo', keep(1 3)
+tab _merge
+drop _merge
+replace market_rate = `gc' if missing(market_rate)
 gen carry = yield_check - market_rate
-count if missing(yield_check)
+sum yield_check market_rate duration carry
 drop if missing(duration, carry)
 assert _N > 0
 keep cusip8 isin series ctd duration carry ttm bondtype
