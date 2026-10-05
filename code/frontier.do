@@ -100,34 +100,37 @@ bysort cusip8 (gap): keep if _n == 1
 drop gap dur_ctd
 save `bonds', replace
 
-* long positions of all funds on that day, one portfolio point per bucket
-use "$int/sftds.dta", clear
-keep if date == `day' & country == "US" & net > 0
-merge m:1 isin using `bonds', keep(3) nogen keepusing(bucket duration carry)
-gen wd = net*duration
-gen wc = net*carry
-collapse (sum) net wd wc, by(bucket)
-gen duration = wd/net
-gen carry = wc/net
-gen fund = 1
-keep bucket net duration carry fund
-tempfile portfolios
-save `portfolios'
-
-* the frontier
-use `bonds', clear
-mata: st_matrix("hull", upperhull(st_data(., "duration"), st_data(., "carry")))
-clear
-svmat double hull
-rename (hull1 hull2) (duration carry)
-gen frontier = 1
+* one frontier per contract, the upper hull of the bonds in its bucket
+levelsof bucket, local(buckets)
+tempfile hulls
+foreach b of local buckets {
+	use `bonds', clear
+	keep if bucket == "`b'"
+	mata: st_matrix("hull", upperhull(st_data(., "duration"), st_data(., "carry")))
+	clear
+	svmat double hull
+	rename (hull1 hull2) (duration carry)
+	gen bucket = "`b'"
+	gen frontier = 1
+	capture append using `hulls'
+	save `hulls', replace
+}
 append using `bonds'
-append using `portfolios'
 
-tw (line carry duration if frontier == 1, sort lcolor(black)) ///
+* the CTD against the frontier at its own duration
+gen fcarry = carry if frontier == 1
+bysort bucket: ipolate fcarry duration, gen(front)
+list bucket cusip8 duration carry front if ctd == 1, noobs
+drop fcarry
+
+local lines
+foreach b of local buckets {
+	local lines `lines' (line carry duration if frontier == 1 & bucket == "`b'", sort lcolor(black))
+}
+local n : word count `buckets'
+tw `lines' ///
    (scatter carry duration if frontier != 1 & ctd == 0, mcolor(gs10) msize(small)) ///
-   (scatter carry duration if frontier != 1 & ctd == 1, mcolor(red) msymbol(D) mlabel(series) mlabcolor(red)) ///
-   (scatter carry duration if fund == 1, mcolor(blue) msymbol(S) mlabel(bucket) mlabcolor(blue)) , ///
-   legend(order(1 "Portfolio frontier" 2 "Treasuries" 3 "CTD" 4 "Fund portfolios") position(6) cols(4) region(lstyle(none))) ///
+   (scatter carry duration if frontier != 1 & ctd == 1, mcolor(red) msymbol(D) mlabel(series) mlabcolor(red)) , ///
+   legend(order(1 "Portfolio frontier by contract" `=`n'+1' "Treasuries" `=`n'+2' "CTD") position(6) cols(3) region(lstyle(none))) ///
    ytitle("Yield minus repo rate, pp") xtitle("Duration") yline(0, lcolor(black))
 graph export "$fig/frontier_US.png", replace width(3220)
