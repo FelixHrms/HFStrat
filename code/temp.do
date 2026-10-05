@@ -35,7 +35,6 @@ list newcountry isin country bondtype net weight nfunds if rank <= 10, noobs sep
 
 * one example bond per bill code, and all codes by country to see whether anything is missing
 use "$int/bond_info.dta", clear
-tab bondtype country
 keep if inlist(bondtype, "4", "GTC", "LET", "FTB", "BOT")
 gen ormat = (maturitydate - issuedate) / 365
 bysort bondtype (isin): keep if _n == 1
