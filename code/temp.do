@@ -24,10 +24,25 @@ restore
 
 * share of the most held bond on one day, net position summed across funds
 keep if date == td(15jan2025)
-collapse (sum) net (first) bondtype country, by(newcountry isin)
+drop if net == 0
+collapse (sum) net (count) nfunds = net (first) bondtype country, by(newcountry isin)
 gen absnet = abs(net)
+
+* across the whole region
 bysort newcountry: egen total = sum(absnet)
 gen weight = absnet / total
 gsort newcountry -weight
 by newcountry: gen rank = _n
-list newcountry isin country bondtype net weight if rank <= 10, noobs sepby(newcountry)
+list newcountry isin country bondtype net weight nfunds if rank <= 10, noobs sepby(newcountry)
+
+* within each country
+bysort country: egen total_c = sum(absnet)
+gen weight_c = absnet / total_c
+gsort country -weight_c
+by country: gen rank_c = _n
+list country isin bondtype net weight_c nfunds if rank_c <= 5, noobs sepby(country)
+
+* second table, simple count of funds with a position in the bond
+gsort newcountry -nfunds -absnet
+by newcountry: gen rank_n = _n
+list newcountry isin country bondtype nfunds net if rank_n <= 10, noobs sepby(newcountry)
