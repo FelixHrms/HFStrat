@@ -24,8 +24,12 @@ real matrix upperhull(real colvector x, real colvector y)
 	for (i = 1; i <= rows(P); i++) {
 		while (k >= 2) {
 			turn = (H[k,1]-H[k-1,1])*(P[i,2]-H[k-1,2]) - (H[k,2]-H[k-1,2])*(P[i,1]-H[k-1,1])
-			if (turn >= 0) k = k - 1
-			else break
+			if (turn >= 0) {
+				k = k - 1
+			}
+			else {
+				break
+			}
 		}
 		k = k + 1
 		H[k,.] = P[i,.]
@@ -52,6 +56,8 @@ gen date = date(business_date, "YMD")
 keep if date == `day'
 rename security_isin isin
 keep isin market_rate
+count
+assert r(N) > 0
 tempfile repo
 save `repo'
 
@@ -65,10 +71,13 @@ merge m:1 cusip8 using `ctd', keep(1 3)
 gen ctd = _merge == 3
 drop _merge
 merge 1:1 isin using `repo', keep(1 3) nogen
+count if missing(market_rate)
 sum market_rate, detail
 replace market_rate = r(p50) if missing(market_rate)
 gen carry = yield_check - market_rate
+count if missing(yield_check)
 drop if missing(duration, carry)
+assert _N > 0
 keep cusip8 isin series ctd duration carry ttm bondtype
 sum duration carry
 list series cusip8 duration carry if ctd, noobs
