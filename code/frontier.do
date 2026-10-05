@@ -8,12 +8,11 @@ global key  "$root/key dataframe"
 global int  "$root/data/intermediate"
 global fig  "$root/Figures"
 
-**# Frontier of duration matched bond portfolios against the CTD. US, one day, one contract
+**# Carry against duration for all US treasuries on one day, with the frontier of portfolios and the CTDs marked
 
 local day = td(15jan2025)
-local contract "TYH5"
 
-* upper hull of a point cloud, used for the frontier
+* upper hull of a point cloud. Duration and carry are linear in weights, so the hull is the portfolio frontier
 mata:
 real matrix upperhull(real colvector x, real colvector y)
 {
@@ -35,70 +34,58 @@ real matrix upperhull(real colvector x, real colvector y)
 }
 end
 
-* the CTD of the contract on that day, the contract code may carry one or two year digits
+* the CTD of every contract on that day
 use "$key/basis_stacked.dta", clear
-keep if date == `day' & substr(contract,1,3) == substr("`contract'",1,3) & substr(contract,-1,1) == substr("`contract'",-1,1)
-assert _N >= 1
-local ctd = cusip[1]
+keep if date == `day'
+keep cusip contract
+duplicates drop
+rename cusip cusip8
+gen series = regexr(contract, "[FGHJKMNQUVXZ][0-9]+$", "")
+keep cusip8 series
+duplicates drop
+tempfile ctd
+save `ctd'
 
-* the bond universe on that day, same filters as the pricing error charts, the CTD is always kept
+* repo rate per bond, market wide average over all trades on that day
+import delimited "$key/bond_day_rate.csv", varnames(1) clear
+gen date = date(business_date, "YMD")
+keep if date == `day'
+rename security_isin isin
+keep isin market_rate
+tempfile repo
+save `repo'
+
+* bonds on that day without TIPS, carry is the yield minus the repo rate, general collateral proxy where the bond has no repo trade
 use "$key/bond_day.dta", clear
 keep if date == `day' & country == "US"
-gen ctd = cusip8 == "`ctd'"
-gen dyield = yield_check - yield_curve_sv
+drop if inlist(bondtype, "11", "12")
 gen ttm = (maturitydate - date) / 365
-drop if inlist(bondtype, "4", "11", "12") | coupontype == 3
-drop if (ttm < 0.25 | abs(dyield) > 0.25) & ctd == 0
-drop if missing(duration, convexity, dyield)
-keep cusip8 ctd duration convexity dyield
-sum duration if ctd
-assert r(N) == 1
-local D = r(mean)
-sum convexity if ctd
-local C = r(mean)
+drop if ttm < 0.25
+merge m:1 cusip8 using `ctd', keep(1 3)
+gen ctd = _merge == 3
+drop _merge
+merge 1:1 isin using `repo', keep(1 3) nogen
+sum market_rate, detail
+replace market_rate = r(p50) if missing(market_rate)
+gen carry = yield_check - market_rate
+drop if missing(duration, carry)
+keep cusip8 isin series ctd duration carry ttm bondtype
+sum duration carry
+list series cusip8 duration carry if ctd, noobs
 tempfile bonds
 save `bonds'
 
-* every pair of bonds on either side of the target duration, and the one mix that hits it
-keep if duration <= `D'
-rename (cusip8 duration convexity dyield) (cusip_b dur_b conv_b dy_b)
-drop ctd
-tempfile below
-save `below'
-use `bonds', clear
-keep if duration >= `D'
-rename (cusip8 duration convexity dyield) (cusip_a dur_a conv_a dy_a)
-drop ctd
-cross using `below'
-drop if dur_a == dur_b
-gen w = (`D' - dur_a) / (dur_b - dur_a)
-gen conv  = w*conv_b + (1-w)*conv_a
-gen cheap = w*dy_b   + (1-w)*dy_a
-count
-
-* cheapest duration matched portfolios with roughly the convexity of the CTD, against the CTD itself
-gen near = abs(conv - `C') / `C' < 0.02
-gsort -near -cheap
-list cusip_b cusip_a w conv cheap in 1/5, noobs
-preserve
-	use `bonds', clear
-	list cusip8 duration convexity dyield if ctd, noobs
-restore
-
-* the frontier is the upper hull of the pair points
-mata: st_matrix("hull", upperhull(st_data(., "conv"), st_data(., "cheap")))
+* the frontier
+mata: st_matrix("hull", upperhull(st_data(., "duration"), st_data(., "carry")))
 clear
 svmat double hull
-rename (hull1 hull2) (conv cheap)
+rename (hull1 hull2) (duration carry)
 gen frontier = 1
-
-* bonds as dots, the frontier as a line, the CTD marked
 append using `bonds'
-replace conv  = convexity if frontier != 1
-replace cheap = dyield    if frontier != 1
-tw (line cheap conv if frontier == 1, sort lcolor(black)) ///
-   (scatter cheap conv if frontier != 1 & ctd == 0, mcolor(gs10) msize(small)) ///
-   (scatter cheap conv if frontier != 1 & ctd == 1, mcolor(red) msymbol(D)) , ///
-   legend(order(1 "Duration matched portfolios" 2 "Bonds" 3 "CTD") position(6) cols(3) region(lstyle(none))) ///
-   ytitle("Yield above the fitted curve, pp") xtitle("Convexity") yline(0, lcolor(black))
+
+tw (line carry duration if frontier == 1, sort lcolor(black)) ///
+   (scatter carry duration if frontier != 1 & ctd == 0, mcolor(gs10) msize(small)) ///
+   (scatter carry duration if frontier != 1 & ctd == 1, mcolor(red) msymbol(D) mlabel(series) mlabcolor(red)) , ///
+   legend(order(1 "Portfolio frontier" 2 "Treasuries" 3 "CTD") position(6) cols(3) region(lstyle(none))) ///
+   ytitle("Yield minus repo rate, pp") xtitle("Duration") yline(0, lcolor(black))
 graph export "$fig/frontier_US.png", replace width(3220)
