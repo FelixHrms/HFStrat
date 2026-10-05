@@ -12,14 +12,15 @@ global fig  "$root/Figures"
 
 local day = td(15jan2025)
 
-* upper hull of a point cloud. Duration and carry are linear in weights, so the hull is the portfolio frontier
+* marks the bonds on the upper hull of the point cloud. Duration and carry are linear in weights, so the hull is the portfolio frontier
 mata:
-real matrix upperhull(real colvector x, real colvector y)
+void markhull(string scalar xv, string scalar yv, string scalar hv)
 {
 	real matrix P, H
+	real colvector h
 	real scalar i, k, turn
-	P = sort((x, y), (1, -2))
-	H = J(rows(P), 2, .)
+	P = sort((st_data(., xv), st_data(., yv), (1::st_nobs())), (1, -2))
+	H = J(rows(P), 3, .)
 	k = 0
 	for (i = 1; i <= rows(P); i++) {
 		while (k >= 2) {
@@ -34,7 +35,11 @@ real matrix upperhull(real colvector x, real colvector y)
 		k = k + 1
 		H[k,.] = P[i,.]
 	}
-	return(H[|1,1 \ k,2|])
+	h = J(rows(P), 1, 0)
+	for (i = 1; i <= k; i++) {
+		h[H[i,3]] = 1
+	}
+	st_store(., hv, h)
 }
 end
 
@@ -80,57 +85,43 @@ gen carry = yield_check - market_rate
 sum yield_check market_rate duration carry
 drop if missing(duration, carry)
 assert _N > 0
-keep cusip8 isin series ctd duration carry ttm bondtype
+keep cusip8 isin series ctd duration convexity carry ttm bondtype
 sum duration carry
 list series cusip8 duration carry if ctd, noobs
-tempfile bonds
-save `bonds'
 
-* each bond belongs to the contract whose CTD duration is nearest on the day
+* the frontier
+gen hull = .
+mata: markhull("duration", "carry", "hull")
+
+* for each CTD, the frontier portfolio at its duration, a mix of the two hull bonds around it, with its carry and convexity
 preserve
-	keep if ctd
-	keep series duration
-	rename (series duration) (bucket dur_ctd)
-	tempfile ctddur
-	save `ctddur'
+	keep if hull == 1
+	keep cusip8 duration carry convexity
+	rename (cusip8 duration carry convexity) (cusip_h dur_h carry_h conv_h)
+	gen one = 1
+	tempfile hullpts
+	save `hullpts'
 restore
-cross using `ctddur'
-gen gap = abs(duration - dur_ctd)
-bysort cusip8 (gap): keep if _n == 1
-drop gap dur_ctd
-save `bonds', replace
+preserve
+	keep if ctd == 1
+	keep series cusip8 duration carry convexity
+	gen one = 1
+	joinby one using `hullpts'
+	gen lo = dur_h <= duration
+	gen gap = abs(dur_h - duration)
+	bysort series lo (gap): keep if _n == 1
+	bysort series (lo): gen w = (dur_h[1] - duration) / (dur_h[1] - dur_h[2])
+	by series: gen carry_f = w*carry_h[2] + (1-w)*carry_h[1]
+	by series: gen conv_f  = w*conv_h[2]  + (1-w)*conv_h[1]
+	by series: keep if _n == 1
+	gen dcarry = carry_f - carry
+	gen dconv  = conv_f - convexity
+	list series duration carry carry_f dcarry convexity conv_f dconv, noobs
+restore
 
-* one frontier per contract, the upper hull of the bonds in its bucket
-levelsof bucket, local(buckets)
-tempfile hulls
-foreach b of local buckets {
-	use `bonds', clear
-	keep if bucket == "`b'"
-	mata: st_matrix("hull", upperhull(st_data(., "duration"), st_data(., "carry")))
-	clear
-	svmat double hull
-	rename (hull1 hull2) (duration carry)
-	gen bucket = "`b'"
-	gen frontier = 1
-	capture append using `hulls'
-	save `hulls', replace
-}
-append using `bonds'
-
-* the CTD against the frontier at its own duration
-gen fcarry = carry if frontier == 1
-bysort bucket: ipolate fcarry duration, gen(front)
-list bucket cusip8 duration carry front if ctd == 1, noobs
-drop fcarry
-
-local lines
-foreach b of local buckets {
-	local lines `lines' (line carry duration if frontier == 1 & bucket == "`b'", sort lcolor(black))
-}
-local n : word count `buckets'
-tw `lines' ///
-   (scatter carry duration if frontier != 1 & ctd == 0, mcolor(gs10) msize(small)) ///
-   (scatter carry duration if frontier != 1 & ctd == 1, mcolor(red) msymbol(D) mlabel(series) mlabcolor(red)) , ///
-   legend(order(1 "Portfolio frontier by contract" `=`n'+1' "Treasuries" `=`n'+2' "CTD") position(6) cols(3) region(lstyle(none))) ///
+tw (line carry duration if hull == 1, sort lcolor(black)) ///
+   (scatter carry duration if ctd == 0, mcolor(gs10) msize(small)) ///
+   (scatter carry duration if ctd == 1, mcolor(red) msymbol(D) mlabel(series) mlabcolor(red)) , ///
+   legend(order(1 "Portfolio frontier" 2 "Treasuries" 3 "CTD") position(6) cols(3) region(lstyle(none))) ///
    ytitle("Yield minus repo rate, pp") xtitle("Duration") yline(0, lcolor(black))
 graph export "$fig/frontier_US.png", replace width(3220)
