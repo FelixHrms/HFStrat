@@ -109,13 +109,12 @@ keep entity_id net duration carry convexity fund
 tempfile funds
 save `funds'
 
-* the frontier, and the line a fund holding only CTDs can reach
+* the frontier
 use `bonds', clear
 gen all = 1
 gen hull = .
 mata: markhull("duration", "carry", "hull", "all")
-gen ctdline = .
-mata: markhull("duration", "carry", "ctdline", "ctd")
+list cusip8 duration carry ttm bondtype if hull == 1, noobs
 
 * for each CTD, the frontier portfolio at its duration, a mix of the two hull bonds around it, with its carry and convexity
 preserve
@@ -143,21 +142,17 @@ preserve
 	list series duration carry carry_f dcarry convexity conv_f dconv, noobs
 restore
 
-* funds between the two lines, share of the carry gap captured, zero on the CTD line and one on the frontier
+* funds against the frontier at their own duration
 append using `funds'
 gen fc = carry if hull == 1
 ipolate fc duration, gen(front)
-gen cc = carry if ctdline == 1
-ipolate cc duration, gen(ctdc)
-gen share = (carry - ctdc) / (front - ctdc) if fund == 1
-sum share if fund == 1, detail
-sum share [aw=net] if fund == 1
+gen gap = front - carry if fund == 1
+sum gap [aw=net] if fund == 1, detail
 
 tw (line carry duration if hull == 1, sort lcolor(black)) ///
-   (line carry duration if ctdline == 1, sort lcolor(red) lpattern(dash)) ///
    (scatter carry duration if ctd == 0, mcolor(gs10) msize(small)) ///
    (scatter carry duration if ctd == 1, mcolor(red) msymbol(D) mlabel(series) mlabcolor(red)) ///
    (scatter carry duration if fund == 1, mcolor(blue) msymbol(O)) , ///
-   legend(order(1 "Portfolio frontier" 2 "CTD line" 3 "Treasuries" 4 "CTD" 5 "Funds") position(6) cols(5) region(lstyle(none))) ///
+   legend(order(1 "Portfolio frontier" 2 "Treasuries" 3 "CTD" 4 "Funds") position(6) cols(4) region(lstyle(none))) ///
    ytitle("Yield minus repo rate, pp") xtitle("Duration") yline(0, lcolor(black))
 graph export "$fig/frontier_US.png", replace width(3220)
