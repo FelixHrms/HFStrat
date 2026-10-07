@@ -41,8 +41,6 @@ bysort bondtype (isin): keep if _n == 1
 list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 
 **# Borrowing repo rate of CTD bonds against all other bonds as a spread over SOFR, US only, weighted by fund positions
-* the non CTD line is reweighted to the maturity mix of the CTD positions, duration buckets under 3, 3 to 6, 6 to 9, 9 to 15 and above 15 years
-* within a bucket and day both lines are position weighted means, the buckets are then averaged with the CTD position shares of that day
 
 * SOFR, date in the second column and the rate in percent in the fourth
 import delimited "$data/SOFR.csv", varnames(nonames) rowrange(2) clear
@@ -58,19 +56,10 @@ save `sofr'
 use "$int/sftds.dta", clear
 keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0
 keep date isin borrowing_volume borrowing_rate
-merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd duration) nogen
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
 merge m:1 date using `sofr', keep(match) nogen
 gen spread = (borrowing_rate - sofr)*100 /*basis points*/
-drop if missing(duration)
-gen bucket = cond(duration < 3, 1, cond(duration < 6, 2, cond(duration < 9, 3, cond(duration < 15, 4, 5))))
-gen w = borrowing_volume
-collapse (mean) spread [aw = borrowing_volume] (rawsum) w, by(date isctd bucket)
-bysort date isctd: egen wtot = total(w)
-gen share = w/wtot
-gen tmp = share if isctd == 1
-bysort date bucket: egen share_ctd = max(tmp) /*CTD share of the bucket on the day, applied to both groups*/
-drop if missing(share_ctd)
-collapse (mean) spread [aw = share_ctd], by(date isctd)
+collapse (mean) spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
 label define ctd 0 "Not CTD" 1 "CTD"
 label values isctd ctd
@@ -83,7 +72,7 @@ tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 
 graph bar (mean) spread, over(isctd) ytitle("Borrowing repo rate minus SOFR, bp") name(bar, replace)
 graph combine ts bar, cols(2)
 
-**# Yield volatility of CTD bonds against all other bonds, US only, weighted by fund positions, same reweighting
+**# Yield volatility of CTD bonds against all other bonds, US only, weighted by fund positions
 * realized volatility per bond, standard deviation of daily yield changes in basis points over the past four weeks
 
 capture which rangestat
@@ -102,18 +91,9 @@ save `vol'
 use "$int/sftds.dta", clear
 keep if country == "US" & borrowing_volume > 0
 keep date isin borrowing_volume
-merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd duration) nogen
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
 merge m:1 date isin using `vol', keep(match) nogen
-drop if missing(duration)
-gen bucket = cond(duration < 3, 1, cond(duration < 6, 2, cond(duration < 9, 3, cond(duration < 15, 4, 5))))
-gen w = borrowing_volume
-collapse (mean) vol [aw = borrowing_volume] (rawsum) w, by(date isctd bucket)
-bysort date isctd: egen wtot = total(w)
-gen share = w/wtot
-gen tmp = share if isctd == 1
-bysort date bucket: egen share_ctd = max(tmp)
-drop if missing(share_ctd)
-collapse (mean) vol [aw = share_ctd], by(date isctd)
+collapse (mean) vol [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
 label define ctd 0 "Not CTD" 1 "CTD"
 label values isctd ctd
@@ -135,3 +115,56 @@ merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd dura
 label define ctd 0 "Not CTD" 1 "CTD"
 label values isctd ctd
 tabstat duration [aw = borrowing_volume], by(isctd) stat(mean n)
+
+**# Duration adjusted versions, the non CTD line is reweighted to the maturity mix of the CTD positions
+* duration buckets under 3, 3 to 6, 6 to 9, 9 to 15 and above 15 years
+* within a bucket and day both lines are position weighted means, the buckets are then averaged with the CTD position shares of that day
+
+* repo spread over SOFR
+use "$int/sftds.dta", clear
+keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0
+keep date isin borrowing_volume borrowing_rate
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd duration) nogen
+merge m:1 date using `sofr', keep(match) nogen
+gen spread = (borrowing_rate - sofr)*100 /*basis points*/
+drop if missing(duration)
+gen bucket = cond(duration < 3, 1, cond(duration < 6, 2, cond(duration < 9, 3, cond(duration < 15, 4, 5))))
+gen w = borrowing_volume
+collapse (mean) spread (rawsum) w [aw = borrowing_volume], by(date isctd bucket)
+bysort date isctd: egen wtot = total(w)
+gen share = w/wtot
+gen tmp = share if isctd == 1
+bysort date bucket: egen share_ctd = max(tmp) /*CTD share of the bucket on the day, applied to both groups*/
+drop if missing(share_ctd)
+collapse (mean) spread [aw = share_ctd], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+label define ctd 0 "Not CTD" 1 "CTD"
+label values isctd ctd
+tabstat spread, by(isctd) stat(mean n)
+tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Borrowing repo rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
+graph bar (mean) spread, over(isctd) ytitle("Borrowing repo rate minus SOFR, bp") name(bar, replace)
+graph combine ts bar, cols(2)
+
+* yield volatility
+use "$int/sftds.dta", clear
+keep if country == "US" & borrowing_volume > 0
+keep date isin borrowing_volume
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd duration) nogen
+merge m:1 date isin using `vol', keep(match) nogen
+drop if missing(duration)
+gen bucket = cond(duration < 3, 1, cond(duration < 6, 2, cond(duration < 9, 3, cond(duration < 15, 4, 5))))
+gen w = borrowing_volume
+collapse (mean) vol (rawsum) w [aw = borrowing_volume], by(date isctd bucket)
+bysort date isctd: egen wtot = total(w)
+gen share = w/wtot
+gen tmp = share if isctd == 1
+bysort date bucket: egen share_ctd = max(tmp)
+drop if missing(share_ctd)
+collapse (mean) vol [aw = share_ctd], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+label define ctd 0 "Not CTD" 1 "CTD"
+label values isctd ctd
+tabstat vol, by(isctd) stat(mean n)
+tw (line vol date if isctd==1)(line vol date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Yield volatility, bp per day") xtitle("") name(ts, replace)
+graph bar (mean) vol, over(isctd) ytitle("Yield volatility, bp per day") name(bar, replace)
+graph combine ts bar, cols(2)
