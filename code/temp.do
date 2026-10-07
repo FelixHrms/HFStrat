@@ -71,3 +71,37 @@ tabstat spread, by(isctd) stat(mean n)
 tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Borrowing repo rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
 graph bar (mean) spread, over(isctd) ytitle("Borrowing repo rate minus SOFR, bp") name(bar, replace)
 graph combine ts bar, cols(2)
+
+**# Yield volatility of CTD bonds against all other bonds, US only, weighted by fund positions
+* realized volatility per bond, standard deviation of daily yield changes in basis points over the past four weeks
+
+capture which rangestat
+if _rc ssc install rangestat
+
+use date isin yield_check using "$key/bond_day.dta", clear
+keep if substr(isin, 1, 2) == "US" & !missing(yield_check)
+bysort isin (date): gen dy = (yield_check - yield_check[_n-1])*100 if date - date[_n-1] <= 5 /*skip gaps*/
+rangestat (sd) dy (count) dy, interval(date -28 0) by(isin)
+keep if dy_count >= 15
+rename dy_sd vol
+keep date isin vol
+tempfile vol
+save `vol'
+
+use "$int/sftds.dta", clear
+keep if country == "US" & borrowing_volume > 0
+keep date isin borrowing_volume
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
+merge m:1 date isin using `vol', keep(match) nogen
+collapse (mean) vol [aw = borrowing_volume], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+label define ctd 0 "Not CTD" 1 "CTD"
+label values isctd ctd
+
+* the two means over the sample
+tabstat vol, by(isctd) stat(mean n)
+
+* time series on the left, bar chart on the right
+tw (line vol date if isctd==1)(line vol date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Yield volatility, bp per day") xtitle("") name(ts, replace)
+graph bar (mean) vol, over(isctd) ytitle("Yield volatility, bp per day") name(bar, replace)
+graph combine ts bar, cols(2)
