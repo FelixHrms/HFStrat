@@ -105,3 +105,13 @@ tabstat vol, by(isctd) stat(mean n)
 tw (line vol date if isctd==1)(line vol date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Yield volatility, bp per day") xtitle("") name(ts, replace)
 graph bar (mean) vol, over(isctd) ytitle("Yield volatility, bp per day") name(bar, replace)
 graph combine ts bar, cols(2)
+
+**# Position weighted average duration of CTD and other bonds, US only, same borrowing positions as above
+
+use "$int/sftds.dta", clear
+keep if country == "US" & borrowing_volume > 0
+keep date isin borrowing_volume
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd duration) nogen
+label define ctd 0 "Not CTD" 1 "CTD"
+label values isctd ctd
+tabstat duration [aw = borrowing_volume], by(isctd) stat(mean n)
