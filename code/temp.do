@@ -51,8 +51,10 @@ bysort date: drop if _N < 2 /*keep days with both groups*/
 label define ctd 0 "Not CTD" 1 "CTD"
 label values isctd ctd
 
-* time series
-tw (line rate date if isctd==1)(line rate date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Borrowing repo rate, percent")
+* the two means over the sample
+tabstat rate, by(isctd) stat(mean n)
 
-* bar chart, average over the sample
-graph bar (mean) rate, over(isctd) ytitle("Borrowing repo rate, percent")
+* time series on the left, bar chart on the right
+tw (line rate date if isctd==1)(line rate date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Borrowing repo rate, percent") xtitle("") name(ts, replace)
+graph bar (mean) rate, over(isctd) ytitle("Borrowing repo rate, percent") name(bar, replace)
+graph combine ts bar, cols(2)
