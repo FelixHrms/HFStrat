@@ -105,3 +105,39 @@ tabstat vol, by(isctd) stat(mean n)
 tw (line vol date if isctd==1)(line vol date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Yield volatility, bp per day") xtitle("") name(ts, replace)
 graph bar (mean) vol, over(isctd) ytitle("Yield volatility, bp per day") name(bar, replace)
 graph combine ts bar, cols(2)
+
+**# Bid ask spread of CTD bonds against all other bonds, US only, weighted by fund positions
+* there are no quotes in the pipeline yet, this expects Data/bidask.csv with columns date (YMD), cusip (8 characters), bid, ask, both in price
+* the spread is ask minus bid over the mid price, in basis points
+
+import delimited "$data/bidask.csv", varnames(1) clear
+capture drop v1
+gen date2 = date(date, "YMD")
+drop date
+rename date2 date
+format date %td
+gen cusip8 = substr(cusip, 1, 8)
+gen bidask = (ask - bid)/((ask + bid)/2)*10000
+keep if !missing(bidask) & bidask >= 0
+keep date cusip8 bidask
+duplicates drop date cusip8, force
+tempfile bidask
+save `bidask'
+
+use "$int/sftds.dta", clear
+keep if country == "US" & borrowing_volume > 0
+keep date isin borrowing_volume
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd cusip8) nogen
+merge m:1 date cusip8 using `bidask', keep(match) nogen
+collapse (mean) bidask [aw = borrowing_volume], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+label define ctd 0 "Not CTD" 1 "CTD"
+label values isctd ctd
+
+* the two means over the sample
+tabstat bidask, by(isctd) stat(mean n)
+
+* time series on the left, bar chart on the right
+tw (line bidask date if isctd==1)(line bidask date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Bid ask spread, bp of price") xtitle("") name(ts, replace)
+graph bar (mean) bidask, over(isctd) ytitle("Bid ask spread, bp of price") name(bar, replace)
+graph combine ts bar, cols(2)
