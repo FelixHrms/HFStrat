@@ -40,21 +40,34 @@ gen ormat = (maturitydate - issuedate) / 365
 bysort bondtype (isin): keep if _n == 1
 list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 
-**# Borrowing repo rate of CTD bonds against all other bonds, US only, weighted by fund positions
+**# Borrowing repo rate of CTD bonds against all other bonds as a spread over SOFR, US only, weighted by fund positions
+
+* SOFR, date in the second column and the rate in percent in the fourth
+import delimited "$data/SOFR.csv", varnames(nonames) rowrange(2) clear
+keep v2 v4
+rename (v2 v4) (sofrdate sofr)
+gen date = date(sofrdate, "YMD")
+format date %td
+destring sofr, replace
+keep date sofr
+tempfile sofr
+save `sofr'
 
 use "$int/sftds.dta", clear
 keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0
 keep date isin borrowing_volume borrowing_rate
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
-collapse (mean) rate = borrowing_rate [aw = borrowing_volume], by(date isctd)
+merge m:1 date using `sofr', keep(match) nogen
+gen spread = (borrowing_rate - sofr)*100 /*basis points*/
+collapse (mean) spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
 label define ctd 0 "Not CTD" 1 "CTD"
 label values isctd ctd
 
 * the two means over the sample
-tabstat rate, by(isctd) stat(mean n)
+tabstat spread, by(isctd) stat(mean n)
 
 * time series on the left, bar chart on the right
-tw (line rate date if isctd==1)(line rate date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Borrowing repo rate, percent") xtitle("") name(ts, replace)
-graph bar (mean) rate, over(isctd) ytitle("Borrowing repo rate, percent") name(bar, replace)
+tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Borrowing repo rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
+graph bar (mean) spread, over(isctd) ytitle("Borrowing repo rate minus SOFR, bp") name(bar, replace)
 graph combine ts bar, cols(2)
