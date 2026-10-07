@@ -40,17 +40,17 @@ gen ormat = (maturitydate - issuedate) / 365
 bysort bondtype (isin): keep if _n == 1
 list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 
-**# Repo rate of CTD bonds against all other bonds, US only, daily mean of the hedge fund repo rates by side
+**# Repo rate of CTD bonds against all other bonds, US only, position weighted daily mean of the hedge fund repo rates by side
 
 use "$int/sftds.dta", clear
 keep if country == "US"
-keep date isin borrowing_rate lending_rate
-rename (borrowing_rate lending_rate) (rate1 rate0)
+keep date isin borrowing_volume lending_volume borrowing_rate lending_rate
+rename (borrowing_volume lending_volume borrowing_rate lending_rate) (volume1 volume0 rate1 rate0)
 gen id = _n
-reshape long rate, i(id) j(borrowing)
-drop if missing(rate)
+reshape long volume rate, i(id) j(borrowing)
+drop if missing(rate) | volume <= 0
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
-collapse (mean) rate, by(date borrowing isctd)
+collapse (mean) rate [aw = volume], by(date borrowing isctd)
 label define side 0 "Lending rate" 1 "Borrowing rate"
 label values borrowing side
-tw (line rate date if isctd==1)(line rate date if isctd==0), by(borrowing) legend(order(1 "CTD" 2 "Not CTD")) ytitle("Repo rate, percent")
+tw (line rate date if isctd==1)(line rate date if isctd==0), by(borrowing) legend(order(1 "CTD" 2 "Not CTD")) ytitle("Repo rate, percent, weighted by positions")
