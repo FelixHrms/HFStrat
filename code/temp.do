@@ -206,4 +206,10 @@ merge 1:1 date isin using "$key/bond_day.dta", keep(match) keepusing(bondtype ma
 keep if bondtype == "2" & inlist(matgroup, 2, 5, 10) & otr_number == 1
 gen spread32 = (ask_price - bid_price)*32
 drop if missing(spread32) | spread32 < 0
-tw (scatter spread32 date if matgroup==2, msize(vsmall))(scatter spread32 date if matgroup==5, msize(vsmall))(scatter spread32 date if matgroup==10, msize(vsmall)), legend(order(1 "Two year" 2 "Five year" 3 "Ten year")) ytitle("Bid ask spread, 32nds of a point") xtitle("")
+* five day moving average over trading days, two and five year on the left axis, ten year on the right axis at twice the scale as in the post
+bysort matgroup (date): gen t = _n
+tsset matgroup t
+tssmooth ma ma5 = spread32, window(4 1 0)
+tw (line ma5 date if matgroup==2)(line ma5 date if matgroup==5)(line ma5 date if matgroup==10, yaxis(2)), ///
+	ylabel(0(0.125)0.5, axis(1)) ylabel(0(0.25)1, axis(2)) ytitle("32nds of a point", axis(1)) ytitle("32nds of a point", axis(2)) xtitle("") ///
+	legend(order(1 "Two year (left axis)" 2 "Five year (left axis)" 3 "Ten year (right axis)"))
