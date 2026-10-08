@@ -186,5 +186,10 @@ foreach s in bid ask {
 merge 1:1 date isin using "$key/bond_day.dta", keep(match) keepusing(duration) nogen
 gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
 drop if missing(bidask)
+* cleaning, bonds close to maturity blow up the formula through the duration, crossed quotes and the top percent of spreads are quote errors
+drop if duration < 0.25
+drop if bidask < 0
+bysort bondtype: egen p99 = pctile(bidask), p(99)
+drop if bidask > p99
 collapse (mean) bidask, by(date bondtype)
 tw (scatter bidask date if bondtype=="1", msize(vsmall))(scatter bidask date if bondtype=="2", msize(vsmall))(scatter bidask date if bondtype=="4", msize(vsmall)), legend(order(1 "Type 1" 2 "Type 2" 3 "Type 4")) ytitle("Yield bid ask spread, bp") xtitle("")
