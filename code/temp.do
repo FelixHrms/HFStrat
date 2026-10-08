@@ -168,3 +168,18 @@ tabstat vol, by(isctd) stat(mean n)
 tw (line vol date if isctd==1)(line vol date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Yield volatility, bp per day") xtitle("") name(ts, replace)
 graph bar (mean) vol, over(isctd) ytitle("Yield volatility, bp per day") name(bar, replace)
 graph combine ts bar, cols(2)
+
+**# Yield bid ask spread of US bonds over time by bond type, average across bonds
+* bid yield minus ask yield in basis points, the price spread expressed in yield terms, from the Bloomberg quotes in bond_bidask.csv
+
+import delimited "$key/bond_bidask.csv", varnames(1) clear
+gen date2 = date(date, "YMD")
+drop date
+rename date2 date
+format date %td
+merge m:1 isin using "$int/bond_info.dta", keep(match) keepusing(bondtype country) nogen
+keep if country == "US" & inlist(bondtype, "1", "2", "4")
+gen bidask = (bid_yield - ask_yield)*100
+drop if missing(bidask)
+collapse (mean) bidask, by(date bondtype)
+tw (scatter bidask date if bondtype=="1", msize(vsmall))(scatter bidask date if bondtype=="2", msize(vsmall))(scatter bidask date if bondtype=="4", msize(vsmall)), legend(order(1 "Type 1" 2 "Type 2" 3 "Type 4")) ytitle("Yield bid ask spread, bp") xtitle("")
