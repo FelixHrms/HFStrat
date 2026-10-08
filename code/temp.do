@@ -210,6 +210,12 @@ drop if missing(spread32) | spread32 < 0
 bysort matgroup (date): gen t = _n
 tsset matgroup t
 tssmooth ma ma5 = spread32, window(4 1 0)
-tw (line ma5 date if matgroup==2)(line ma5 date if matgroup==5)(line ma5 date if matgroup==10, yaxis(2)), ///
-	ylabel(0(0.125)0.5, axis(1)) ylabel(0(0.25)1, axis(2)) ytitle("32nds of a point", axis(1)) ytitle("32nds of a point", axis(2)) xtitle("") ///
+* axis range from the 99th percentile of the series, the March 2020 spike is clipped at the top of the chart
+sum ma5 if inlist(matgroup, 2, 5), detail
+local cap = ceil(r(p99)/0.25)*0.25
+sum ma5 if matgroup == 10, detail
+local cap = max(`cap', ceil(r(p99)/0.5)*0.25)
+gen ma5c = min(ma5, cond(matgroup == 10, 2*`cap', `cap'))
+tw (line ma5c date if matgroup==2)(line ma5c date if matgroup==5)(line ma5c date if matgroup==10, yaxis(2)), ///
+	ylabel(0(`=`cap'/4')`cap', axis(1)) ylabel(0(`=`cap'/2')`=2*`cap'', axis(2)) ytitle("32nds of a point", axis(1)) ytitle("32nds of a point", axis(2)) xtitle("") ///
 	legend(order(1 "Two year (left axis)" 2 "Five year (left axis)" 3 "Ten year (right axis)"))
