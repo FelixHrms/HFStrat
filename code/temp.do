@@ -193,3 +193,17 @@ bysort bondtype: egen p99 = pctile(bidask), p(99)
 drop if bidask > p99
 collapse (mean) bidask, by(date bondtype)
 tw (scatter bidask date if bondtype=="1", msize(vsmall))(scatter bidask date if bondtype=="2", msize(vsmall))(scatter bidask date if bondtype=="4", msize(vsmall)), legend(order(1 "Type 1" 2 "Type 2" 3 "Type 4")) ytitle("Yield bid ask spread, bp") xtitle("")
+
+**# Bid ask spread of the on the run 2, 5 and 10 year notes in 32nds of a point, the Liberty Street Economics set up
+* a point is one percent of par, the spread is ask price minus bid price times 32
+
+import delimited "$key/bond_bidask.csv", varnames(1) clear
+gen date2 = date(date, "YMD")
+drop date
+rename date2 date
+format date %td
+merge 1:1 date isin using "$key/bond_day.dta", keep(match) keepusing(bondtype matgroup otr_number) nogen
+keep if bondtype == "2" & inlist(matgroup, 2, 5, 10) & otr_number == 1
+gen spread32 = (ask_price - bid_price)*32
+drop if missing(spread32) | spread32 < 0
+tw (scatter spread32 date if matgroup==2, msize(vsmall))(scatter spread32 date if matgroup==5, msize(vsmall))(scatter spread32 date if matgroup==10, msize(vsmall)), legend(order(1 "Two year" 2 "Five year" 3 "Ten year")) ytitle("Bid ask spread, 32nds of a point") xtitle("")
