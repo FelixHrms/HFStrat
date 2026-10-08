@@ -218,6 +218,7 @@ local cap = ceil(r(p99)/0.25)*0.25
 sum ma5 if matgroup == 10, detail
 local cap = max(`cap', ceil(r(p99)/0.5)*0.25)
 gen ma5c = min(ma5, cond(matgroup == 10, 2*`cap', `cap'))
+keep if inrange(date, td(1jan2020), td(31oct2025)) /*same window as the post*/
 tw (line ma5c date if matgroup==2)(line ma5c date if matgroup==5)(line ma5c date if matgroup==10, yaxis(2)), ///
 	ylabel(0(`=`cap'/4')`cap', axis(1)) ylabel(0(`=`cap'/2')`=2*`cap'', axis(2)) ytitle("32nds of a point", axis(1)) ytitle("32nds of a point", axis(2)) xtitle("") ///
-	legend(order(1 "Two year (left axis)" 2 "Five year (left axis)" 3 "Ten year (right axis)"))
+	legend(order(1 "Two year (left axis)" 2 "Five year (left axis)" 3 "Ten year (right axis)") pos(6) rows(1))
