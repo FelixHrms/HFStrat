@@ -170,16 +170,21 @@ graph bar (mean) vol, over(isctd) ytitle("Yield volatility, bp per day") name(ba
 graph combine ts bar, cols(2)
 
 **# Yield bid ask spread of US bonds over time by bond type, average across bonds
-* bid yield minus ask yield in basis points, the price spread expressed in yield terms, from the Bloomberg quotes in bond_bidask.csv
+* (ask price minus bid price) over (modified duration times mid price), in basis points, duration from the bond day panel
 
 import delimited "$key/bond_bidask.csv", varnames(1) clear
 gen date2 = date(date, "YMD")
 drop date
 rename date2 date
 format date %td
-merge m:1 isin using "$int/bond_info.dta", keep(match) keepusing(bondtype country) nogen
+merge m:1 isin using "$int/bond_info.dta", keep(match) keepusing(bondtype country maturitydate) nogen
 keep if country == "US" & inlist(bondtype, "1", "2", "4")
-gen bidask = (bid_yield - ask_yield)*100
+* Bloomberg quotes bills as discount rates in the price fields, turn them into prices
+foreach s in bid ask {
+	replace `s'_price = 100*(1 - `s'_price/100*(maturitydate - date)/360) if bondtype == "4"
+}
+merge 1:1 date isin using "$key/bond_day.dta", keep(match) keepusing(duration) nogen
+gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
 drop if missing(bidask)
 collapse (mean) bidask, by(date bondtype)
 tw (scatter bidask date if bondtype=="1", msize(vsmall))(scatter bidask date if bondtype=="2", msize(vsmall))(scatter bidask date if bondtype=="4", msize(vsmall)), legend(order(1 "Type 1" 2 "Type 2" 3 "Type 4")) ytitle("Yield bid ask spread, bp") xtitle("")
