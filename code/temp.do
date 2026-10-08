@@ -206,10 +206,12 @@ merge 1:1 date isin using "$key/bond_day.dta", keep(match) keepusing(bondtype ma
 keep if bondtype == "2" & inlist(matgroup, 2, 5, 10) & otr_number == 1
 gen spread32 = (ask_price - bid_price)*32
 drop if missing(spread32) | spread32 < 0
-* five day moving average over trading days, two and five year on the left axis, ten year on the right axis at twice the scale as in the post
+* moving average over 21 trading days, the post uses five days but its daily values are already intraday averages while Bloomberg gives one end of day quote
+* two and five year on the left axis, ten year on the right axis at twice the scale as in the post
+collapse (mean) spread32, by(date matgroup)
 bysort matgroup (date): gen t = _n
 tsset matgroup t
-tssmooth ma ma5 = spread32, window(4 1 0)
+tssmooth ma ma5 = spread32, window(20 1 0)
 * axis range from the 99th percentile of the series, the March 2020 spike is clipped at the top of the chart
 sum ma5 if inlist(matgroup, 2, 5), detail
 local cap = ceil(r(p99)/0.25)*0.25
