@@ -239,8 +239,6 @@ merge 1:1 date isin using "$key/bond_day.dta", keep(match) keepusing(duration ma
 foreach s in bid ask {
 	replace `s'_price = 100*(1 - `s'_price/100*(maturitydate - date)/360) if bondtype == "4"
 }
-/*quote sanity, an ask more than two percent of the mid price above the bid is not a market quote, Bloomberg carries asks of 250 against bids near par on some French lines*/
-drop if (ask_price - bid_price)/((ask_price + bid_price)/2) > 0.02
 /*cleaning on the yield spread, bonds close to maturity blow it up through the duration, crossed quotes and the top percent within bond type are quote errors*/
 gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)
 drop if missing(bidask)
