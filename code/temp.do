@@ -56,6 +56,22 @@ keep if country != "US" & lending_volume > 0
 keep date isin lending_volume
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
 merge m:1 date isin using `bidask', keep(match) nogen
+
+* diagnostics, the position weighted spread by bond type and country among the non CTD positions, and the bonds behind the ten worst non CTD days
+preserve
+	keep if isctd == 0
+	merge m:1 isin using "$int/bond_info.dta", keep(match) keepusing(bondtype country) nogen
+	tabstat bidask [aw = lending_volume], by(bondtype) stat(mean p50 p95 n) col(stat)
+	tabstat bidask [aw = lending_volume], by(country) stat(mean p50 p95 n) col(stat)
+	bysort date: egen voltot = total(lending_volume)
+	gen contrib = bidask*lending_volume/voltot /*contribution of the position to the day's weighted mean*/
+	bysort date: egen daymean = total(contrib)
+	gsort -daymean -contrib
+	egen dayrank = group(-daymean)
+	bysort dayrank (contrib): gen posrank = _N - _n + 1
+	format daymean contrib bidask %8.1f
+	list date daymean isin bondtype country bidask lending_volume contrib if dayrank <= 10 & posrank <= 3, noobs sepby(date)
+restore
 collapse (mean) bidask [aw = lending_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
 label define ctd 0 "Not CTD" 1 "CTD"
