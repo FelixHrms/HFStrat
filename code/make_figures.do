@@ -813,3 +813,42 @@ gen x = 1 - isctd
 tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") ylabel(#5) ytitle("Lending repo rate minus ESTR, bp") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
 	graph export "$fig/repo_spread_ctd_EA.png", replace width(3220)
+
+**# Euro area, haircut of CTD bonds against all other bonds on the lending side, overnight positions, weighted by fund positions
+* funds are short the cash bond and lend cash against it, the haircut is the average over the fund's lending trades in the bond on the day as reported in the SFTDS, in percent
+
+use "$int/sftds.dta", clear
+keep if country != "US" & !missing(lending_haircut) & lending_volume > 0 & lending_term <= 1
+keep date isin lending_volume lending_haircut
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
+collapse (mean) haircut = lending_haircut [aw = lending_volume], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+
+* time series on the left
+tw (line haircut date if isctd==1)(line haircut date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Haircut on lending positions, percent") xtitle("") yline(0) name(ts, replace)
+
+* means and the gap with Newey West standard errors over 20 trading days, the daily haircuts are autocorrelated
+reshape wide haircut, i(date) j(isctd)
+sort date
+gen t = _n
+tsset t
+foreach g in 0 1 {
+	newey haircut`g', lag(20)
+	local m`g' = _b[_cons]
+	local s`g' = _se[_cons]
+}
+gen gap = haircut1 - haircut0
+newey gap, lag(20)
+
+* means with 95 percent bands on the right, CTD on the left as in the legend, one bar plot per group so the colours follow the same order as the lines
+clear
+set obs 2
+gen isctd = _n - 1
+gen mean = cond(isctd == 1, `m1', `m0')
+gen se = cond(isctd == 1, `s1', `s0')
+gen lo = mean - 1.96*se
+gen hi = mean + 1.96*se
+gen x = 1 - isctd
+tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") ylabel(#5) ytitle("Haircut on lending positions, percent") legend(off) name(bar, replace)
+graph combine ts bar, cols(2)
+	graph export "$fig/haircut_ctd_EA.png", replace width(3220)
