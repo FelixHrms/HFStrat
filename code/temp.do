@@ -89,22 +89,17 @@ bysort year: egen p1 = pctile(spread), p(1)
 bysort year: egen p99 = pctile(spread), p(99)
 drop if spread < p1 | spread > p99
 
-* daily means with the noise band each line should carry from its own sample size, 1.96 times the within group standard deviation over the square root of the number of positions
-collapse (mean) spread (sd) sd = spread (count) n = spread [aw = borrowing_volume], by(date isctd)
+collapse (mean) spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
-gen lo = spread - 1.96*sd/sqrt(n)
-gen hi = spread + 1.96*sd/sqrt(n)
+keep if date >= td(1jan2023) /*the US basis trade builds up from 2023*/
 
 * the two means over the sample
 tabstat spread, by(isctd) stat(mean n)
 
 * time series on the left, means with 95 percent confidence bands on the right
-tw (rarea lo hi date if isctd==1, pstyle(p1) color(%25) lwidth(none))(rarea lo hi date if isctd==0, pstyle(p2) color(%25) lwidth(none)) ///
-	(line spread date if isctd==1, pstyle(p1))(line spread date if isctd==0, pstyle(p2)), ///
-	legend(order(3 "CTD" 4 "Not CTD") pos(6) rows(1)) ytitle("Borrowing repo rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
+tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Borrowing repo rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
 
 * means and the gap with Newey West standard errors over 20 trading days, the daily spreads are autocorrelated
-keep date isctd spread
 reshape wide spread, i(date) j(isctd)
 sort date
 gen t = _n
