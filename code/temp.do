@@ -191,10 +191,28 @@ label values isctd ctd
 * the two means over the sample
 tabstat bidask, by(isctd) stat(mean sd n)
 
-* time series on the left, means with 95 percent confidence bands over the daily series on the right
+* time series on the left, means with 95 percent confidence bands on the right
 tw (line bidask date if isctd==1)(line bidask date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Yield bid ask spread, bp") xtitle("") name(ts, replace)
-collapse (mean) mean = bidask (sd) sd = bidask (count) n = bidask, by(isctd)
-gen lo = mean - 1.96*sd/sqrt(n)
-gen hi = mean + 1.96*sd/sqrt(n)
-tw (bar mean isctd, barwidth(0.6))(rcap lo hi isctd), xlabel(0 "Not CTD" 1 "CTD") xtitle("") ytitle("Yield bid ask spread, bp") legend(off) name(bar, replace)
+
+* means and the gap with Newey West standard errors over 20 trading days, the daily spreads are autocorrelated
+reshape wide bidask, i(date) j(isctd)
+sort date
+gen t = _n
+tsset t
+foreach g in 0 1 {
+	newey bidask`g', lag(20)
+	local m`g' = _b[_cons]
+	local s`g' = _se[_cons]
+}
+gen gap = bidask1 - bidask0
+newey gap, lag(20)
+
+clear
+set obs 2
+gen isctd = _n - 1
+gen mean = cond(isctd == 1, `m1', `m0')
+gen se = cond(isctd == 1, `s1', `s0')
+gen lo = mean - 1.96*se
+gen hi = mean + 1.96*se
+tw (bar mean isctd, barwidth(0.6))(rcap lo hi isctd), xlabel(0 "Not CTD" 1 "CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Yield bid ask spread, bp") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
