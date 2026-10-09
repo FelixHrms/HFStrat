@@ -78,6 +78,7 @@ bysort year borrowing: egen p99 = pctile(spread), p(99)
 drop if spread < p1 | spread > p99
 
 collapse (mean) spread [aw = volume], by(date borrowing isctd)
+keep if date >= td(1jan2024) /*after the collateral scarcity period*/
 label define ctd 0 "Not CTD" 1 "CTD"
 label values isctd ctd
 tempfile daily
