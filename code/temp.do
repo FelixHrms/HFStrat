@@ -82,11 +82,6 @@ foreach d in 16mar2022 4may2022 15jun2022 27jul2022 21sep2022 2nov2022 14dec2022
 }
 drop if fomc == 1
 
-* trim the fund bond day spreads at the first and last percentile within each year, reporting errors in single rates pull the daily averages far off
-bysort year: egen p1 = pctile(spread), p(1)
-bysort year: egen p99 = pctile(spread), p(99)
-drop if spread < p1 | spread > p99
-
 * raw overnight rates against SOFR by year, to spot rates in the wrong units, zeros or stale levels
 gen year = year(date)
 tabstat borrowing_rate sofr, by(year) stat(min p1 p5 p50 p95 p99 max n) col(stat)
@@ -99,6 +94,11 @@ list date entity_id isin borrowing_rate sofr borrowing_volume isctd in 1/15, noo
 gsort spread
 list date entity_id isin borrowing_rate sofr borrowing_volume isctd in 1/15, noobs
 drop off
+
+* trim the fund bond day spreads at the first and last percentile within each year, reporting errors in single rates pull the daily averages far off
+bysort year: egen p1 = pctile(spread), p(1)
+bysort year: egen p99 = pctile(spread), p(99)
+drop if spread < p1 | spread > p99
 
 collapse (mean) spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
