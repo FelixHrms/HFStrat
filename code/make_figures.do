@@ -563,8 +563,6 @@ keep if country == "US"
 gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
 * price spread in 32nds of a point, a point is one percent of par
 gen spread32 = (ask_price - bid_price)*32
-tempfile bidask
-save `bidask'
 
 preserve
 	keep if inlist(bondtype, "1", "2", "4")
@@ -592,12 +590,19 @@ tw (line ma date if matgroup==2)(line ma date if matgroup==5)(line ma date if ma
 	graph export "$fig/bidask_otr.png", replace width(3220)
 
 **# Bid ask spread of CTD bonds against all other bonds held by funds, US only, weighted by borrowing positions
+* yield spread, ask minus bid price over duration times mid price, in basis points, from the cleaned Bloomberg quotes
+
+use "$key/bond_bidask.dta", clear
+gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
+keep date isin bidask
+tempfile bidask
+save `bidask'
 
 use "$int/sftds.dta", clear
 keep if country == "US" & borrowing_volume > 0
 keep date isin borrowing_volume
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
-merge m:1 date isin using `bidask', keep(match) keepusing(bidask) nogen
+merge m:1 date isin using `bidask', keep(match) nogen
 collapse (mean) bidask [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
 tw (line bidask date if isctd==1)(line bidask date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Yield bid ask spread, bp") xtitle("") name(ts, replace)
