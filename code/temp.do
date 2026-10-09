@@ -52,6 +52,7 @@ format month %tm
 gen hasterm = !missing(borrowing_term)
 gen overnight = borrowing_term <= 1
 gen inagg = _merge == 3
+tabstat borrowing_term if inrange(month, tm(2024m10), tm(2025m5)), by(month) stat(min p5 p50 p95 max n) col(stat)
 collapse (count) n = borrowing_volume (sum) hasterm overnight inagg, by(month)
 list, noobs
 
