@@ -746,3 +746,71 @@ gen x = 1 - isctd
 tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Haircut, percent") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
 	graph export "$fig/haircut_ctd.png", replace width(3220)
+
+**# Euro area, lending repo rate of CTD bonds against all other bonds as a spread over ESTR, overnight positions, weighted by fund positions, from 2024
+* funds are short the cash bond and lend cash against it, so the lending side carries the trade, a lower rate on the CTD is the cost of its specialness
+* the sample starts in 2024 because German collateral traded far below ESTR in the scarcity period of 2022 and 2023, which swamps the comparison
+
+* ESTR, day month year dates
+import delimited "$data/ESTR.csv", varnames(1) clear
+gen date2 = date(date, "DMY")
+drop date
+rename date2 date
+format date %td
+keep date estr
+tempfile estr
+save `estr'
+
+* overnight lending positions only, the term is the average contractual maturity in days
+use "$int/sftds.dta", clear
+keep if country != "US" & !missing(lending_rate) & lending_volume > 0 & lending_term <= 1
+keep date isin lending_volume lending_rate
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
+merge m:1 date using `estr', keep(match) nogen
+gen spread = (lending_rate - estr)*100 /*basis points*/
+
+* drop the days around ECB rate changes, the decision Thursday through the Wednesday a week later when the new rate applies and two days beyond
+gen ecb = 0
+foreach d in 21jul2022 8sep2022 27oct2022 15dec2022 2feb2023 16mar2023 4may2023 15jun2023 27jul2023 14sep2023 6jun2024 12sep2024 17oct2024 12dec2024 30jan2025 6mar2025 17apr2025 5jun2025 {
+	replace ecb = 1 if inrange(date, td(`d'), td(`d') + 9)
+}
+drop if ecb == 1
+
+* trim the fund bond day spreads at the first and last percentile within each year
+gen year = year(date)
+bysort year: egen p1 = pctile(spread), p(1)
+bysort year: egen p99 = pctile(spread), p(99)
+drop if spread < p1 | spread > p99
+
+collapse (mean) spread [aw = lending_volume], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+keep if date >= td(1jan2024)
+
+* time series on the left
+tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Lending repo rate minus ESTR, bp") xtitle("") yline(0) name(ts, replace)
+
+* means and the gap with Newey West standard errors over 20 trading days, the daily spreads are autocorrelated
+reshape wide spread, i(date) j(isctd)
+sort date
+gen t = _n
+tsset t
+foreach g in 0 1 {
+	newey spread`g', lag(20)
+	local m`g' = _b[_cons]
+	local s`g' = _se[_cons]
+}
+gen gap = spread1 - spread0
+newey gap, lag(20)
+
+* means with 95 percent bands on the right, CTD on the left as in the legend, one bar plot per group so the colours follow the same order as the lines
+clear
+set obs 2
+gen isctd = _n - 1
+gen mean = cond(isctd == 1, `m1', `m0')
+gen se = cond(isctd == 1, `s1', `s0')
+gen lo = mean - 1.96*se
+gen hi = mean + 1.96*se
+gen x = 1 - isctd
+tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") ylabel(#5) ytitle("Lending repo rate minus ESTR, bp") legend(off) name(bar, replace)
+graph combine ts bar, cols(2)
+	graph export "$fig/repo_spread_ctd_EA.png", replace width(3220)
