@@ -67,6 +67,12 @@ foreach d in 16mar2022 4may2022 15jun2022 27jul2022 21sep2022 2nov2022 14dec2022
 }
 drop if fomc == 1
 
+* trim the fund bond day spreads at the first and last percentile within each year, reporting errors in single rates pull the daily averages far off
+gen year = year(date)
+bysort year: egen p1 = pctile(spread), p(1)
+bysort year: egen p99 = pctile(spread), p(99)
+drop if spread < p1 | spread > p99
+
 collapse (mean) spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
 label define ctd 0 "Not CTD" 1 "CTD"
