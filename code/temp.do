@@ -39,3 +39,50 @@ keep if inlist(bondtype, "4", "GTC", "LET", "FTB", "BOT")
 gen ormat = (maturitydate - issuedate) / 365
 bysort bondtype (isin): keep if _n == 1
 list bondtype country isin issuedate maturitydate ormat couponrate, noobs
+
+**# Haircut of CTD bonds against all other bonds, US only, all terms, no cleaning, weighted by fund positions
+* the haircut is the average over the fund's borrowing trades in the bond on the day, as reported in the SFTDS
+
+use "$int/sftds.dta", clear
+keep if country == "US" & !missing(borrowing_haircut) & borrowing_volume > 0
+keep date isin borrowing_volume borrowing_haircut
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
+label define ctd 0 "Not CTD" 1 "CTD"
+label values isctd ctd
+
+* distribution of the raw haircuts
+tabstat borrowing_haircut, by(isctd) stat(min p1 p5 p50 p95 p99 max n) col(stat)
+
+collapse (mean) haircut = borrowing_haircut [aw = borrowing_volume], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+
+* the two means over the sample
+tabstat haircut, by(isctd) stat(mean n)
+
+* time series on the left, means with 95 percent confidence bands on the right
+tw (line haircut date if isctd==1)(line haircut date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Haircut, percent") xtitle("") yline(0) name(ts, replace)
+
+* means and the gap with Newey West standard errors over 20 trading days, the daily haircuts are autocorrelated
+reshape wide haircut, i(date) j(isctd)
+sort date
+gen t = _n
+tsset t
+foreach g in 0 1 {
+	newey haircut`g', lag(20)
+	local m`g' = _b[_cons]
+	local s`g' = _se[_cons]
+}
+gen gap = haircut1 - haircut0
+newey gap, lag(20)
+
+* CTD on the left as in the legend of the time series, one bar plot per group so the colours follow the same order as the lines
+clear
+set obs 2
+gen isctd = _n - 1
+gen mean = cond(isctd == 1, `m1', `m0')
+gen se = cond(isctd == 1, `s1', `s0')
+gen lo = mean - 1.96*se
+gen hi = mean + 1.96*se
+gen x = 1 - isctd
+tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Haircut, percent") legend(off) name(bar, replace)
+graph combine ts bar, cols(2)
