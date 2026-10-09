@@ -44,11 +44,22 @@ list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 * the haircut is the average over the fund's borrowing trades in the bond on the day, as reported in the SFTDS
 
 use "$int/sftds.dta", clear
-keep if country == "US" & !missing(borrowing_haircut) & borrowing_volume > 0 & borrowing_term <= 1 /*overnight positions only*/
+keep if country == "US" & borrowing_volume > 0 & borrowing_term <= 1 /*overnight positions only*/
 keep date isin borrowing_volume borrowing_haircut
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
 label define ctd 0 "Not CTD" 1 "CTD"
 label values isctd ctd
+
+* coverage by month, overnight fund bond days and how many of them carry a haircut, suffix 1 for CTD and 0 for the rest
+preserve
+	gen month = mofd(date)
+	format month %tm
+	gen hashc = !missing(borrowing_haircut)
+	collapse (count) n = borrowing_volume (sum) nhc = hashc, by(month isctd)
+	reshape wide n nhc, i(month) j(isctd)
+	list month n0 nhc0 n1 nhc1, noobs
+restore
+keep if !missing(borrowing_haircut)
 
 * distribution of the raw haircuts
 tabstat borrowing_haircut, by(isctd) stat(min p1 p5 p50 p95 p99 max n) col(stat)
