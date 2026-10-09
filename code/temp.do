@@ -82,34 +82,29 @@ foreach d in 16mar2022 4may2022 15jun2022 27jul2022 21sep2022 2nov2022 14dec2022
 }
 drop if fomc == 1
 
-* raw overnight rates against SOFR by year, to spot rates in the wrong units, zeros or stale levels
 gen year = year(date)
-tabstat borrowing_rate sofr, by(year) stat(min p1 p5 p50 p95 p99 max n) col(stat)
-* rows more than one percentage point away from SOFR, share of rows and of volume by year, and the most extreme ones
-gen off = abs(borrowing_rate - sofr) > 1
-tab year off, row nofreq
-tab year off [aw = borrowing_volume], row nofreq
-gsort -spread
-list date entity_id isin borrowing_rate sofr borrowing_volume isctd in 1/15, noobs
-gsort spread
-list date entity_id isin borrowing_rate sofr borrowing_volume isctd in 1/15, noobs
-drop off
 
 * trim the fund bond day spreads at the first and last percentile within each year, reporting errors in single rates pull the daily averages far off
 bysort year: egen p1 = pctile(spread), p(1)
 bysort year: egen p99 = pctile(spread), p(99)
 drop if spread < p1 | spread > p99
 
-collapse (mean) spread [aw = borrowing_volume], by(date isctd)
+* daily means with the noise band each line should carry from its own sample size, 1.96 times the within group standard deviation over the square root of the number of positions
+collapse (mean) spread (sd) sd = spread (count) n = spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
+gen lo = spread - 1.96*sd/sqrt(n)
+gen hi = spread + 1.96*sd/sqrt(n)
 
 * the two means over the sample
 tabstat spread, by(isctd) stat(mean n)
 
 * time series on the left, means with 95 percent confidence bands on the right
-tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Borrowing repo rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
+tw (rarea lo hi date if isctd==1, pstyle(p1) color(%25) lwidth(none))(rarea lo hi date if isctd==0, pstyle(p2) color(%25) lwidth(none)) ///
+	(line spread date if isctd==1, pstyle(p1))(line spread date if isctd==0, pstyle(p2)), ///
+	legend(order(3 "CTD" 4 "Not CTD") pos(6) rows(1)) ytitle("Borrowing repo rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
 
 * means and the gap with Newey West standard errors over 20 trading days, the daily spreads are autocorrelated
+keep date isctd spread
 reshape wide spread, i(date) j(isctd)
 sort date
 gen t = _n
