@@ -88,10 +88,14 @@ replace lending_volume=lending_volume/10^9
 
 *********FELIX ADDITION: FLIP BORROWING AND LENDING FOR THESE TWO ENTITIES AND THE BEGINNING OF THE SAMPLE***************
 *************************************************************************************************************************
-gen tmp = borrowing_volume if inlist(entity_id,"P5XEQYFJP74DYQX88M80","O1XNTICYRCAHEAMEQI31") & date < td(24apr2021)
-replace borrowing_volume = lending_volume if !missing(tmp)
-replace lending_volume = tmp if !missing(tmp)
-drop tmp
+gen flip = inlist(entity_id,"P5XEQYFJP74DYQX88M80","O1XNTICYRCAHEAMEQI31") & date < td(24apr2021)
+foreach s in volume rate term haircut {
+	gen tmp = borrowing_`s'
+	replace borrowing_`s' = lending_`s' if flip
+	replace lending_`s' = tmp if flip
+	drop tmp
+}
+drop flip
 *************************************************************************************************************************
 *************************************************************************************************************************
 
