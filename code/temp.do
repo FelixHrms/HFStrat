@@ -214,5 +214,7 @@ gen mean = cond(isctd == 1, `m1', `m0')
 gen se = cond(isctd == 1, `s1', `s0')
 gen lo = mean - 1.96*se
 gen hi = mean + 1.96*se
-tw (bar mean isctd, barwidth(0.6))(rcap lo hi isctd), xlabel(0 "Not CTD" 1 "CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Yield bid ask spread, bp") legend(off) name(bar, replace)
+* CTD on the left as in the legend of the time series, one bar plot per group so the colours follow the same order as the lines
+gen x = 1 - isctd
+tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Yield bid ask spread, bp") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
