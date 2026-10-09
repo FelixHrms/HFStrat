@@ -63,13 +63,19 @@ preserve
 	merge m:1 isin using "$int/bond_info.dta", keep(match) keepusing(bondtype country) nogen
 	tabstat bidask [aw = lending_volume], by(bondtype) stat(mean p50 p95 n) col(stat)
 	tabstat bidask [aw = lending_volume], by(country) stat(mean p50 p95 n) col(stat)
+	merge 1:1 date isin using "$key/bond_bidask.dta", keep(match) keepusing(bid_price ask_price duration) nogen
+	* the fifteen largest spreads among the positions, with the quotes and the duration behind them
+	gsort -bidask
+	format bidask duration %8.2f
+	list date isin bondtype country bid_price ask_price duration bidask lending_volume in 1/15, noobs
+	* the bonds behind the ten worst non CTD days
 	bysort date: egen voltot = total(lending_volume)
 	gen contrib = bidask*lending_volume/voltot /*contribution of the position to the day's weighted mean*/
 	bysort date: egen daymean = total(contrib)
-	gsort -daymean -contrib
-	egen dayrank = group(-daymean)
+	gen negmean = -daymean
+	egen dayrank = group(negmean)
 	bysort dayrank (contrib): gen posrank = _N - _n + 1
-	format daymean contrib bidask %8.1f
+	format daymean contrib %8.1f
 	list date daymean isin bondtype country bidask lending_volume contrib if dayrank <= 10 & posrank <= 3, noobs sepby(date)
 restore
 collapse (mean) bidask [aw = lending_volume], by(date isctd)
