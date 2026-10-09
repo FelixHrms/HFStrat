@@ -810,7 +810,7 @@ gen se = cond(isctd == 1, `s1', `s0')
 gen lo = mean - 1.96*se
 gen hi = mean + 1.96*se
 gen x = 1 - isctd
-tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") ylabel(#5) ytitle("Lending repo rate minus ESTR, bp") legend(off) name(bar, replace)
+tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Lending repo rate minus ESTR, bp") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
 	graph export "$fig/repo_spread_ctd_EA.png", replace width(3220)
 
@@ -849,6 +849,6 @@ gen se = cond(isctd == 1, `s1', `s0')
 gen lo = mean - 1.96*se
 gen hi = mean + 1.96*se
 gen x = 1 - isctd
-tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") ylabel(#5) ytitle("Haircut on lending positions, percent") legend(off) name(bar, replace)
+tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Haircut on lending positions, percent") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
 	graph export "$fig/haircut_ctd_EA.png", replace width(3220)
