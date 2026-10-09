@@ -559,6 +559,10 @@ use "$int/sftds_agg.dta" , clear
 
 use "$key/bond_bidask.dta", clear
 keep if country == "US"
+* yield spread, ask minus bid price over duration times mid price, in basis points, the price spread expressed in yield terms
+gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
+* price spread in 32nds of a point, a point is one percent of par
+gen spread32 = (ask_price - bid_price)*32
 
 preserve
 	keep if inlist(bondtype, "1", "2", "4")
