@@ -63,7 +63,7 @@ preserve
 	merge m:1 isin using "$int/bond_info.dta", keep(match) keepusing(bondtype country) nogen
 	tabstat bidask [aw = lending_volume], by(bondtype) stat(mean p50 p95 n) col(stat)
 	tabstat bidask [aw = lending_volume], by(country) stat(mean p50 p95 n) col(stat)
-	merge 1:1 date isin using "$key/bond_bidask.dta", keep(match) keepusing(bid_price ask_price duration) nogen
+	merge m:1 date isin using "$key/bond_bidask.dta", keep(match) keepusing(bid_price ask_price duration) nogen
 	* the fifteen largest spreads among the positions, with the quotes and the duration behind them
 	gsort -bidask
 	format bidask duration %8.2f
