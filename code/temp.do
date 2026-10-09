@@ -45,6 +45,7 @@ list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 * funds are short the cash bond and lend cash against it, so the lending positions are the ones that hold the bonds of the trade
 
 use "$key/bond_bidask.dta", clear
+keep if duration >= 1 /*under a year the tick size rather than liquidity sets the yield spread*/
 gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
 keep date isin bidask
 tempfile bidask
