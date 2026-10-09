@@ -168,3 +168,33 @@ tabstat vol, by(isctd) stat(mean n)
 tw (line vol date if isctd==1)(line vol date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Yield volatility, bp per day") xtitle("") name(ts, replace)
 graph bar (mean) vol, over(isctd) ytitle("Yield volatility, bp per day") name(bar, replace)
 graph combine ts bar, cols(2)
+
+**# Bid ask spread of CTD bonds against all other bonds, US only, weighted by fund positions
+* yield spread, ask minus bid price over duration times mid price, in basis points, from the cleaned Bloomberg quotes
+
+use "$key/bond_bidask.dta", clear
+gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
+keep date isin bidask
+tempfile bidask
+save `bidask'
+
+use "$int/sftds.dta", clear
+keep if country == "US" & borrowing_volume > 0
+keep date isin borrowing_volume
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
+merge m:1 date isin using `bidask', keep(match) nogen
+collapse (mean) bidask [aw = borrowing_volume], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+label define ctd 0 "Not CTD" 1 "CTD"
+label values isctd ctd
+
+* the two means over the sample
+tabstat bidask, by(isctd) stat(mean sd n)
+
+* time series on the left, means with 95 percent confidence bands over the daily series on the right
+tw (line bidask date if isctd==1)(line bidask date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Yield bid ask spread, bp") xtitle("") name(ts, replace)
+collapse (mean) mean = bidask (sd) sd = bidask (count) n = bidask, by(isctd)
+gen lo = mean - 1.96*sd/sqrt(n)
+gen hi = mean + 1.96*sd/sqrt(n)
+tw (bar mean isctd, barwidth(0.6))(rcap lo hi isctd), xlabel(0 "Not CTD" 1 "CTD") xtitle("") ytitle("Yield bid ask spread, bp") legend(off) name(bar, replace)
+graph combine ts bar, cols(2)
