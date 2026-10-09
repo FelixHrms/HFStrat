@@ -554,3 +554,33 @@ use "$int/sftds_agg.dta" , clear
 		graph export "$fig/convexity_gap_tyvol.png", replace width(3220)
 	tw (line gapconv3 tuesday ,ysc(reverse)) (line  MOVE_Index___L1_ tuesday, yaxis(2)) if tuesday>mdy(6,1,2021), legend(pos(6))
 		graph export "$fig/convexity_gap_move.png", replace width(3220)
+
+**# Bid ask spreads, yield spread of US bonds by type and the on the run notes in 32nds as in Liberty Street Economics
+
+use "$key/bond_bidask.dta", clear
+keep if country == "US"
+
+preserve
+	keep if inlist(bondtype, "1", "2", "4")
+	collapse (mean) bidask, by(date bondtype)
+	tw (scatter bidask date if bondtype=="1", msize(vsmall))(scatter bidask date if bondtype=="2", msize(vsmall))(scatter bidask date if bondtype=="4", msize(vsmall)), ///
+		legend(order(1 "Bonds" 2 "Notes" 3 "Bills") pos(6) rows(1)) ytitle("Yield bid ask spread, bp") xtitle("")
+		graph export "$fig/bidask_type.png", replace width(3220)
+restore
+
+* on the run 2, 5 and 10 year notes, 21 day moving average, ten year on a right axis at twice the scale, the 2020 spike is clipped at the top
+keep if bondtype == "2" & inlist(matgroup, 2, 5, 10) & otr_number == 1
+collapse (mean) spread32, by(date matgroup)
+bysort matgroup (date): gen t = _n
+tsset matgroup t
+tssmooth ma ma = spread32, window(20 1 0)
+sum ma if inlist(matgroup, 2, 5), detail
+local cap = ceil(r(p99)/0.25)*0.25
+sum ma if matgroup == 10, detail
+local cap = max(`cap', ceil(r(p99)/0.5)*0.25)
+replace ma = min(ma, cond(matgroup == 10, 2*`cap', `cap'))
+keep if inrange(date, td(1jan2020), td(31oct2025))
+tw (line ma date if matgroup==2)(line ma date if matgroup==5)(line ma date if matgroup==10, yaxis(2)), ///
+	ylabel(0(`=`cap'/4')`cap', axis(1)) ylabel(0(`=`cap'/2')`=2*`cap'', axis(2)) ytitle("32nds of a point", axis(1)) ytitle("32nds of a point", axis(2)) xtitle("") ///
+	legend(order(1 "Two year (left axis)" 2 "Five year (left axis)" 3 "Ten year (right axis)") pos(6) rows(1))
+	graph export "$fig/bidask_otr.png", replace width(3220)

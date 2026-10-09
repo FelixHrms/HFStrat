@@ -222,3 +222,28 @@ foreach s in volume rate trades {
 }
 drop flip
 save "$int/fund_dealer_bond_day.dta", replace
+
+/*Bid ask spreads from Bloomberg, cleaned, with the yield spread in basis points and the price spread in 32nds of a point*/
+import delimited "$data/bond_bidask.csv", varnames(1) clear
+gen date2 = date(date, "YMD")
+drop date
+rename date2 date
+format date %td
+merge m:1 isin using "$int/bond_info.dta", keep(match) keepusing(bondtype country maturitydate) nogen
+merge 1:1 date isin using "$key/bond_day.dta", keep(match) keepusing(duration matgroup otr_number) nogen
+/*Bloomberg quotes US bills as discount rates in the price fields, turn them into prices*/
+foreach s in bid ask {
+	replace `s'_price = 100*(1 - `s'_price/100*(maturitydate - date)/360) if bondtype == "4"
+}
+gen spread32 = (ask_price - bid_price)*32
+gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
+/*cleaning, bonds close to maturity blow up the yield spread through the duration, crossed quotes and the top percent within bond type are quote errors*/
+drop if missing(bidask)
+drop if duration < 0.25
+drop if bidask < 0
+bysort bondtype: egen p99 = pctile(bidask), p(99)
+drop if bidask > p99
+drop p99 maturitydate
+label variable spread32 "Ask minus bid price in 32nds of a point"
+label variable bidask "Ask minus bid price over duration times mid price, basis points of yield"
+save "$key/bond_bidask.dta", replace
