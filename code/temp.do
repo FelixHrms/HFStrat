@@ -46,6 +46,7 @@ list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 
 use "$key/bond_bidask.dta", clear
 keep if duration >= 1 /*under a year the tick size rather than liquidity sets the yield spread*/
+drop if (ask_price - bid_price)/((ask_price + bid_price)/2) > 0.02 /*an ask more than two percent of the mid above the bid is not a quote, Bloomberg carries asks of 250 on some French lines*/
 gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
 keep date isin bidask
 tempfile bidask
