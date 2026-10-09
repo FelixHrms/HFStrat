@@ -43,6 +43,18 @@ list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 **# Haircut of CTD bonds against all other bonds, US only, overnight positions, weighted by fund positions
 * the haircut is the average over the fund's borrowing trades in the bond on the day, as reported in the SFTDS
 
+* coverage of the source file by month without the term filter, rows, rows with a term and overnight rows, and whether the day survives in the aggregate panel
+use "$int/sftds.dta", clear
+keep if country == "US" & borrowing_volume > 0
+merge m:1 date isin using "$int/sftds_agg.dta", keep(master match) keepusing(isctd)
+gen month = mofd(date)
+format month %tm
+gen hasterm = !missing(borrowing_term)
+gen overnight = borrowing_term <= 1
+gen inagg = _merge == 3
+collapse (count) n = borrowing_volume (sum) hasterm overnight inagg, by(month)
+list, noobs
+
 use "$int/sftds.dta", clear
 keep if country == "US" & borrowing_volume > 0 & borrowing_term <= 1 /*overnight positions only*/
 keep date isin borrowing_volume borrowing_haircut
