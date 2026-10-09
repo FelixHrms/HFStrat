@@ -632,3 +632,78 @@ gen x = 1 - isctd
 tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Yield bid ask spread, bp") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
 	graph export "$fig/bidask_ctd.png", replace width(3220)
+
+**# Borrowing repo rate of CTD bonds against all other bonds held by funds as a spread over SOFR, US only, overnight positions, weighted by borrowing positions
+* two versions, the full sample and from 2023 when the US basis trade builds up
+
+* SOFR, date in the second column and the rate in percent in the fourth
+import delimited "$data/SOFR.csv", varnames(nonames) rowrange(2) clear
+keep v2 v4
+rename (v2 v4) (sofrdate sofr)
+gen date = date(sofrdate, "YMD")
+format date %td
+destring sofr, replace
+keep date sofr
+tempfile sofr
+save `sofr'
+
+* overnight positions only, their rates are set fresh every day while term positions carry the rate of their start date, the term is the average contractual maturity in days
+use "$int/sftds.dta", clear
+keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0 & borrowing_term <= 1
+keep date isin borrowing_volume borrowing_rate
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
+merge m:1 date using `sofr', keep(match) nogen
+gen spread = (borrowing_rate - sofr)*100 /*basis points*/
+
+* drop the days around FOMC rate changes, the decision day and the three days after, SOFR moves the day after the decision and the reported rates lag
+gen fomc = 0
+foreach d in 16mar2022 4may2022 15jun2022 27jul2022 21sep2022 2nov2022 14dec2022 1feb2023 22mar2023 3may2023 26jul2023 18sep2024 7nov2024 18dec2024 17sep2025 29oct2025 10dec2025 {
+	replace fomc = 1 if inrange(date, td(`d'), td(`d') + 3)
+}
+drop if fomc == 1
+
+* trim the fund bond day spreads at the first and last percentile within each year, stale and misreported rates in single positions pull the daily averages off
+gen year = year(date)
+bysort year: egen p1 = pctile(spread), p(1)
+bysort year: egen p99 = pctile(spread), p(99)
+drop if spread < p1 | spread > p99
+
+collapse (mean) spread [aw = borrowing_volume], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+tempfile daily
+save `daily'
+
+foreach start in 1jan2021 1jan2023 {
+	local suffix = cond("`start'" == "1jan2023", "_2023", "")
+	use `daily', clear
+	keep if date >= td(`start')
+
+	* time series on the left
+	tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Borrowing repo rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
+
+	* means and the gap with Newey West standard errors over 20 trading days, the daily spreads are autocorrelated
+	reshape wide spread, i(date) j(isctd)
+	sort date
+	gen t = _n
+	tsset t
+	foreach g in 0 1 {
+		newey spread`g', lag(20)
+		local m`g' = _b[_cons]
+		local s`g' = _se[_cons]
+	}
+	gen gap = spread1 - spread0
+	newey gap, lag(20)
+
+	* means with 95 percent bands on the right, CTD on the left as in the legend, one bar plot per group so the colours follow the same order as the lines
+	clear
+	set obs 2
+	gen isctd = _n - 1
+	gen mean = cond(isctd == 1, `m1', `m0')
+	gen se = cond(isctd == 1, `s1', `s0')
+	gen lo = mean - 1.96*se
+	gen hi = mean + 1.96*se
+	gen x = 1 - isctd
+	tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Borrowing repo rate minus SOFR, bp") legend(off) name(bar, replace)
+	graph combine ts bar, cols(2)
+		graph export "$fig/repo_spread_ctd`suffix'.png", replace width(3220)
+}
