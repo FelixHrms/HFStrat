@@ -83,35 +83,22 @@ foreach d in 16mar2022 4may2022 15jun2022 27jul2022 21sep2022 2nov2022 14dec2022
 drop if fomc == 1
 
 * trim the fund bond day spreads at the first and last percentile within each year, reporting errors in single rates pull the daily averages far off
-gen year = year(date)
 bysort year: egen p1 = pctile(spread), p(1)
 bysort year: egen p99 = pctile(spread), p(99)
 drop if spread < p1 | spread > p99
 
-* diagnostics for the spikes, the 25 days where the CTD and non CTD lines are furthest apart and what sits behind them
-* npos, nfunds and nbonds are the positions, funds and bonds in each group, maxshare the share of the largest position in the group's volume, suffix 1 for CTD and 0 for the rest
-* dsofr is the change in SOFR from the previous day, eom flags the last three days of a month, dlv a futures delivery month and fnd a first notice month
-preserve
-	bysort date isctd: egen npos = count(spread)
-	bysort date isctd: egen nfunds = nvals(entity_id)
-	bysort date isctd: egen nbonds = nvals(isin)
-	bysort date isctd: egen voltot = total(borrowing_volume)
-	gen share = borrowing_volume/voltot
-	bysort date isctd: egen maxshare = max(share)
-	collapse (mean) spread (first) npos nfunds nbonds maxshare sofr [aw = borrowing_volume], by(date isctd)
-	reshape wide spread npos nfunds nbonds maxshare, i(date) j(isctd)
-	drop if missing(spread1) | missing(spread0)
-	sort date
-	gen dsofr = (sofr - sofr[_n-1])*100
-	gen gap = spread1 - spread0
-	gen eom = day(date) > day(dofm(mofd(date) + 1) - 1) - 3
-	gen dlv = inlist(month(date), 3, 6, 9, 12)
-	gen fnd = inlist(month(date), 2, 5, 8, 11)
-	gen absgap = abs(gap)
-	gsort -absgap
-	format spread1 spread0 gap dsofr maxshare1 maxshare0 %6.1f
-	list date spread1 spread0 gap dsofr npos1 nfunds1 nbonds1 maxshare1 npos0 nfunds0 maxshare0 eom dlv fnd in 1/25, noobs
-restore
+* raw overnight rates against SOFR by year, to spot rates in the wrong units, zeros or stale levels
+gen year = year(date)
+tabstat borrowing_rate sofr, by(year) stat(min p1 p5 p50 p95 p99 max n) col(stat)
+* rows more than one percentage point away from SOFR, share of rows and of volume by year, and the most extreme ones
+gen off = abs(borrowing_rate - sofr) > 1
+tab year off, row nofreq
+tab year off [aw = borrowing_volume], row nofreq
+gsort -spread
+list date entity_id isin borrowing_rate sofr borrowing_volume isctd in 1/15, noobs
+gsort spread
+list date entity_id isin borrowing_rate sofr borrowing_volume isctd in 1/15, noobs
+drop off
 
 collapse (mean) spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
