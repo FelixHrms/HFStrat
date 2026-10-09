@@ -55,7 +55,7 @@ save `sofr'
 
 use "$int/sftds.dta", clear
 keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0
-keep date isin borrowing_volume borrowing_rate borrowing_term
+keep date entity_id isin borrowing_volume borrowing_rate borrowing_term
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
 label define ctd 0 "Not CTD" 1 "CTD"
 label values isctd ctd
@@ -87,6 +87,29 @@ gen year = year(date)
 bysort year: egen p1 = pctile(spread), p(1)
 bysort year: egen p99 = pctile(spread), p(99)
 drop if spread < p1 | spread > p99
+
+* diagnostics for the spikes in the CTD line, the 25 days with the largest absolute CTD spread and what sits behind them
+* npos, nfunds and nbonds are the positions, funds and bonds in the CTD group, maxshare the share of the largest position in its volume
+* dsofr is the change in SOFR from the previous day, eom flags the last three days of a month, dlv a futures delivery month and fnd a first notice month
+preserve
+	bysort date isctd: egen npos = count(spread)
+	bysort date isctd: egen nfunds = nvals(entity_id)
+	bysort date isctd: egen nbonds = nvals(isin)
+	bysort date isctd: egen voltot = total(borrowing_volume)
+	gen share = borrowing_volume/voltot
+	bysort date isctd: egen maxshare = max(share)
+	collapse (mean) spread (first) npos nfunds nbonds maxshare sofr [aw = borrowing_volume], by(date isctd)
+	keep if isctd == 1
+	sort date
+	gen dsofr = (sofr - sofr[_n-1])*100
+	gen eom = day(date) > day(dofm(mofd(date) + 1) - 1) - 3
+	gen dlv = inlist(month(date), 3, 6, 9, 12)
+	gen fnd = inlist(month(date), 2, 5, 8, 11)
+	gen absspread = abs(spread)
+	gsort -absspread
+	format spread dsofr maxshare %6.1f
+	list date spread dsofr npos nfunds nbonds maxshare eom dlv fnd in 1/25, noobs
+restore
 
 collapse (mean) spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
