@@ -81,7 +81,30 @@ label values isctd ctd
 * the two means over the sample
 tabstat spread, by(isctd) stat(mean n)
 
-* time series on the left, bar chart on the right
+* time series on the left, means with 95 percent confidence bands on the right
 tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Borrowing repo rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
-graph bar (mean) spread, over(isctd) ytitle("Borrowing repo rate minus SOFR, bp") name(bar, replace)
+
+* means and the gap with Newey West standard errors over 20 trading days, the daily spreads are autocorrelated
+reshape wide spread, i(date) j(isctd)
+sort date
+gen t = _n
+tsset t
+foreach g in 0 1 {
+	newey spread`g', lag(20)
+	local m`g' = _b[_cons]
+	local s`g' = _se[_cons]
+}
+gen gap = spread1 - spread0
+newey gap, lag(20)
+
+* CTD on the left as in the legend of the time series, one bar plot per group so the colours follow the same order as the lines
+clear
+set obs 2
+gen isctd = _n - 1
+gen mean = cond(isctd == 1, `m1', `m0')
+gen se = cond(isctd == 1, `s1', `s0')
+gen lo = mean - 1.96*se
+gen hi = mean + 1.96*se
+gen x = 1 - isctd
+tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Borrowing repo rate minus SOFR, bp") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
