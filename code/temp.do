@@ -192,7 +192,7 @@ label values isctd ctd
 tabstat bidask, by(isctd) stat(mean sd n)
 
 * time series on the left, means with 95 percent confidence bands on the right
-tw (line bidask date if isctd==1)(line bidask date if isctd==0), legend(order(1 "CTD" 2 "Not CTD")) ytitle("Yield bid ask spread, bp") xtitle("") name(ts, replace)
+tw (line bidask date if isctd==1)(line bidask date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Yield bid ask spread, bp") xtitle("") name(ts, replace)
 
 * means and the gap with Newey West standard errors over 20 trading days, the daily spreads are autocorrelated
 reshape wide bidask, i(date) j(isctd)
