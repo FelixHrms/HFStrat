@@ -52,9 +52,10 @@ format month %tm
 gen hasterm = !missing(borrowing_term)
 gen overnight = borrowing_term <= 1
 gen inagg = _merge == 3
-tabstat borrowing_term if inrange(month, tm(2024m10), tm(2025m5)), by(month) stat(min p5 p50 p95 max n) col(stat)
-collapse (count) n = borrowing_volume (sum) hasterm overnight inagg, by(month)
-list, noobs
+gen hasrate = !missing(borrowing_rate)
+gen hashc = !missing(borrowing_haircut)
+collapse (count) n = borrowing_volume (sum) hasterm overnight hasrate hashc inagg, by(month)
+list if inrange(month, tm(2024m10), tm(2025m5)), noobs
 
 use "$int/sftds.dta", clear
 keep if country == "US" & borrowing_volume > 0 & borrowing_term <= 1 /*overnight positions only*/
