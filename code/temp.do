@@ -49,7 +49,11 @@ rename (v2 v4) (sofrdate sofr)
 gen date = date(sofrdate, "YMD")
 format date %td
 destring sofr, replace
-keep date sofr
+* flag days where SOFR moves by five basis points or more, month and year ends, and the day after, the reported repo rates do not follow on the day
+sort date
+gen dsofr = (sofr - sofr[_n-1])*100
+gen jumpday = abs(dsofr) >= 5 | abs(dsofr[_n-1]) >= 5
+keep date sofr jumpday
 tempfile sofr
 save `sofr'
 
@@ -112,6 +116,13 @@ preserve
 	format spread1 spread0 gap dsofr maxshare1 maxshare0 %6.1f
 	list date spread1 spread0 gap dsofr npos1 nfunds1 nbonds1 maxshare1 npos0 nfunds0 maxshare0 eom dlv fnd in 1/25, noobs
 restore
+
+* drop the SOFR jump days and the days where either group rests on fewer than five funds
+drop if jumpday == 1
+bysort date isctd: egen nfunds = nvals(entity_id)
+bysort date: egen minfunds = min(nfunds)
+drop if minfunds < 5
+drop jumpday nfunds minfunds
 
 collapse (mean) spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
