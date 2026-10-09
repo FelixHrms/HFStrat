@@ -40,11 +40,11 @@ gen ormat = (maturitydate - issuedate) / 365
 bysort bondtype (isin): keep if _n == 1
 list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 
-**# Haircut of CTD bonds against all other bonds, US only, all terms, no cleaning, weighted by fund positions
+**# Haircut of CTD bonds against all other bonds, US only, overnight positions, weighted by fund positions
 * the haircut is the average over the fund's borrowing trades in the bond on the day, as reported in the SFTDS
 
 use "$int/sftds.dta", clear
-keep if country == "US" & !missing(borrowing_haircut) & borrowing_volume > 0
+keep if country == "US" & !missing(borrowing_haircut) & borrowing_volume > 0 & borrowing_term <= 1 /*overnight positions only*/
 keep date isin borrowing_volume borrowing_haircut
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
 label define ctd 0 "Not CTD" 1 "CTD"
