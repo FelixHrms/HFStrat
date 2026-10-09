@@ -54,7 +54,7 @@ tempfile sofr
 save `sofr'
 
 use "$int/sftds.dta", clear
-keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0
+keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0 & borrowing_term <= 1 /*overnight positions only, the term is the average contractual maturity in days*/
 keep date isin borrowing_volume borrowing_rate
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
 merge m:1 date using `sofr', keep(match) nogen
@@ -122,7 +122,7 @@ tabstat duration [aw = borrowing_volume], by(isctd) stat(mean n)
 
 * repo spread over SOFR
 use "$int/sftds.dta", clear
-keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0
+keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0 & borrowing_term <= 1 /*overnight positions only, the term is the average contractual maturity in days*/
 keep date isin borrowing_volume borrowing_rate
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd duration) nogen
 merge m:1 date using `sofr', keep(match) nogen
