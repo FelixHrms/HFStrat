@@ -40,7 +40,7 @@ gen ormat = (maturitydate - issuedate) / 365
 bysort bondtype (isin): keep if _n == 1
 list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 
-**# Borrowing repo rate of CTD bonds against all other bonds as a spread over SOFR, US only, overnight positions, weighted by fund positions
+**# Borrowing repo rate of CTD bonds against all other bonds as a spread over SOFR, US only, overnight and open positions, weighted by fund positions
 
 * SOFR, date in the second column and the rate in percent in the fourth
 import delimited "$data/SOFR.csv", varnames(nonames) rowrange(2) clear
@@ -54,9 +54,24 @@ tempfile sofr
 save `sofr'
 
 use "$int/sftds.dta", clear
-keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0 & borrowing_term <= 1 /*overnight positions only, the term is the average contractual maturity in days*/
-keep date isin borrowing_volume borrowing_rate
+keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0
+keep date isin borrowing_volume borrowing_rate borrowing_term
 merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
+label define ctd 0 "Not CTD" 1 "CTD"
+label values isctd ctd
+
+* share of borrowing volume by term, the term is the average contractual maturity in days and is missing for open positions
+gen termgroup = cond(missing(borrowing_term), 2, cond(borrowing_term <= 1, 1, 3))
+label define termgroup 1 "Overnight" 2 "Open" 3 "Term"
+label values termgroup termgroup
+tab termgroup [aw = borrowing_volume]
+
+* term by CTD, share of volume in each term group and the average term of the term positions
+tab isctd termgroup [aw = borrowing_volume], row nofreq
+tabstat borrowing_term [aw = borrowing_volume] if termgroup == 3, by(isctd) stat(mean p50 n)
+
+* keep overnight and open positions, their rates are set fresh every day, term positions carry the rate of their start date
+keep if termgroup != 3
 merge m:1 date using `sofr', keep(match) nogen
 gen spread = (borrowing_rate - sofr)*100 /*basis points*/
 
@@ -75,8 +90,6 @@ drop if spread < p1 | spread > p99
 
 collapse (mean) spread [aw = borrowing_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
-label define ctd 0 "Not CTD" 1 "CTD"
-label values isctd ctd
 
 * the two means over the sample
 tabstat spread, by(isctd) stat(mean n)
