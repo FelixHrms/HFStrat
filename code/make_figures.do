@@ -747,9 +747,9 @@ tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(
 graph combine ts bar, cols(2)
 	graph export "$fig/haircut_ctd.png", replace width(3220)
 
-**# Euro area, lending repo rate of CTD bonds against all other bonds as a spread over ESTR, overnight positions, weighted by fund positions, from 2024
+**# Euro area, lending repo rate of CTD bonds against all other bonds as a spread over ESTR, overnight positions, weighted by fund positions
 * funds are short the cash bond and lend cash against it, so the lending side carries the trade, a lower rate on the CTD is the cost of its specialness
-* the sample starts in 2024 because German collateral traded far below ESTR in the scarcity period of 2022 and 2023, which swamps the comparison
+* German collateral traded far below ESTR in the scarcity period of 2022 and 2023, which shows in both lines
 
 * ESTR, day month year dates
 import delimited "$data/ESTR.csv", varnames(1) clear
@@ -784,7 +784,6 @@ drop if spread < p1 | spread > p99
 
 collapse (mean) spread [aw = lending_volume], by(date isctd)
 bysort date: drop if _N < 2 /*keep days with both groups*/
-keep if date >= td(1jan2024)
 
 * time series on the left
 tw (line spread date if isctd==1)(line spread date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Lending repo rate minus ESTR, bp") xtitle("") yline(0) name(ts, replace)
