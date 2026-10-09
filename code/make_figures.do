@@ -852,3 +852,48 @@ gen x = 1 - isctd
 tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Haircut on lending positions, percent") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
 	graph export "$fig/haircut_ctd_EA.png", replace width(3220)
+
+**# Euro area, bid ask spread of CTD bonds against all other bonds, weighted by the funds' lending positions
+* yield spread, ask minus bid price over duration times mid price, in basis points, from the cleaned Bloomberg quotes
+* funds are short the cash bond and lend cash against it, so the lending positions are the ones that hold the bonds of the trade
+
+use "$key/bond_bidask.dta", clear
+gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
+keep date isin bidask
+tempfile bidask
+save `bidask'
+
+use "$int/sftds.dta", clear
+keep if country != "US" & lending_volume > 0
+keep date isin lending_volume
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd) nogen
+merge m:1 date isin using `bidask', keep(match) nogen
+collapse (mean) bidask [aw = lending_volume], by(date isctd)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+tw (line bidask date if isctd==1)(line bidask date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Yield bid ask spread, bp") xtitle("") name(ts, replace)
+
+* means and the gap with Newey West standard errors over 20 trading days, the daily spreads are autocorrelated
+reshape wide bidask, i(date) j(isctd)
+sort date
+gen t = _n
+tsset t
+foreach g in 0 1 {
+	newey bidask`g', lag(20)
+	local m`g' = _b[_cons]
+	local s`g' = _se[_cons]
+}
+gen gap = bidask1 - bidask0
+newey gap, lag(20)
+
+* CTD on the left as in the legend of the time series, one bar plot per group so the colours follow the same order as the lines
+clear
+set obs 2
+gen isctd = _n - 1
+gen mean = cond(isctd == 1, `m1', `m0')
+gen se = cond(isctd == 1, `s1', `s0')
+gen lo = mean - 1.96*se
+gen hi = mean + 1.96*se
+gen x = 1 - isctd
+tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Yield bid ask spread, bp") legend(off) name(bar, replace)
+graph combine ts bar, cols(2)
+	graph export "$fig/bidask_ctd_EA.png", replace width(3220)
