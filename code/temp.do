@@ -88,8 +88,8 @@ bysort year: egen p1 = pctile(spread), p(1)
 bysort year: egen p99 = pctile(spread), p(99)
 drop if spread < p1 | spread > p99
 
-* diagnostics for the spikes in the CTD line, the 25 days with the largest absolute CTD spread and what sits behind them
-* npos, nfunds and nbonds are the positions, funds and bonds in the CTD group, maxshare the share of the largest position in its volume
+* diagnostics for the spikes, the 25 days where the CTD and non CTD lines are furthest apart and what sits behind them
+* npos, nfunds and nbonds are the positions, funds and bonds in each group, maxshare the share of the largest position in the group's volume, suffix 1 for CTD and 0 for the rest
 * dsofr is the change in SOFR from the previous day, eom flags the last three days of a month, dlv a futures delivery month and fnd a first notice month
 preserve
 	bysort date isctd: egen npos = count(spread)
@@ -99,16 +99,18 @@ preserve
 	gen share = borrowing_volume/voltot
 	bysort date isctd: egen maxshare = max(share)
 	collapse (mean) spread (first) npos nfunds nbonds maxshare sofr [aw = borrowing_volume], by(date isctd)
-	keep if isctd == 1
+	reshape wide spread npos nfunds nbonds maxshare, i(date) j(isctd)
+	drop if missing(spread1) | missing(spread0)
 	sort date
 	gen dsofr = (sofr - sofr[_n-1])*100
+	gen gap = spread1 - spread0
 	gen eom = day(date) > day(dofm(mofd(date) + 1) - 1) - 3
 	gen dlv = inlist(month(date), 3, 6, 9, 12)
 	gen fnd = inlist(month(date), 2, 5, 8, 11)
-	gen absspread = abs(spread)
-	gsort -absspread
-	format spread dsofr maxshare %6.1f
-	list date spread dsofr npos nfunds nbonds maxshare eom dlv fnd in 1/25, noobs
+	gen absgap = abs(gap)
+	gsort -absgap
+	format spread1 spread0 gap dsofr maxshare1 maxshare0 %6.1f
+	list date spread1 spread0 gap dsofr npos1 nfunds1 nbonds1 maxshare1 npos0 nfunds0 maxshare0 eom dlv fnd in 1/25, noobs
 restore
 
 collapse (mean) spread [aw = borrowing_volume], by(date isctd)
