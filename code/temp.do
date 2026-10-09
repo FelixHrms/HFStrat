@@ -40,7 +40,7 @@ gen ormat = (maturitydate - issuedate) / 365
 bysort bondtype (isin): keep if _n == 1
 list bondtype country isin issuedate maturitydate ormat couponrate, noobs
 
-**# Borrowing repo rate of CTD bonds against all other bonds as a spread over SOFR, US only, overnight and open positions, weighted by fund positions
+**# Borrowing repo rate of CTD bonds against all other bonds as a spread over SOFR, US only, overnight positions, weighted by fund positions
 
 * SOFR, date in the second column and the rate in percent in the fourth
 import delimited "$data/SOFR.csv", varnames(nonames) rowrange(2) clear
@@ -70,8 +70,8 @@ tab termgroup [aw = borrowing_volume]
 tab isctd termgroup [aw = borrowing_volume], row nofreq
 tabstat borrowing_term [aw = borrowing_volume] if termgroup == 3, by(isctd) stat(mean p50 n)
 
-* keep overnight and open positions, their rates are set fresh every day, term positions carry the rate of their start date
-keep if termgroup != 3
+* keep overnight positions only, their rates are set fresh every day, term positions carry the rate of their start date and open positions may have a notice period
+keep if termgroup == 1
 merge m:1 date using `sofr', keep(match) nogen
 gen spread = (borrowing_rate - sofr)*100 /*basis points*/
 
