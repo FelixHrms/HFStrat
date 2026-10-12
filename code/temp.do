@@ -8,84 +8,70 @@ global key  "$root/key dataframe"
 global int  "$root/data/intermediate"
 global fig  "$root/Figures"
 
-**# Scratch file. Current age of CTD bonds against all other bonds held by funds, US only, weighted by borrowing positions
-* age is the date minus the issue date in years, for tapped lines it counts from the first issuance
-* residual maturity is the mirror image, maturity date minus date, which equals original maturity minus age
+**# Scratch file. On the run status of CTD bonds against all other bonds held by funds, US only, weighted by borrowing positions
+* the on the run number ranks the lines of a country, bond type and maturity group by issue date, 1 is the newest
+* four classes, first, second and third on the run and off the run, the outcome is the position weighted share of each class within the CTD and the non CTD book
 
 use "$int/sftds.dta", clear
 keep if country == "US" & borrowing_volume > 0
 keep date isin borrowing_volume
-merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd issuedate) nogen
-gen age = (date - issuedate)/365
-count if missing(age)
-collapse (mean) age [aw = borrowing_volume], by(date isctd)
-bysort date: drop if _N < 2 /*keep days with both groups*/
+merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd otr_number) nogen
+count if missing(otr_number)
+drop if missing(otr_number)
+gen otrclass = min(otr_number, 4)
 
-* time series on the left
-tw (line age date if isctd==1)(line age date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Age since issuance, years") xtitle("") name(ts, replace)
-
-* means and the gap with Newey West standard errors over 20 trading days, the daily series are autocorrelated
-reshape wide age, i(date) j(isctd)
-sort date
-gen t = _n
-tsset t
-foreach g in 0 1 {
-	newey age`g', lag(20)
-	local m`g' = _b[_cons]
-	local s`g' = _se[_cons]
+* share of each class in the positions of the group on the day
+collapse (sum) borrowing_volume, by(date isctd otrclass)
+bysort date isctd: egen total = sum(borrowing_volume)
+gen share = borrowing_volume/total
+keep date isctd otrclass share
+reshape wide share, i(date isctd) j(otrclass)
+foreach k in 1 2 3 4 {
+	replace share`k' = 0 if missing(share`k')
 }
-gen gap = age1 - age0
-newey gap, lag(20)
+bysort date: drop if _N < 2 /*keep days with both groups*/
+label define ctdlab 0 "Not CTD" 1 "CTD"
+label values isctd ctdlab
 
-* CTD on the left as in the legend of the time series, one bar plot per group so the colours follow the same order as the lines
+* stacked shares over time on the left, one panel per group, the first on the run at the bottom
+gen c1 = share1
+gen c2 = c1 + share2
+gen c3 = c2 + share3
+gen c4 = 1
+tw (area c4 date)(area c3 date)(area c2 date)(area c1 date), by(isctd, rows(1) note("") legend(pos(6))) ///
+	legend(order(4 "First" 3 "Second" 2 "Third" 1 "Off the run") rows(1)) ytitle("Share of positions") xtitle("") name(ts, replace)
+
+* mean share of each class by group with Newey West standard errors over 20 trading days
+foreach g in 0 1 {
+	preserve
+		keep if isctd == `g'
+		sort date
+		gen t = _n
+		tsset t
+		foreach k in 1 2 3 4 {
+			newey share`k', lag(20)
+			local m`g'`k' = _b[_cons]
+			local s`g'`k' = _se[_cons]
+		}
+	restore
+}
+
+* grouped bars, CTD on the left of each pair as in the other charts
 clear
-set obs 2
-gen isctd = _n - 1
-gen mean = cond(isctd == 1, `m1', `m0')
-gen se = cond(isctd == 1, `s1', `s0')
+set obs 8
+gen isctd = _n > 4
+gen otrclass = mod(_n - 1, 4) + 1
+gen mean = .
+gen se = .
+foreach g in 0 1 {
+	foreach k in 1 2 3 4 {
+		replace mean = `m`g'`k'' if isctd == `g' & otrclass == `k'
+		replace se = `s`g'`k'' if isctd == `g' & otrclass == `k'
+	}
+}
 gen lo = mean - 1.96*se
 gen hi = mean + 1.96*se
-gen x = 1 - isctd
-tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Age since issuance, years") legend(off) name(bar, replace)
-graph combine ts bar, cols(2) name(us, replace)
-
-**# Euro area, lending side, weighted by the funds' lending positions
-* funds are short the cash bond and lend cash against it, so the lending side carries the trade
-* Bunds and BTPs are tapped for months after the first auction, so age counts from the first issuance of the line
-
-use "$int/sftds.dta", clear
-keep if country != "US" & lending_volume > 0
-keep date isin lending_volume
-merge m:1 date isin using "$int/sftds_agg.dta", keep(match) keepusing(isctd issuedate) nogen
-gen age = (date - issuedate)/365
-count if missing(age)
-collapse (mean) age [aw = lending_volume], by(date isctd)
-bysort date: drop if _N < 2 /*keep days with both groups*/
-
-* time series on the left
-tw (line age date if isctd==1)(line age date if isctd==0), legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) ytitle("Age since issuance, years") xtitle("") name(ts, replace)
-
-* means and the gap with Newey West standard errors over 20 trading days, the daily series are autocorrelated
-reshape wide age, i(date) j(isctd)
-sort date
-gen t = _n
-tsset t
-foreach g in 0 1 {
-	newey age`g', lag(20)
-	local m`g' = _b[_cons]
-	local s`g' = _se[_cons]
-}
-gen gap = age1 - age0
-newey gap, lag(20)
-
-* CTD on the left as in the legend of the time series, one bar plot per group so the colours follow the same order as the lines
-clear
-set obs 2
-gen isctd = _n - 1
-gen mean = cond(isctd == 1, `m1', `m0')
-gen se = cond(isctd == 1, `s1', `s0')
-gen lo = mean - 1.96*se
-gen hi = mean + 1.96*se
-gen x = 1 - isctd
-tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Age since issuance, years") legend(off) name(bar, replace)
-graph combine ts bar, cols(2) name(ea, replace)
+gen x = otrclass + cond(isctd == 1, -0.2, 0.2)
+tw (bar mean x if isctd == 1, barwidth(0.35))(bar mean x if isctd == 0, barwidth(0.35))(rcap lo hi x, lcolor(black)), ///
+	xlabel(1 "First" 2 "Second" 3 "Third" 4 "Off the run") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Share of positions") legend(order(1 "CTD" 2 "Not CTD") pos(6) rows(1)) name(bar, replace)
+graph combine ts bar, cols(2)
