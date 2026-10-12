@@ -69,6 +69,16 @@ gen root = ustrregexs(1) if ustrregexm(contract, "^([A-Z]+)[FGHJKMNQUVXZ][0-9]")
 tab root, missing
 tabstat ormat, by(root) stat(n min p50 max)
 
+* tenor by root, the 2 and 5 year contracts take notes with an original term of at most five years and three months, so 7 year notes under TU or FV are matching or issue date errors
+gen ormat_r = round(ormat)
+tab root ormat_r
+list date isin contract ormat if inlist(root, "TU", "FV") & ormat_r == 7, noobs sepby(isin)
+
+* composition over time, bond days and borrowing volume by root and year
+gen year = year(date)
+tab year root
+table year root, stat(sum borrowing_volume) nformat(%6.1f)
+
 * one point per CTD bond and day, bands at the tenors, gaps on the days a CTD carries no position
 sepscatter ormat date, separate(root) msize(vsmall) ytitle("Original maturity, years") xtitle("") name(ctdset, replace)
 
