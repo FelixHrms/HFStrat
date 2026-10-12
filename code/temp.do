@@ -16,7 +16,7 @@ keep if country == "US"
 gen ormat = (maturitydate - issuedate)/365
 count if missing(ormat)
 sum ormat, detail
-keep date isin ormat isctd
+keep date isin ormat isctd ctd1 ctd2
 tempfile ormat
 save `ormat'
 
@@ -54,3 +54,31 @@ gen hi = mean + 1.96*se
 gen x = 1 - isctd
 tw (bar mean x if isctd == 1, barwidth(0.6))(bar mean x if isctd == 0, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(0 "CTD" 1 "Not CTD") xtitle("") yscale(range(0)) ylabel(#5) ytitle("Original maturity, years") legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
+
+**# Diagnostic. Which CTD bonds carry positions on each day, their original maturity and the contract behind them
+* the flag marks the two CUSIPs that were most often the Bloomberg CTD of each front contract, on every day that contract is the front, so a handful of bonds per day
+* ctd1 and ctd2 hold the contract tickers, the root is the letters before the month code
+
+use "$int/sftds.dta", clear
+keep if country == "US" & borrowing_volume > 0
+collapse (sum) borrowing_volume (count) nfunds = borrowing_volume, by(date isin)
+merge m:1 date isin using `ormat', keep(match) nogen
+keep if isctd == 1
+gen contract = cond(ctd1 != "", ctd1, ctd2)
+gen root = ustrregexs(1) if ustrregexm(contract, "^([A-Z]+)[FGHJKMNQUVXZ][0-9]")
+tab root, missing
+tabstat ormat, by(root) stat(n min p50 max)
+
+* one point per CTD bond and day, bands at the tenors, gaps on the days a CTD carries no position
+sepscatter ormat date, separate(root) msize(vsmall) ytitle("Original maturity, years") xtitle("") name(ctdset, replace)
+
+* how many CTD bonds carry positions per day, and how many funds hold each
+bysort date: gen nctd = _N
+tw (line nctd date), ytitle("CTD bonds with borrowing positions") xtitle("") name(nctd, replace)
+tabstat nfunds, by(root) stat(mean min max)
+
+* the bond level mean against the fund row mean, the latter weights each bond by the number of funds holding it
+preserve
+	collapse (mean) ormat_bond = ormat (mean) ormat_fundrow = ormat [fw = nfunds], by(date)
+	tw (line ormat_bond date)(line ormat_fundrow date), legend(order(1 "Mean over CTD bonds" 2 "Mean over fund positions") pos(6) rows(1)) ytitle("Original maturity, years") xtitle("") name(means, replace)
+restore
