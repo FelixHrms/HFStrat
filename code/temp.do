@@ -78,7 +78,10 @@ tw (line nctd date), ytitle("CTD bonds with borrowing positions") xtitle("") nam
 tabstat nfunds, by(root) stat(mean min max)
 
 * the bond level mean against the fund row mean, the latter weights each bond by the number of funds holding it
-preserve
-	collapse (mean) ormat_bond = ormat (mean) ormat_fundrow = ormat [fw = nfunds], by(date)
-	tw (line ormat_bond date)(line ormat_fundrow date), legend(order(1 "Mean over CTD bonds" 2 "Mean over fund positions") pos(6) rows(1)) ytitle("Original maturity, years") xtitle("") name(means, replace)
-restore
+bysort date: egen ormat_bond = mean(ormat)
+gen w = ormat*nfunds
+bysort date: egen num = sum(w)
+bysort date: egen den = sum(nfunds)
+gen ormat_fundrow = num/den
+bysort date: gen first = _n == 1
+tw (line ormat_bond date if first)(line ormat_fundrow date if first), legend(order(1 "Mean over CTD bonds" 2 "Mean over fund positions") pos(6) rows(1)) ytitle("Original maturity, years") xtitle("") name(means, replace)
