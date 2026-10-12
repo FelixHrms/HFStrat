@@ -20,8 +20,33 @@ count if missing(otr_number)
 drop if missing(otr_number)
 gen otrclass = min(otr_number, 4)
 
-* share of each class in the positions of the group on the day
+* volume by class, group and day
 collapse (sum) borrowing_volume, by(date isctd otrclass)
+label define ctdlab 0 "Not CTD" 1 "CTD"
+label values isctd ctdlab
+tempfile vol
+save `vol'
+
+* stacked shares over time on the left, monthly shares since the CTD book holds a handful of bonds whose ranks move at every auction, one panel per group, the first on the run at the bottom
+gen month = mofd(date)
+format month %tm
+collapse (sum) borrowing_volume, by(month isctd otrclass)
+bysort month isctd: egen total = sum(borrowing_volume)
+gen share = borrowing_volume/total
+keep month isctd otrclass share
+reshape wide share, i(month isctd) j(otrclass)
+foreach k in 1 2 3 4 {
+	replace share`k' = 0 if missing(share`k')
+}
+gen c1 = share1
+gen c2 = c1 + share2
+gen c3 = c2 + share3
+gen c4 = 1
+tw (area c4 month, color(gs14))(area c3 month, color(gs11))(area c2 month, color(gs8))(area c1 month, color(gs4)), by(isctd, rows(1) note("") legend(pos(6))) ///
+	legend(order(4 "First" 3 "Second" 2 "Third" 1 "Off the run") rows(1)) xlabel(#5, format(%tmCY)) ytitle("Share of positions") xtitle("") name(ts, replace)
+
+* daily shares for the means
+use `vol', clear
 bysort date isctd: egen total = sum(borrowing_volume)
 gen share = borrowing_volume/total
 keep date isctd otrclass share
@@ -30,16 +55,6 @@ foreach k in 1 2 3 4 {
 	replace share`k' = 0 if missing(share`k')
 }
 bysort date: drop if _N < 2 /*keep days with both groups*/
-label define ctdlab 0 "Not CTD" 1 "CTD"
-label values isctd ctdlab
-
-* stacked shares over time on the left, one panel per group, the first on the run at the bottom
-gen c1 = share1
-gen c2 = c1 + share2
-gen c3 = c2 + share3
-gen c4 = 1
-tw (area c4 date)(area c3 date)(area c2 date)(area c1 date), by(isctd, rows(1) note("") legend(pos(6))) ///
-	legend(order(4 "First" 3 "Second" 2 "Third" 1 "Off the run") rows(1)) ytitle("Share of positions") xtitle("") name(ts, replace)
 
 * mean share of each class by group with Newey West standard errors over 20 trading days
 foreach g in 0 1 {
