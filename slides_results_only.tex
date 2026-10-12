@@ -99,9 +99,10 @@
 % ---------------------------------------------------------------------------
 \begin{frame}{This paper}
   \begin{itemize}
-    \item \textbf{Fact 1.} Hedge funds are the marginal intermediaries between sovereign cash and futures markets, and the trade they run is not the modeled basis trade.
-    \item \textbf{Fact 2.} The trade concentrates in cheap off-the-run bonds and is duration neutral but convexity exposed.
-    \item \textbf{Fact 3.} Three dealers finance more than half of it.
+    \item \textbf{Fact 1.} The trade hedge funds run is not the textbook basis trade in the cheapest to deliver. Funds hold a portfolio of bonds across the deliverable curve against the futures, and the cheapest to deliver is a small part of it.
+    \item \textbf{Fact 2.} The portfolio is made of off the run bonds that trade cheap to the fitted curve and are less liquid than the cheapest to deliver. Dealers finance them at the same repo rate and haircut.
+    \item \textbf{Fact 3.} The portfolio is duration neutral but convexity exposed, and the futures hedge shrinks when volatility and the term premium rise.
+    \item \textbf{Fact 4.} Positions sit in a handful of funds, five dealers finance more than half of them, and the funding runs through stable relationships at short tenor.
   \end{itemize}
 \end{frame}
 
@@ -205,10 +206,11 @@
   The panels merge in any combination of fund, bond and date.
   \medskip
 
-  \textbf{Classifying positions}
+  \textbf{Reading the two legs}
   \begin{itemize}
-    \item A fund that is long the future and short the bond, or the reverse, runs a basis trade.
-    \item Bond positions without an offsetting futures leg are directional.
+    \item Net repo positions by fund, bond and day measure the cash leg. Borrowing cash against a bond marks a long, lending cash against it marks a short.
+    \item Futures positions by fund and contract measure the futures leg. The deliverable set links each contract to its bonds and its cheapest to deliver.
+    \item Summing dollar duration and dollar convexity over both legs shows how far the book is hedged.
   \end{itemize}
   \medskip
   \textbf{Validation}
@@ -227,12 +229,12 @@
 \section{Anatomy of the trade}
 \begin{frame}{Anatomy of the trade}
   \begin{itemize}
-    \item Positions are concentrated in a handful of funds.
-    \item Five dealers finance more than half of the trade.
-    \item The bonds are neither cheapest to deliver nor on the run and show positive pricing errors in both jurisdictions.
+    \item Positions are concentrated in a handful of funds, and five dealers finance more than half of the trade.
+    \item The cheapest to deliver is a small part of the book. Funds hold a portfolio of bonds against the futures, mostly off the run issues with positive pricing errors, in both jurisdictions.
+    \item These bonds are less liquid than the cheapest to deliver, yet funds finance them at the same repo rate and haircut. In the euro area the cheapest to deliver is even dearer to short.
   \end{itemize}
   \bigskip
-  \takeaway{Funds are paid to hold what curve sensitive investors and dealers do not want, providing liquidity and convergence in the illiquid segment.}
+  \takeaway{The basis trade is a portfolio trade. Funds are paid to hold the cheap and less liquid bonds along the deliverable curve that curve sensitive investors and dealers do not want, and their financing terms do not distinguish these bonds from the cheapest to deliver.}
 \end{frame}
 
 \begin{frame}{Anatomy of the trade}{Net repo positions of hedge funds in sovereign bonds}
@@ -301,10 +303,10 @@
 \end{frame}
 
 
-\begin{frame}{Anatomy of the trade}{The bonds are not the cheapest to deliver}
+\begin{frame}{Anatomy of the trade}{A portfolio of bonds, not just the cheapest to deliver}
   \centering
   \includegraphics[width=.88\textwidth,height=.7\textheight,keepaspectratio]{ctd.png}\par\medskip
-  {\tiny\color{slate} Daily net positions summed across funds, cheapest to deliver bonds against all others\par}
+  {\tiny\color{slate} Daily net positions summed across funds, cheapest to deliver bonds against all others. The cheapest to deliver is a small part of the book in both jurisdictions\par}
 \end{frame}
 
 \begin{frame}{Anatomy of the trade}{The bonds are not the on the run issues}
