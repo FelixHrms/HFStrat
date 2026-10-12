@@ -22,8 +22,6 @@ gen otrclass = min(otr_number, 4)
 
 * volume by class, group and day
 collapse (sum) borrowing_volume, by(date isctd otrclass)
-label define ctdlab 0 "Not CTD" 1 "CTD"
-label values isctd ctdlab
 tempfile vol
 save `vol'
 
@@ -31,6 +29,8 @@ save `vol'
 gen month = mofd(date)
 format month %tm
 collapse (sum) borrowing_volume, by(month isctd otrclass)
+label define ctdlab 0 "Not CTD" 1 "CTD", replace
+label values isctd ctdlab
 bysort month isctd: egen total = sum(borrowing_volume)
 gen share = borrowing_volume/total
 keep month isctd otrclass share
@@ -105,7 +105,6 @@ gen otrclass = min(otr_number, 4)
 
 * volume by class, group and day
 collapse (sum) lending_volume, by(date isctd otrclass)
-label values isctd ctdlab
 tempfile vol
 save `vol'
 
@@ -113,6 +112,8 @@ save `vol'
 gen month = mofd(date)
 format month %tm
 collapse (sum) lending_volume, by(month isctd otrclass)
+label define ctdlab 0 "Not CTD" 1 "CTD", replace
+label values isctd ctdlab
 bysort month isctd: egen total = sum(lending_volume)
 gen share = lending_volume/total
 keep month isctd otrclass share
