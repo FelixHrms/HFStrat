@@ -8,9 +8,9 @@ global key  "$root/key dataframe"
 global int  "$root/data/intermediate"
 global fig  "$root/Figures"
 
-**# Scratch file. Bid ask spread by on the run number, CTD against other bonds within original maturity buckets, US bonds and notes
-* the test of the duration story, a CTD and a non CTD bond of the same tenor and the same on the run status should carry the same spread
-* equal weights over bond days, three buckets aligned with the contracts, the other deliverable bonds of the same contracts as the sharpest control group
+**# Scratch file. Does the CTD liquidity premium survive tenor and age, bond day regressions, US bonds and notes
+* spread on the CTD dummy with the fixed effects tightened step by step, equal weights over bond days, standard errors clustered by bond and date
+* the duration story predicts that the premium vanishes once bonds of the same tenor and age on the same day are compared, and that it exists only from 2022 when the CTD became the recent high coupon issue
 
 use "$key/bond_bidask.dta", clear
 gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
@@ -27,24 +27,27 @@ gen isctd = ctd1 != "" | ctd2 != ""
 gen isdlv = deliverable_contract1 != "" | deliverable_contract2 != ""
 merge 1:1 date isin using `bidask', keep(match) nogen
 
-* three groups, the CTD, the other deliverable bonds of the same contracts, and the bonds no contract delivers
-gen grp = cond(isctd, 1, cond(isdlv, 2, 3))
-label define grplab 1 "CTD" 2 "Other deliverable" 3 "Not deliverable"
-label values grp grplab
-
-* original maturity buckets aligned with the contracts
+* tenor buckets aligned with the contracts, age in half year bins capped at ten years, on the run bins
 gen ormat = (maturitydate - issuedate)/365
 gen bucket = cond(ormat < 6, 1, cond(ormat < 12, 2, 3))
-label define bucketlab 1 "2 to 5 year notes" 2 "7 and 10 year notes" 3 "20 and 30 year bonds"
-label values bucket bucketlab
+gen age = (date - issuedate)/365
+gen agebin = min(floor(age*2), 20)
+gen otrbin = cond(otr_number <= 2, 1, cond(otr_number <= 5, 2, cond(otr_number <= 10, 3, 4))) if !missing(otr_number)
+encode isin, gen(bond)
+egen contract = group(deliverable_contract1)
+gen post = date >= td(01jan2022)
+label var isctd "CTD"
 
-* on the run number with 12 and above pooled
-drop if missing(otr_number)
-gen otrclass = min(otr_number, 12)
-tab bucket grp
-
-collapse (mean) bidask (count) n = bidask, by(bucket grp otrclass)
-drop if n < 20 /*a lone CTD on a few days does not draw a point*/
-tw (connected bidask otrclass if grp == 1)(connected bidask otrclass if grp == 2)(connected bidask otrclass if grp == 3), ///
-	by(bucket, rows(1) yrescale note("") legend(pos(6))) legend(order(1 "CTD" 2 "Other deliverable" 3 "Not deliverable") rows(1)) ///
-	xlabel(1(1)12) xtitle("On the run number, 12 and above pooled") ytitle("Yield bid ask spread, bp")
+* five specifications, the fourth and fifth are the test, the fifth compares the CTD with its basket mates of the same age
+foreach s in full post {
+	local cond = cond("`s'" == "post", "post == 1", "1")
+	eststo `s'1: reghdfe bidask isctd if `cond', absorb(date) vce(cluster bond date)
+	eststo `s'2: reghdfe bidask isctd if `cond', absorb(date#bucket) vce(cluster bond date)
+	eststo `s'3: reghdfe bidask isctd if `cond', absorb(date#bucket#otrbin) vce(cluster bond date)
+	eststo `s'4: reghdfe bidask isctd if `cond', absorb(date#bucket#agebin) vce(cluster bond date)
+	eststo `s'5: reghdfe bidask isctd if `cond' & isdlv, absorb(date#contract#agebin) vce(cluster bond date)
+}
+local titles mtitles("Day" "Day x tenor" "Day x tenor x on the run" "Day x tenor x age" "Day x contract x age, deliverables")
+esttab full1 full2 full3 full4 full5, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N r2_within, fmt(%9.0fc %9.3f) labels("Bond days" "Within R squared")) `titles' title("Full sample")
+esttab post1 post2 post3 post4 post5, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N r2_within, fmt(%9.0fc %9.3f) labels("Bond days" "Within R squared")) `titles' title("From 2022")
+eststo clear
