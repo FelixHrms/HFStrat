@@ -7,6 +7,7 @@ global data "$root/Data"
 global key  "$root/key dataframe"
 global int  "$root/data/intermediate"
 global fig  "$root/Figures"
+global tab  "$root/Tables"
 capture mkdir "$root/data"
 capture mkdir "$int"
 capture mkdir "$fig"
@@ -692,6 +693,44 @@ tw (line bidask1 date)(line bidask2 date)(line bidask3 date)(line bidask4 date),
 	legend(order(1 "Equal weights" 2 "Amount outstanding" 3 "Public amount outstanding" 4 "Fund positions") rows(2)) ///
 	xlabel(#5, format(%tdCY)) ytitle("Yield bid ask spread, bp") xtitle("")
 	graph export "$fig/bidask_ctd_weights.png", replace width(3220)
+
+**# Does the CTD liquidity premium survive remaining maturity and age, bond day regressions, US bonds and notes
+* spread on the CTD dummy with the fixed effects tightened step by step, equal weights over bond days, standard errors clustered by bond and date
+* within a cell of day, remaining maturity in one year bins and age in half year bins the comparison is between consecutive issues of the same tenor
+* half year remaining maturity bins give the same number, quarter year age bins drop the quarterly tenors as singletons
+
+use "$key/bond_bidask.dta", clear
+gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
+keep date isin bidask
+tempfile bidask
+save `bidask'
+
+use "$key/bond_day.dta", clear
+keep if country == "US" & inlist(bondtype, "1", "2") & inrange(date, td(04jan2021), td(30sep2025))
+keep date isin cusip8 issuedate maturitydate
+gen cusip = cusip8
+merge 1:1 date cusip using "$key/day_bond_deliverable_ctd.dta", keep(1 3) keepusing(ctd1 ctd2) nogen
+gen isctd = ctd1 != "" | ctd2 != ""
+merge 1:1 date isin using `bidask', keep(match) nogen
+gen ttmbin = floor((maturitydate - date)/365)
+gen agebin = min(floor((date - issuedate)/365*2), 20)
+encode isin, gen(bond)
+label var isctd "CTD"
+
+eststo c1: reghdfe bidask isctd, absorb(date) vce(cluster bond date)
+count if isctd & e(sample)
+estadd scalar nctd = r(N)
+eststo c2: reghdfe bidask isctd, absorb(date#ttmbin) vce(cluster bond date)
+count if isctd & e(sample)
+estadd scalar nctd = r(N)
+eststo c3: reghdfe bidask isctd, absorb(date#ttmbin#agebin) vce(cluster bond date)
+count if isctd & e(sample)
+estadd scalar nctd = r(N)
+esttab c1 c2 c3, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N nctd r2_within, fmt(%9.0fc %9.0fc %9.3f) labels("Bond days" "CTD bond days" "Within R squared")) ///
+	mtitles("Day" "Day x remaining maturity" "Day x remaining maturity x age")
+esttab c1 c2 c3 using "$tab/bidask_ctd_fe.tex", replace booktabs b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N nctd r2_within, fmt(%9.0fc %9.0fc %9.3f) labels("Bond days" "CTD bond days" "Within R squared")) ///
+	mtitles("Day" "Day x remaining maturity" "Day x remaining maturity x age") nonotes
+eststo clear
 
 **# Borrowing repo rate of CTD bonds against all other bonds held by funds as a spread over SOFR, US only, overnight positions, weighted by borrowing positions
 * two versions, the full sample and from 2023 when the US basis trade builds up
