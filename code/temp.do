@@ -8,13 +8,14 @@ global key  "$root/key dataframe"
 global int  "$root/data/intermediate"
 global fig  "$root/Figures"
 
-**# Scratch file. Four weightings of the bid ask spread of CTD against non CTD bonds, US nominal coupon Treasuries, bonds and notes
+**# Scratch file. Four weightings of the bid ask spread of CTD against non CTD bonds, all US Treasuries
 * 1 equal weights over all bonds outstanding, 2 weights by total amount outstanding, 3 weights by public amount outstanding, 4 weights by fund borrowing positions
 * the amounts come from the Monthly Statement of the Public Debt through CRSP, in millions, so they are monthly numbers on a daily file
 
 **# Amounts outstanding, simple data quality checks
+* the yield spread divides the price spread by duration, so bills carry large yield spreads although they are the most liquid issues in price terms
 use "$key/bond_day.dta", clear
-keep if country == "US" & inlist(bondtype, "1", "2")
+keep if country == "US" /*all Treasuries, bills and inflation linked bonds included, the same universe as the fund weighted chart*/
 keep if inrange(date, td(04jan2021), td(30sep2025))
 keep date isin cusip8 bondtype amt_tot amt_pub
 gen year = year(date)
