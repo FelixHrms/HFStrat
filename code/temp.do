@@ -40,8 +40,9 @@ gen gap_cell = bidask - m_cell /*missing when the CTD is alone in its cell*/
 collapse (mean) gap_day gap_ttm gap_cell, by(date)
 
 * time series on the left
-tw (line gap_day date)(line gap_ttm date)(line gap_cell date), legend(order(1 "Same day" 2 "Same remaining maturity" 3 "Same remaining maturity and age") pos(6) rows(1)) ///
-	ytitle("CTD spread minus comparison spread, bp") xtitle("") yline(0) name(ts, replace)
+tw (line gap_day date)(line gap_ttm date)(line gap_cell date), ///
+	legend(order(1 "Same day" 2 "Same remaining maturity" 3 "Same remaining maturity and age") pos(6) cols(1) size(small) symxsize(6)) ///
+	ytitle("CTD minus comparison, bp") xtitle("") yline(0) name(ts, replace)
 
 * means with Newey West standard errors over 20 trading days
 sort date
@@ -60,5 +61,6 @@ gen se = cond(x == 1, `s_day', cond(x == 2, `s_ttm', `s_cell'))
 gen lo = mean - 1.96*se
 gen hi = mean + 1.96*se
 tw (bar mean x if x == 1, barwidth(0.6))(bar mean x if x == 2, barwidth(0.6))(bar mean x if x == 3, barwidth(0.6))(rcap lo hi x, lcolor(black)), ///
-	xlabel(1 "Same day" 2 "Same remaining" 3 "Same remaining and age") xtitle("") ytitle("CTD spread minus comparison spread, bp") yline(0) legend(off) name(bar, replace)
+	xlabel(1 "Same day" 2 `""Same remaining" "maturity""' 3 `""Same remaining" "maturity and age""', labsize(small)) xtitle("") ///
+	ytitle("CTD minus comparison, bp") yline(0) legend(off) name(bar, replace)
 graph combine ts bar, cols(2)
