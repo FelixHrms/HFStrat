@@ -36,6 +36,52 @@ preserve
 	save `cum'
 restore
 
+* check zero, the dates in basis_stacked, the raw file writes day month year and SAS may read an ambiguous date the American way, weekend dates would be the tell
+use "$key/basis_stacked.dta", clear
+keep if country_future == "US"
+gen dow = dow(date)
+tab dow
+
+* check one, the raw Bloomberg file read directly, the generic 2 contracts have three to six months to delivery and are far less exposed to the annualization of a few ticks of net basis
+* three header rows, the data start in row four, the first column is the date as day month year, then twelve blocks of five columns in the order TY1 TY2 FV1 FV2 TU1 TU2 UXY1 UXY2 WN1 WN2 US1 US2
+import delimited "$data/usbasis.csv", varnames(nonames) rowrange(4) clear
+gen date = date(v1, "DMY")
+format date %td
+drop v1
+local blocks TY1 TY2 FV1 FV2 TU1 TU2 UXY1 UXY2 WN1 WN2 US1 US2
+local j = 2
+tempfile raw
+local first = 1
+foreach b of local blocks {
+	preserve
+		keep date v`j' v`=`j'+1' v`=`j'+2' v`=`j'+3' v`=`j'+4'
+		rename (v`j' v`=`j'+1' v`=`j'+2' v`=`j'+3' v`=`j'+4') (implied_repo open_interest net_basis contract cusip)
+		capture destring implied_repo open_interest net_basis, replace force
+		gen generic = "`b'"
+		if `first' == 0 append using `raw'
+		save `raw', replace
+	restore
+	local first = 0
+	local j = `j' + 5
+}
+use `raw', clear
+gen root = ustrregexs(1) if ustrregexm(generic, "^([A-Z]+)[12]$")
+gen second = substr(generic, -1, 1) == "2"
+drop if missing(implied_repo) | missing(date)
+keep if inrange(date, td(04jan2021), td(30sep2025))
+merge m:1 date using `sofr', keep(match) nogen
+gen irr = (implied_repo - sofr)*100
+gen mcode = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+([HMUZ])[0-9]{1,2}$")
+gen ydig = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+[HMUZ]([0-9]{1,2})$")
+gen dmonth = cond(mcode == "H", 3, cond(mcode == "M", 6, cond(mcode == "U", 9, 12)))
+gen dyear = cond(strlen(ydig) == 2, 2000 + real(ydig), 2020 + real(ydig))
+gen todelivery = dofm(mofd(mdy(dmonth, 1, dyear)) + 1) - 1 - date
+gen year = year(date)
+* the second contracts at more than 90 days to delivery, by year and root
+table year root if second & todelivery > 90, stat(median irr) stat(count irr) nformat(%6.0f)
+* the first contracts at more than 90 days to delivery for comparison
+table year root if !second & todelivery > 90, stat(median irr) nformat(%6.0f)
+
 * implied repo by contract root with the delivery month from the ticker, root letters, one month code and one or two year digits, the last delivery day is the last day of the month
 use "$key/basis_stacked.dta", clear
 keep if country_future == "US"
