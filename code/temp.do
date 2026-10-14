@@ -8,98 +8,88 @@ global key  "$root/key dataframe"
 global int  "$root/data/intermediate"
 global fig  "$root/Figures"
 
-**# Scratch file. The CTD liquidity gap drawn, raw and within moving windows of remaining maturity and age, US bonds and notes
-* for each CTD bond day the spread minus the mean spread of the non CTD bonds on the day, in the same remaining maturity cell, and in the same cell of remaining maturity and age
-* two definitions of the cells, the fixed bins of the regression table and moving kernels of the same width, drawn side by side
-* equal weights over bonds and over the CTDs of a day, the regression table as a time series
+**# Scratch file. Does the carry survive the funding cost, implied repo of the US futures against the repo spread hedge funds pay, both over SOFR
+* a long basis position earns the implied repo rate of the futures and pays the repo rate on the bond, so the trade carries when the implied repo exceeds the funding rate
+* implied repo from Bloomberg for the front contract of each root, in percent, trimmed at the first and last percentile within root and year since it swings in the delivery month
+* the funding spread as in the repo chart, overnight borrowing positions weighted by volume, FOMC days dropped, position level spreads trimmed within year
 
-use "$key/bond_bidask.dta", clear
-gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
-keep date isin bidask
-tempfile bidask
-save `bidask'
+* SOFR, date in the second column and the rate in percent in the fourth
+import delimited "$data/SOFR.csv", varnames(nonames) rowrange(2) clear
+keep v2 v4
+rename (v2 v4) (sofrdate sofr)
+gen date = date(sofrdate, "YMD")
+format date %td
+destring sofr, replace
+keep date sofr
+tempfile sofr
+save `sofr'
 
-use "$key/bond_day.dta", clear
-keep if country == "US" & inlist(bondtype, "1", "2") & inrange(date, td(04jan2021), td(30sep2025))
-keep date isin cusip8 issuedate maturitydate
-gen cusip = cusip8
-merge 1:1 date cusip using "$key/day_bond_deliverable_ctd.dta", keep(1 3) keepusing(ctd1 ctd2) nogen
-gen isctd = ctd1 != "" | ctd2 != ""
-merge 1:1 date isin using `bidask', keep(match) nogen
-gen ttm = (maturitydate - date)/365
-gen age = (date - issuedate)/365
-keep date isin isctd bidask ttm age
+* implied repo over SOFR by contract root, one column per root
+use "$key/basis_stacked.dta", clear
+keep if country_future == "US"
+keep date root implied_repo
+merge m:1 date using `sofr', keep(match) nogen
+gen irr = (implied_repo - sofr)*100 /*basis points*/
+drop if missing(irr)
+gen year = year(date)
+bysort root year: egen p1 = pctile(irr), p(1)
+bysort root year: egen p99 = pctile(irr), p(99)
+drop if irr < p1 | irr > p99
+keep date root irr
+reshape wide irr, i(date) j(root) string
+tempfile irr
+save `irr'
 
-* the CTD bond days and the non CTD bond days, joined within the day
-preserve
-	keep if isctd
-	keep date isin bidask ttm age
-	rename (isin bidask ttm age) (isin_ctd bidask_ctd ttm_ctd age_ctd)
-	tempfile ctd
-	save `ctd'
-restore
-keep if isctd == 0
-drop isctd
-joinby date using `ctd'
-
-* comparison means per CTD bond day under two definitions of the comparison group
-* bins, the cells of the regression table, the same whole year of remaining maturity and the same half year of age as the CTD
-* kernel, triangular weights that are one at the CTD and zero half a year away in remaining maturity and a quarter year away in age
-gen k_day = 1
-gen k_ttm_bins = floor(ttm) == floor(ttm_ctd)
-gen k_cell_bins = k_ttm_bins & min(floor(age*2), 20) == min(floor(age_ctd*2), 20)
-gen k_ttm_kernel = max(0, 1 - abs(ttm - ttm_ctd)/0.5)
-gen k_cell_kernel = k_ttm_kernel*max(0, 1 - abs(age - age_ctd)/0.25)
-gen w_day = k_day
-gen b_day = bidask*k_day
-foreach v in bins kernel {
-	foreach g in ttm cell {
-		gen w_`g'_`v' = k_`g'_`v'
-		gen b_`g'_`v' = bidask*k_`g'_`v'
-	}
+* the repo spread funds pay, overnight borrowing positions
+use "$int/sftds.dta", clear
+keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0 & borrowing_term <= 1
+keep date isin borrowing_volume borrowing_rate
+merge m:1 date using `sofr', keep(match) nogen
+gen spread = (borrowing_rate - sofr)*100
+gen fomc = 0
+foreach d in 16mar2022 4may2022 15jun2022 27jul2022 21sep2022 2nov2022 14dec2022 1feb2023 22mar2023 3may2023 26jul2023 18sep2024 7nov2024 18dec2024 17sep2025 29oct2025 10dec2025 {
+	replace fomc = 1 if inrange(date, td(`d'), td(`d') + 3)
 }
-collapse (sum) w_* b_*, by(date isin_ctd bidask_ctd)
-gen gap_day = bidask_ctd - b_day/w_day if w_day > 0
-foreach v in bins kernel {
-	foreach g in ttm cell {
-		gen gap_`g'_`v' = bidask_ctd - b_`g'_`v'/w_`g'_`v' if w_`g'_`v' > 0
-	}
+drop if fomc == 1
+gen year = year(date)
+bysort year: egen p1 = pctile(spread), p(1)
+bysort year: egen p99 = pctile(spread), p(99)
+drop if spread < p1 | spread > p99
+collapse (mean) spread [aw = borrowing_volume], by(date)
+merge 1:1 date using `irr', keep(match) nogen
+
+* time series on the left, the six implied repo spreads and the funding spread
+tw (line irrTU date, lw(thin))(line irrFV date, lw(thin))(line irrTY date, lw(thin))(line irrUXY date, lw(thin))(line irrUS date, lw(thin))(line irrWN date, lw(thin)) ///
+	(line spread date, lc(black) lw(medthick)), ///
+	legend(order(1 "TU" 2 "FV" 3 "TY" 4 "UXY" 5 "US" 6 "WN" 7 "Repo spread paid by funds") pos(6) rows(2) size(small) symxsize(6)) ///
+	ytitle("Rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
+
+* net carry per contract, implied repo minus the funding rate, means with Newey West standard errors over 20 trading days
+local k = 0
+foreach r in TU FV TY UXY US WN {
+	local ++k
+	gen carry`r' = irr`r' - spread
+	preserve
+		keep if !missing(carry`r')
+		sort date
+		gen long t = _n
+		tsset t
+		newey carry`r', lag(20)
+		local m`k' = _b[_cons]
+		local s`k' = _se[_cons]
+	restore
 }
-collapse (mean) gap_*, by(date)
-tempfile gaps
-save `gaps'
-
-* one double chart per definition
-foreach v in bins kernel {
-	use `gaps', clear
-	tw (line gap_day date)(line gap_ttm_`v' date)(line gap_cell_`v' date), ///
-		legend(order(1 "Same day" 2 "Same remaining maturity" 3 "Same remaining maturity and age") pos(6) cols(1) size(small) symxsize(6)) ///
-		ytitle("CTD minus comparison, bp") xtitle("") yline(0) name(ts, replace)
-
-	* means with Newey West standard errors over 20 trading days, each series on its own consecutive index over the days where it exists
-	foreach g in day ttm cell {
-		local var = cond("`g'" == "day", "gap_day", "gap_`g'_`v'")
-		preserve
-			keep if !missing(`var')
-			sort date
-			gen long t = _n
-			tsset t
-			newey `var', lag(20)
-			local m_`g' = _b[_cons]
-			local s_`g' = _se[_cons]
-		restore
-	}
-
-	* one bar per comparison, CTD minus the comparison mean, with 95 percent bands
-	clear
-	set obs 3
-	gen x = _n
-	gen mean = cond(x == 1, `m_day', cond(x == 2, `m_ttm', `m_cell'))
-	gen se = cond(x == 1, `s_day', cond(x == 2, `s_ttm', `s_cell'))
-	gen lo = mean - 1.96*se
-	gen hi = mean + 1.96*se
-	tw (bar mean x if x == 1, barwidth(0.6))(bar mean x if x == 2, barwidth(0.6))(bar mean x if x == 3, barwidth(0.6))(rcap lo hi x, lcolor(black)), ///
-		xlabel(1 "Same day" 2 `""Same remaining" "maturity""' 3 `""Same remaining" "maturity and age""', labsize(small)) xtitle("") ///
-		ytitle("CTD minus comparison, bp") yline(0) legend(off) name(bar, replace)
-	graph combine ts bar, cols(2) title("Comparison group, `v'", size(small)) name(`v', replace)
+clear
+set obs 6
+gen x = _n
+gen mean = .
+gen se = .
+forvalues k = 1/6 {
+	replace mean = `m`k'' if x == `k'
+	replace se = `s`k'' if x == `k'
 }
+gen lo = mean - 1.96*se
+gen hi = mean + 1.96*se
+tw (bar mean x, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(1 "TU" 2 "FV" 3 "TY" 4 "UXY" 5 "US" 6 "WN") xtitle("") ///
+	ytitle("Implied repo minus funding rate, bp") yline(0) legend(off) name(bar, replace)
+graph combine ts bar, cols(2)
