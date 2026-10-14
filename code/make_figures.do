@@ -884,6 +884,163 @@ foreach start in 1jan2021 1jan2023 {
 		graph export "$fig/repo_spread_ctd`suffix'.png", replace width(3220)
 }
 
+**# Does the carry survive the funding cost, a proxy for the cash futures disconnect against the repo spread hedge funds pay, US
+* a long basis position earns the implied repo of the futures and pays the repo rate on the bond, so the trade carries when the implied repo exceeds the funding rate
+* Bloomberg's implied repo runs to the last delivery day, while a trader delivers on the first day whenever carry is negative, as from 2023
+* the implied repo to the first day follows from the one to the last day with only the coupon of the CTD, since the invoice price differs by one month of accrual, the trader takes the better of the two
+* second contracts as in Barth and Kahn, three to six months to delivery, benchmark the SOFR realized from the date to the chosen delivery day, the funding spread as in the repo chart
+* two charts, one per contract with the net carry in bars, and one pooled over the six contracts
+
+* SOFR, date in the second column and the rate in percent in the fourth, and its cumulative sum on calendar days for realized averages
+import delimited "$data/SOFR.csv", varnames(nonames) rowrange(2) clear
+keep v2 v4
+rename (v2 v4) (sofrdate sofr)
+gen date = date(sofrdate, "YMD")
+format date %td
+destring sofr, replace
+keep date sofr
+tempfile sofr
+save `sofr'
+tsset date
+tsfill
+replace sofr = sofr[_n-1] if missing(sofr)
+gen cum = sum(sofr)
+keep date cum
+tempfile cum
+save `cum'
+
+* the raw Bloomberg file, one header row, dates written month first, five fields per generic contract, keep the second contracts
+import delimited "$data/usbasis.csv", varnames(1) clear
+rename date datestr
+gen date = date(datestr, "MDY")
+format date %td
+drop datestr
+tempfile raw
+local first = 1
+foreach b in ty2 fv2 tu2 uxy2 wn2 us2 {
+	preserve
+		keep date `b'_fut_implied_repo_rt `b'_fut_cur_gen_ticker `b'_fut_ctd_cusip
+		rename (`b'_fut_implied_repo_rt `b'_fut_cur_gen_ticker `b'_fut_ctd_cusip) (implied_repo contract cusip8)
+		capture destring implied_repo, replace force
+		gen root = upper(substr("`b'", 1, strlen("`b'") - 1))
+		if `first' == 0 append using `raw'
+		save `raw', replace
+	restore
+	local first = 0
+}
+use `raw', clear
+drop if missing(implied_repo) | missing(date)
+keep if inrange(date, td(04jan2021), td(30sep2025))
+
+* delivery month from the ticker, first delivery day the first of the month, last delivery day the last of the month
+gen mcode = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+([HMUZ])[0-9]{1,2}$")
+gen ydig = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+[HMUZ]([0-9]{1,2})$")
+gen dmonth = cond(mcode == "H", 3, cond(mcode == "M", 6, cond(mcode == "U", 9, 12)))
+gen dyear = cond(strlen(ydig) == 2, 2000 + real(ydig), 2020 + real(ydig))
+gen firstdelivery = mdy(dmonth, 1, dyear)
+gen lastdelivery = dofm(mofd(firstdelivery) + 1) - 1
+format firstdelivery lastdelivery %td
+gen dfirst = firstdelivery - date
+gen dlast = lastdelivery - date
+keep if dfirst > 30
+
+* coupon and price of the CTD from the bond day panel, the implied repo to the first delivery day, the trader takes the better of the two
+merge m:1 date cusip8 using "$key/bond_day.dta", keep(1 3) keepusing(couponrate refprice) nogen
+replace refprice = 100 if missing(refprice)
+gen cy = couponrate/refprice*100 /*current yield in percent*/
+gen irr_last = implied_repo
+gen irr_first = (irr_last*dlast - cy*(dlast - dfirst))/dfirst
+gen irr_best = max(irr_first, irr_last)
+gen delivery = cond(irr_first > irr_last, firstdelivery, lastdelivery)
+format delivery %td
+
+* SOFR realized from the date to the chosen delivery day, the disconnect in basis points
+merge m:1 date using `cum', keep(match) nogen
+rename cum cum0
+rename date date0
+rename delivery date
+merge m:1 date using `cum', keep(1 3) nogen
+rename cum cum1
+rename date delivery
+rename date0 date
+gen sofr_real = (cum1 - cum0)/(delivery - date) /*missing when delivery lies beyond the SOFR series*/
+gen disconnect = (irr_best - sofr_real)*100
+keep date root disconnect
+tempfile dis
+save `dis'
+
+* the repo spread funds pay, overnight borrowing positions
+use "$int/sftds.dta", clear
+keep if country == "US" & !missing(borrowing_rate) & borrowing_volume > 0 & borrowing_term <= 1
+keep date isin borrowing_volume borrowing_rate
+merge m:1 date using `sofr', keep(match) nogen
+gen spread = (borrowing_rate - sofr)*100
+gen fomc = 0
+foreach d in 16mar2022 4may2022 15jun2022 27jul2022 21sep2022 2nov2022 14dec2022 1feb2023 22mar2023 3may2023 26jul2023 18sep2024 7nov2024 18dec2024 17sep2025 29oct2025 10dec2025 {
+	replace fomc = 1 if inrange(date, td(`d'), td(`d') + 3)
+}
+drop if fomc == 1
+gen year = year(date)
+bysort year: egen p1 = pctile(spread), p(1)
+bysort year: egen p99 = pctile(spread), p(99)
+drop if spread < p1 | spread > p99
+collapse (mean) spread [aw = borrowing_volume], by(date)
+tempfile funding
+save `funding'
+
+* chart one, by contract, the six disconnects and the funding spread on the left, the net carry per contract in bars on the right
+use `dis', clear
+reshape wide disconnect, i(date) j(root) string
+merge 1:1 date using `funding', keep(match) nogen
+tw (line disconnectTU date, lw(thin))(line disconnectFV date, lw(thin))(line disconnectTY date, lw(thin))(line disconnectUXY date, lw(thin))(line disconnectUS date, lw(thin))(line disconnectWN date, lw(thin)) ///
+	(line spread date, lc(black) lw(medthick)), ///
+	legend(order(1 "TU" 2 "FV" 3 "TY" 4 "UXY" 5 "US" 6 "WN" 7 "Repo spread paid by funds") pos(6) rows(2) size(small) symxsize(6)) ///
+	ytitle("Rate minus SOFR, bp") xtitle("") yline(0) name(ts, replace)
+local k = 0
+foreach r in TU FV TY UXY US WN {
+	local ++k
+	gen carry`r' = disconnect`r' - spread
+	preserve
+		keep if !missing(carry`r')
+		sort date
+		gen long t = _n
+		tsset t
+		newey carry`r', lag(20)
+		local m`k' = _b[_cons]
+		local s`k' = _se[_cons]
+	restore
+}
+clear
+set obs 6
+gen x = _n
+gen mean = .
+gen se = .
+forvalues k = 1/6 {
+	replace mean = `m`k'' if x == `k'
+	replace se = `s`k'' if x == `k'
+}
+gen lo = mean - 1.96*se
+gen hi = mean + 1.96*se
+tw (bar mean x, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(1 "TU" 2 "FV" 3 "TY" 4 "UXY" 5 "US" 6 "WN") xtitle("") ///
+	ytitle("Implied repo minus funding rate, bp") yline(0) legend(off) name(bar, replace)
+graph combine ts bar, cols(2)
+	graph export "$fig/carry_contracts.png", replace width(3220)
+
+* chart two, pooled, the average over the six contracts with equal weights per day against the funding spread
+use `dis', clear
+collapse (mean) disconnect, by(date)
+merge 1:1 date using `funding', keep(match) nogen
+tw (line disconnect date)(line spread date, lc(black) lw(medthick)), ///
+	legend(order(1 "Implied repo of the futures, average over the six contracts" 2 "Repo spread paid by funds") pos(6) cols(1) size(small) symxsize(6)) ///
+	ytitle("Rate minus SOFR, bp") xtitle("") yline(0)
+	graph export "$fig/carry_pooled.png", replace width(3220)
+gen carry = disconnect - spread
+keep if !missing(carry)
+sort date
+gen long t = _n
+tsset t
+newey carry, lag(20)
+
 **# Haircut of CTD bonds against all other bonds held by funds, US only, overnight positions, weighted by borrowing positions
 * the haircut is the average over the fund's borrowing trades in the bond on the day as reported in the SFTDS, in percent
 
