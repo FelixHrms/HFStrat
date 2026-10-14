@@ -26,21 +26,23 @@ merge 1:1 date cusip using "$key/day_bond_deliverable_ctd.dta", keep(1 3) keepus
 gen isctd = ctd1 != "" | ctd2 != ""
 merge 1:1 date isin using `bidask', keep(match) nogen
 
-* remaining maturity in one year bins, age in half year bins capped at ten years, on the run bins
+* remaining maturity in one year bins, age in half year bins capped at ten years, the on the run number enters as its own set of dummies since inside a cell of day and remaining maturity the exact rank identifies the bond
 gen ttm = (maturitydate - date)/365
 gen ttmbin = floor(ttm)
+gen ttmbin2 = floor(ttm*2) /*half years*/
 gen age = (date - issuedate)/365
-gen agebin = min(floor(age*2), 20)
-gen otrbin = cond(otr_number <= 2, 1, cond(otr_number <= 5, 2, cond(otr_number <= 10, 3, 4))) if !missing(otr_number)
+gen agebin = min(floor(age*2), 20) /*half years, capped at ten years*/
+gen agebin4 = min(floor(age*4), 40) /*quarter years, capped at ten years*/
 encode isin, gen(bond)
 label var isctd "CTD"
 bysort isctd: sum bidask
 
-* four specifications, within a cell of day, remaining maturity and age the comparison is between consecutive issues of the same tenor
+* five specifications, within a cell of day, remaining maturity and age the comparison is between consecutive issues of the same tenor, the last column tightens the cells
 eststo c1: reghdfe bidask isctd, absorb(date) vce(cluster bond date)
 eststo c2: reghdfe bidask isctd, absorb(date#ttmbin) vce(cluster bond date)
-eststo c3: reghdfe bidask isctd, absorb(date#ttmbin#otrbin) vce(cluster bond date)
+eststo c3: reghdfe bidask isctd, absorb(date#ttmbin otr_number) vce(cluster bond date)
 eststo c4: reghdfe bidask isctd, absorb(date#ttmbin#agebin) vce(cluster bond date)
-esttab c1 c2 c3 c4, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N r2_within, fmt(%9.0fc %9.3f) labels("Bond days" "Within R squared")) ///
-	mtitles("Day" "Day x remaining maturity" "Day x remaining maturity x on the run" "Day x remaining maturity x age")
+eststo c5: reghdfe bidask isctd, absorb(date#ttmbin2#agebin4) vce(cluster bond date)
+esttab c1 c2 c3 c4 c5, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N r2_within, fmt(%9.0fc %9.3f) labels("Bond days" "Within R squared")) ///
+	mtitles("Day" "Day x remaining" "Day x remaining, on the run number" "Day x remaining x age" "Half year remaining x quarter year age")
 eststo clear
