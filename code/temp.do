@@ -10,7 +10,7 @@ global fig  "$root/Figures"
 
 **# Scratch file. Does the carry survive the funding cost, implied repo of the US futures against the repo spread hedge funds pay, both over SOFR
 * a long basis position earns the implied repo rate of the futures and pays the repo rate on the bond, so the trade carries when the implied repo exceeds the funding rate
-* implied repo from Bloomberg for the front contract of each root, in percent, trimmed at the first and last percentile within root and year since it swings in the delivery month
+* implied repo from Bloomberg for the front contract of each root, in percent, kept only at least 45 days before the last delivery day since the annualized rate blows up close to delivery
 * the funding spread as in the repo chart, overnight borrowing positions weighted by volume, FOMC days dropped, position level spreads trimmed within year
 
 * SOFR, date in the second column and the rate in percent in the fourth
@@ -24,17 +24,32 @@ keep date sofr
 tempfile sofr
 save `sofr'
 
-* implied repo over SOFR by contract root, one column per root
+* implied repo over SOFR by contract root
 use "$key/basis_stacked.dta", clear
 keep if country_future == "US"
-keep date root implied_repo
+keep date contract root implied_repo
 merge m:1 date using `sofr', keep(match) nogen
 gen irr = (implied_repo - sofr)*100 /*basis points*/
 drop if missing(irr)
-gen year = year(date)
-bysort root year: egen p1 = pctile(irr), p(1)
-bysort root year: egen p99 = pctile(irr), p(99)
-drop if irr < p1 | irr > p99
+
+* delivery month from the ticker, root letters, one month code and one or two year digits, the last delivery day is the last day of the month
+gen mcode = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+([HMUZ])[0-9]{1,2}$")
+gen ydig = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+[HMUZ]([0-9]{1,2})$")
+gen dmonth = cond(mcode == "H", 3, cond(mcode == "M", 6, cond(mcode == "U", 9, 12)))
+gen dyear = cond(strlen(ydig) == 2, 2000 + real(ydig), 2020 + real(ydig))
+gen lastdelivery = dofm(mofd(mdy(dmonth, 1, dyear)) + 1) - 1
+format lastdelivery %td
+gen todelivery = lastdelivery - date
+drop if missing(todelivery)
+
+* the implied repo is annualized, so a few 32nds of net basis over a few days become hundreds of basis points, the table shows it by days to delivery
+gen dbin = cond(todelivery < 30, 1, cond(todelivery < 45, 2, cond(todelivery < 60, 3, cond(todelivery < 90, 4, 5))))
+label define dbinlab 1 "under 30 days" 2 "30 to 45" 3 "45 to 60" 4 "60 to 90" 5 "90 and more"
+label values dbin dbinlab
+table dbin root, stat(median irr) stat(count irr) nformat(%6.0f)
+
+* keep the days at least 45 days from the last delivery day
+keep if todelivery >= 45
 keep date root irr
 reshape wide irr, i(date) j(root) string
 tempfile irr
