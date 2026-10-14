@@ -7,7 +7,6 @@ global data "$root/Data"
 global key  "$root/key dataframe"
 global int  "$root/data/intermediate"
 global fig  "$root/Figures"
-global tab  "$root/Tables"
 capture mkdir "$root/data"
 capture mkdir "$int"
 capture mkdir "$fig"
@@ -728,8 +727,6 @@ count if isctd & e(sample)
 estadd scalar nctd = r(N)
 esttab c1 c2 c3, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N nctd r2_within, fmt(%9.0fc %9.0fc %9.3f) labels("Bond days" "CTD bond days" "Within R squared")) ///
 	mtitles("Day" "Day x remaining maturity" "Day x remaining maturity x age")
-esttab c1 c2 c3 using "$tab/bidask_ctd_fe.tex", replace booktabs b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N nctd r2_within, fmt(%9.0fc %9.0fc %9.3f) labels("Bond days" "CTD bond days" "Within R squared")) ///
-	mtitles("Day" "Day x remaining maturity" "Day x remaining maturity x age") nonotes
 eststo clear
 
 **# The CTD liquidity gap drawn, raw and within moving windows of remaining maturity and age, US bonds and notes
