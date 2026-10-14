@@ -8,8 +8,8 @@ global key  "$root/key dataframe"
 global int  "$root/data/intermediate"
 global fig  "$root/Figures"
 
-**# Scratch file. A complete bond day panel from 2021 with the hedge fund borrowing and lending and their rates, the CTD flag and the price, saved as one file
-* every bond on every day it is outstanding in the price panel, US and euro area, January 2021 to September 2025
+**# Scratch file. A complete US bond day panel from 2021 with the hedge fund borrowing and lending and their rates, the CTD flag and the price, saved as one file
+* every US Treasury on every day it is outstanding in the price panel, January 2021 to September 2025
 * borrowing and lending from the SFTDS summed over funds, in billions as in sftds.dta, the rates in percent weighted by the volume of the trades that report one, empty where no fund traded the bond that day
 
 * hedge fund borrowing and lending by bond and day
@@ -33,7 +33,7 @@ save `hf'
 
 * the bond day panel with the price and the CTD flag, then the borrowing
 use "$key/bond_day.dta", clear
-keep if inrange(date, td(04jan2021), td(30sep2025))
+keep if country == "US" & inrange(date, td(04jan2021), td(30sep2025))
 keep date isin cusip8 refprice
 gen cusip = cusip8
 merge 1:1 date cusip using "$key/day_bond_deliverable_ctd.dta", keep(1 3) keepusing(ctd1 ctd2) nogen
