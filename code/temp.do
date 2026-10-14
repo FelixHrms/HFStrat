@@ -12,7 +12,7 @@ global fig  "$root/Figures"
 * a long basis position earns the implied repo of the futures and pays the repo rate on the bond, so the trade carries when the implied repo exceeds the funding rate
 * Bloomberg's implied repo appears to run to the last delivery day, while a trader delivers on the first day whenever carry is negative, as from 2023
 * the implied repo to the first day follows from the one to the last day with only the coupon of the CTD, since the invoice price differs by one month of accrual, the trader takes the better of the two
-* second contracts as in Barth and Kahn, three to six months to delivery, benchmark the SOFR realized from the date to the chosen delivery day, the funding spread as in the repo chart
+* second contracts as in Barth and Kahn, three to six months to delivery, benchmark the SOFR realized from the date to the chosen delivery day, averaged over the six contracts, the funding spread as in the repo chart
 
 * SOFR, date in the second column and the rate in percent in the fourth, and its cumulative sum on calendar days for realized averages
 import delimited "$data/SOFR.csv", varnames(nonames) rowrange(2) clear
@@ -101,8 +101,8 @@ table year root, stat(median dis_raw) nformat(%6.0f)
 table year root, stat(median dis_adj) nformat(%6.0f)
 table year root, stat(median dis_adj_real) nformat(%6.0f)
 tab year delivery if delivery == firstdelivery, nofreq
-keep date root dis_adj_real
-reshape wide dis_adj_real, i(date) j(root) string
+* one line, the average over the six contracts with equal weights per day
+collapse (mean) disconnect = dis_adj_real, by(date)
 tempfile dis
 save `dis'
 
@@ -124,38 +124,15 @@ drop if spread < p1 | spread > p99
 collapse (mean) spread [aw = borrowing_volume], by(date)
 merge 1:1 date using `dis', keep(match) nogen
 
-* time series on the left, the six disconnects over the realized SOFR and the funding spread
-tw (line dis_adj_realTU date, lw(thin))(line dis_adj_realFV date, lw(thin))(line dis_adj_realTY date, lw(thin))(line dis_adj_realUXY date, lw(thin))(line dis_adj_realUS date, lw(thin))(line dis_adj_realWN date, lw(thin)) ///
-	(line spread date, lc(black) lw(medthick)), ///
-	legend(order(1 "TU" 2 "FV" 3 "TY" 4 "UXY" 5 "US" 6 "WN" 7 "Repo spread paid by funds") pos(6) rows(2) size(small) symxsize(6)) ///
-	ytitle("Rate minus SOFR realized to delivery, bp") xtitle("") yline(0) name(ts, replace)
+* the average disconnect against the funding spread, both over SOFR, the gap between the two lines is the carry net of funding
+tw (line disconnect date)(line spread date, lc(black) lw(medthick)), ///
+	legend(order(1 "Implied repo of the futures, average over the six contracts" 2 "Repo spread paid by funds") pos(6) cols(1) size(small) symxsize(6)) ///
+	ytitle("Rate minus SOFR, bp") xtitle("") yline(0)
 
-* net carry per contract, implied repo minus the funding rate, means with Newey West standard errors over 20 trading days
-local k = 0
-foreach r in TU FV TY UXY US WN {
-	local ++k
-	gen carry`r' = dis_adj_real`r' - spread
-	preserve
-		keep if !missing(carry`r')
-		sort date
-		gen long t = _n
-		tsset t
-		newey carry`r', lag(20)
-		local m`k' = _b[_cons]
-		local s`k' = _se[_cons]
-	restore
-}
-clear
-set obs 6
-gen x = _n
-gen mean = .
-gen se = .
-forvalues k = 1/6 {
-	replace mean = `m`k'' if x == `k'
-	replace se = `s`k'' if x == `k'
-}
-gen lo = mean - 1.96*se
-gen hi = mean + 1.96*se
-tw (bar mean x, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(1 "TU" 2 "FV" 3 "TY" 4 "UXY" 5 "US" 6 "WN") xtitle("") ///
-	ytitle("Implied repo minus funding rate, bp") yline(0) legend(off) name(bar, replace)
-graph combine ts bar, cols(2)
+* the carry net of funding, mean with Newey West standard errors over 20 trading days
+gen carry = disconnect - spread
+keep if !missing(carry)
+sort date
+gen long t = _n
+tsset t
+newey carry, lag(20)
