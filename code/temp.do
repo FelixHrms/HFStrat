@@ -9,8 +9,8 @@ global int  "$root/data/intermediate"
 global fig  "$root/Figures"
 
 **# Scratch file. The CTD liquidity gap drawn, raw and within moving windows of remaining maturity and age, US bonds and notes
-* for each CTD bond day the spread minus the mean spread of the non CTD bonds on the day, within half a year of its remaining maturity, and within that and a quarter year of its age
-* windows move with the bond, so the comparison group changes one bond at a time and not at bin boundaries, the widths match the bins of the regression table
+* for each CTD bond day the spread minus the kernel weighted mean spread of the non CTD bonds on the day, within half a year of its remaining maturity, and within that and a quarter year of its age
+* the windows move with the bond and the kernel lets a bond enter and leave gradually, so the comparison group never changes in steps
 * two comparison groups, all non CTD bonds with equal weights, and the bonds funds hold weighted by their borrowing positions
 
 use "$key/bond_bidask.dta", clear
@@ -50,19 +50,21 @@ keep if isctd == 0
 drop isctd
 joinby date using `ctd'
 
-* comparison means per CTD bond day, equal weights and fund weights
-gen in_ttm = abs(ttm - ttm_ctd) <= 0.5
-gen in_cell = in_ttm & abs(age - age_ctd) <= 0.25
+* comparison means per CTD bond day, triangular kernels in remaining maturity and age so a bond enters the group gradually as it moves towards the CTD
+* the kernel is one at the CTD and zero half a year away in remaining maturity, a quarter year away in age, the same widths as the bins of the regression table
+gen k_day = 1
+gen k_ttm = max(0, 1 - abs(ttm - ttm_ctd)/0.5)
+gen k_cell = k_ttm*max(0, 1 - abs(age - age_ctd)/0.25)
 foreach g in day ttm cell {
-	local cond = cond("`g'" == "day", "1", "in_`g'")
-	gen b_`g' = bidask if `cond'
-	gen w_`g' = borrowing_volume if `cond'
-	gen bw_`g' = bidask*borrowing_volume if `cond'
+	gen we_`g' = k_`g'
+	gen be_`g' = bidask*k_`g'
+	gen wh_`g' = k_`g'*borrowing_volume
+	gen bh_`g' = bidask*k_`g'*borrowing_volume
 }
-collapse (mean) b_day b_ttm b_cell (sum) w_day w_ttm w_cell bw_day bw_ttm bw_cell, by(date isin_ctd bidask_ctd)
+collapse (sum) we_* be_* wh_* bh_*, by(date isin_ctd bidask_ctd)
 foreach g in day ttm cell {
-	gen gap_eq_`g' = bidask_ctd - b_`g'
-	gen gap_hf_`g' = bidask_ctd - bw_`g'/w_`g' if w_`g' > 0
+	gen gap_eq_`g' = bidask_ctd - be_`g'/we_`g' if we_`g' > 0
+	gen gap_hf_`g' = bidask_ctd - bh_`g'/wh_`g' if wh_`g' > 0
 }
 collapse (mean) gap_eq_* gap_hf_*, by(date)
 tempfile gaps
@@ -76,7 +78,7 @@ foreach v in eq hf {
 		legend(order(1 "Same day" 2 "Same remaining maturity" 3 "Same remaining maturity and age") pos(6) cols(1) size(small) symxsize(6)) ///
 		ytitle("CTD minus comparison, bp") xtitle("") yline(0) name(ts, replace)
 	sort date
-	gen t = _n
+	gen long t = _n
 	tsset t
 	foreach g in day ttm cell {
 		newey gap_`v'_`g', lag(20)
