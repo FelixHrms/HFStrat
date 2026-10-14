@@ -349,6 +349,31 @@
   {\tiny\color{slate} Yield bid ask spread of all US Treasuries outstanding, cheapest to deliver bonds on the left against all others on the right. Equal weights over the bonds, weights by the total and by the public amount outstanding from CRSP, and weights by the repo positions of hedge funds as on the previous slide. CRSP reports no public amount for bills, so that line covers bonds and notes only. Bills carry large yield spreads since the price spread is divided by a short duration, and quotes with a duration below a quarter year are dropped throughout\par}
 \end{frame}
 
+\begin{frame}{Anatomy of the trade}{The cheapest to deliver is more liquid because of its remaining maturity and age}
+  \vspace{-0.6em}
+  \begin{center}\scriptsize
+  \begin{tabular}{lrrr}
+    \toprule
+    & (1) & (2) & (3) \\
+    \midrule
+    Cheapest to deliver & $-2.471^{***}$ & $-0.897^{***}$ & $-0.177^{***}$ \\
+                        & (0.191) & (0.137) & (0.024) \\
+    \midrule
+    Fixed effects & Day & Day $\times$ remaining maturity & Day $\times$ remaining maturity $\times$ age \\
+    Bond days & 375,273 & 373,613 & 363,994 \\
+    Within R squared & 0.006 & 0.001 & 0.000 \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  {\tiny\color{slate} Bond day regressions of the yield bid ask spread in basis points on a cheapest to deliver dummy, US bonds and notes, January 2021 to September 2025, equal weights. Fixed effects by day, by day and remaining maturity in one year bins, and by day, remaining maturity and age since issuance in half year bins. Within the last cell the comparison is between consecutive issues of the same tenor. Standard errors clustered by bond and day, stars mark significance at the 10, 5 and 1 percent level. Half year remaining maturity bins give the same estimate, quarter year age bins drop the quarterly tenors as singletons.\par}
+\end{frame}
+
+\begin{frame}{Anatomy of the trade}{The liquidity premium of the cheapest to deliver vanishes within remaining maturity and age}
+  \centering
+  \includegraphics[width=.88\textwidth,height=.7\textheight,keepaspectratio]{bidask_ctd_matched.png}\par\medskip
+  {\tiny\color{slate} For each cheapest to deliver bond and day, the yield bid ask spread minus the mean spread of all other bonds on the day, of those within half a year of its remaining maturity, and of those within that and a quarter year of its age, with triangular weights that fall to zero at the edge of the window. Averaged over the cheapest to deliver bonds of the day with equal weights, US bonds and notes. The windows have the width of the regression bins on the previous slide and move with the bond. The right panel shows the sample means with 95 percent bands from Newey West standard errors\par}
+\end{frame}
+
 \begin{frame}{Anatomy of the trade}{The same holds for the bonds funds short in the euro area}
   \centering
   \includegraphics[width=.88\textwidth,height=.7\textheight,keepaspectratio]{bidask_ctd_EA.png}\par\medskip
