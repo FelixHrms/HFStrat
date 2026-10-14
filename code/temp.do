@@ -10,7 +10,7 @@ global fig  "$root/Figures"
 
 **# Scratch file. Does the CTD liquidity premium survive tenor and age, bond day regressions, US bonds and notes
 * spread on the CTD dummy with the fixed effects tightened step by step, equal weights over bond days, standard errors clustered by bond and date
-* the duration story predicts that the premium vanishes once bonds of the same tenor and age on the same day are compared, and that it exists only from 2022 when the CTD became the recent high coupon issue
+* the duration story predicts that the premium vanishes once bonds of the same remaining maturity and age on the same day are compared, and that it is weaker in 2021 when the CTD was the seasoned bond of its basket
 
 use "$key/bond_bidask.dta", clear
 gen bidask = (ask_price - bid_price)/(duration*(ask_price + bid_price)/2)*10000
@@ -27,27 +27,32 @@ gen isctd = ctd1 != "" | ctd2 != ""
 gen isdlv = deliverable_contract1 != "" | deliverable_contract2 != ""
 merge 1:1 date isin using `bidask', keep(match) nogen
 
-* tenor buckets aligned with the contracts, age in half year bins capped at ten years, on the run bins
-gen ormat = (maturitydate - issuedate)/365
-gen bucket = cond(ormat < 6, 1, cond(ormat < 12, 2, 3))
+* remaining maturity in one year bins, age in half year bins capped at ten years, on the run bins
+* remaining maturity and age pin down the bond without reference to the baskets, the deliverable dummy then tests whether the basket matters on top
+gen ttm = (maturitydate - date)/365
+gen ttmbin = floor(ttm)
 gen age = (date - issuedate)/365
 gen agebin = min(floor(age*2), 20)
 gen otrbin = cond(otr_number <= 2, 1, cond(otr_number <= 5, 2, cond(otr_number <= 10, 3, 4))) if !missing(otr_number)
 encode isin, gen(bond)
 egen contract = group(deliverable_contract1)
-gen post = date >= td(01jan2022)
+gen year2021 = year(date) == 2021
 label var isctd "CTD"
+label var isdlv "Deliverable"
+bysort isctd: sum bidask
 
-* five specifications, the fourth and fifth are the test, the fifth compares the CTD with its basket mates of the same age
-foreach s in full post {
-	local cond = cond("`s'" == "post", "post == 1", "1")
+* six specifications, the third and fourth are the test, the fifth asks whether the basket matters beyond remaining maturity and age, the sixth compares the CTD with its basket mates
+foreach s in full y2021 later {
+	local cond = cond("`s'" == "y2021", "year2021 == 1", cond("`s'" == "later", "year2021 == 0", "1"))
 	eststo `s'1: reghdfe bidask isctd if `cond', absorb(date) vce(cluster bond date)
-	eststo `s'2: reghdfe bidask isctd if `cond', absorb(date#bucket) vce(cluster bond date)
-	eststo `s'3: reghdfe bidask isctd if `cond', absorb(date#bucket#otrbin) vce(cluster bond date)
-	eststo `s'4: reghdfe bidask isctd if `cond', absorb(date#bucket#agebin) vce(cluster bond date)
-	eststo `s'5: reghdfe bidask isctd if `cond' & isdlv, absorb(date#contract#agebin) vce(cluster bond date)
+	eststo `s'2: reghdfe bidask isctd if `cond', absorb(date#ttmbin) vce(cluster bond date)
+	eststo `s'3: reghdfe bidask isctd if `cond', absorb(date#ttmbin#otrbin) vce(cluster bond date)
+	eststo `s'4: reghdfe bidask isctd if `cond', absorb(date#ttmbin#agebin) vce(cluster bond date)
+	eststo `s'5: reghdfe bidask isctd isdlv if `cond', absorb(date#ttmbin#agebin) vce(cluster bond date)
+	eststo `s'6: reghdfe bidask isctd if `cond' & isdlv, absorb(date#contract#agebin) vce(cluster bond date)
 }
-local titles mtitles("Day" "Day x tenor" "Day x tenor x on the run" "Day x tenor x age" "Day x contract x age, deliverables")
-esttab full1 full2 full3 full4 full5, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N r2_within, fmt(%9.0fc %9.3f) labels("Bond days" "Within R squared")) `titles' title("Full sample")
-esttab post1 post2 post3 post4 post5, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N r2_within, fmt(%9.0fc %9.3f) labels("Bond days" "Within R squared")) `titles' title("From 2022")
+local opts b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd isdlv) stats(N r2_within, fmt(%9.0fc %9.3f) labels("Bond days" "Within R squared")) mtitles("Day" "Day x remaining" "Day x remaining x on the run" "Day x remaining x age" "with deliverable" "Day x contract x age, deliverables")
+esttab full1 full2 full3 full4 full5 full6, `opts' title("Full sample")
+esttab y20211 y20212 y20213 y20214 y20215 y20216, `opts' title("2021, the CTD is the seasoned bond of the basket")
+esttab later1 later2 later3 later4 later5 later6, `opts' title("2022 to 2025, the CTD is the recent high coupon bond")
 eststo clear
