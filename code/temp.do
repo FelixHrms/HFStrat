@@ -43,26 +43,24 @@ gen dow = dow(date)
 tab dow
 
 * check one, the raw Bloomberg file read directly, the generic 2 contracts have three to six months to delivery and are far less exposed to the annualization of a few ticks of net basis
-* three header rows, the data start in row four, the first column is the date as day month year, then twelve blocks of five columns in the order TY1 TY2 FV1 FV2 TU1 TU2 UXY1 UXY2 WN1 WN2 US1 US2
-import delimited "$data/usbasis.csv", varnames(nonames) rowrange(4) clear
-gen date = date(v1, "DMY")
+* one header row with names like TY1_FUT_IMPLIED_REPO_RT, dates written month first, five fields per generic contract
+import delimited "$data/usbasis.csv", varnames(1) clear
+rename date datestr
+gen date = date(datestr, "MDY")
 format date %td
-drop v1
-local blocks TY1 TY2 FV1 FV2 TU1 TU2 UXY1 UXY2 WN1 WN2 US1 US2
-local j = 2
+drop datestr
 tempfile raw
 local first = 1
-foreach b of local blocks {
+foreach b in ty1 ty2 fv1 fv2 tu1 tu2 uxy1 uxy2 wn1 wn2 us1 us2 {
 	preserve
-		keep date v`j' v`=`j'+1' v`=`j'+2' v`=`j'+3' v`=`j'+4'
-		rename (v`j' v`=`j'+1' v`=`j'+2' v`=`j'+3' v`=`j'+4') (implied_repo open_interest net_basis contract cusip)
+		keep date `b'_fut_implied_repo_rt `b'_open_int `b'_fut_ctd_net_basis `b'_fut_cur_gen_ticker `b'_fut_ctd_cusip
+		rename (`b'_fut_implied_repo_rt `b'_open_int `b'_fut_ctd_net_basis `b'_fut_cur_gen_ticker `b'_fut_ctd_cusip) (implied_repo open_interest net_basis contract cusip)
 		capture destring implied_repo open_interest net_basis, replace force
-		gen generic = "`b'"
+		gen generic = upper("`b'")
 		if `first' == 0 append using `raw'
 		save `raw', replace
 	restore
 	local first = 0
-	local j = `j' + 5
 }
 use `raw', clear
 gen root = ustrregexs(1) if ustrregexm(generic, "^([A-Z]+)[12]$")
