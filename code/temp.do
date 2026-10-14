@@ -26,23 +26,44 @@ merge 1:1 date cusip using "$key/day_bond_deliverable_ctd.dta", keep(1 3) keepus
 gen isctd = ctd1 != "" | ctd2 != ""
 merge 1:1 date isin using `bidask', keep(match) nogen
 
-* remaining maturity in one year bins, age in half year bins capped at ten years, the on the run number enters as its own set of dummies since inside a cell of day and remaining maturity the exact rank identifies the bond
+* remaining maturity and age, the cell of day, remaining maturity and age holds consecutive issues of the same tenor
 gen ttm = (maturitydate - date)/365
-gen ttmbin = floor(ttm)
-gen ttmbin2 = floor(ttm*2) /*half years*/
 gen age = (date - issuedate)/365
+gen ttmbin = floor(ttm)
 gen agebin = min(floor(age*2), 20) /*half years, capped at ten years*/
-gen agebin4 = min(floor(age*4), 40) /*quarter years, capped at ten years*/
 encode isin, gen(bond)
 label var isctd "CTD"
 bysort isctd: sum bidask
 
-* five specifications, within a cell of day, remaining maturity and age the comparison is between consecutive issues of the same tenor, the last column tightens the cells
+* the three columns
 eststo c1: reghdfe bidask isctd, absorb(date) vce(cluster bond date)
+count if isctd & e(sample)
+estadd scalar nctd = r(N)
 eststo c2: reghdfe bidask isctd, absorb(date#ttmbin) vce(cluster bond date)
-eststo c3: reghdfe bidask isctd, absorb(date#ttmbin otr_number) vce(cluster bond date)
-eststo c4: reghdfe bidask isctd, absorb(date#ttmbin#agebin) vce(cluster bond date)
-eststo c5: reghdfe bidask isctd, absorb(date#ttmbin2#agebin4) vce(cluster bond date)
-esttab c1 c2 c3 c4 c5, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N r2_within, fmt(%9.0fc %9.3f) labels("Bond days" "Within R squared")) ///
-	mtitles("Day" "Day x remaining" "Day x remaining, on the run number" "Day x remaining x age" "Half year remaining x quarter year age")
+count if isctd & e(sample)
+estadd scalar nctd = r(N)
+eststo c3: reghdfe bidask isctd, absorb(date#ttmbin#agebin) vce(cluster bond date)
+count if isctd & e(sample)
+estadd scalar nctd = r(N)
+esttab c1 c2 c3, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(N nctd r2_within, fmt(%9.0fc %9.0fc %9.3f) labels("Bond days" "CTD bond days" "Within R squared")) ///
+	mtitles("Day" "Day x remaining maturity" "Day x remaining maturity x age")
+eststo clear
+
+* bin widths for the third column, finer cells compare closer bonds but drop CTD bond days that end up alone in their cell
+* remaining maturity in one year and half year bins, age in one year, half year and quarter year bins capped at ten years
+local col = 0
+foreach tw in 1 0.5 {
+	foreach aw in 1 0.5 0.25 {
+		local ++col
+		gen tb = floor(ttm/`tw')
+		gen ab = min(floor(age/`aw'), 10/`aw')
+		eststo b`col': reghdfe bidask isctd, absorb(date#tb#ab) vce(cluster bond date)
+		count if isctd & e(sample)
+		estadd scalar nctd = r(N)
+		estadd local tbin "`tw'"
+		estadd local abin "`aw'"
+		drop tb ab
+	}
+}
+esttab b1 b2 b3 b4 b5 b6, b(3) se(3) star(* 0.10 ** 0.05 *** 0.01) keep(isctd) stats(tbin abin N nctd, fmt(%s %s %9.0fc %9.0fc) labels("Remaining maturity bin, years" "Age bin, years" "Bond days" "CTD bond days")) nomtitles
 eststo clear
