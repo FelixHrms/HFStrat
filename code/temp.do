@@ -8,13 +8,13 @@ global key  "$root/key dataframe"
 global int  "$root/data/intermediate"
 global fig  "$root/Figures"
 
-**# Scratch file. Does the carry survive the funding cost, implied repo of the US futures against the repo spread hedge funds pay
-* a long basis position earns the implied repo rate of the futures and pays the repo rate on the bond, so the trade carries when the implied repo exceeds the funding rate
-* implied repo from Bloomberg for the front contract of each root, in percent, kept only at least 45 days before the last delivery day since the annualized rate blows up close to delivery
-* two benchmarks, spot SOFR and the average SOFR realized from the date to the last delivery day, since the implied repo embeds the expected path of overnight rates
-* the funding spread as in the repo chart, overnight borrowing positions weighted by volume, FOMC days dropped, position level spreads trimmed within year
+**# Scratch file. Does the carry survive the funding cost, a proxy for the cash futures disconnect against the repo spread hedge funds pay, US
+* a long basis position earns the implied repo of the futures and pays the repo rate on the bond, so the trade carries when the implied repo exceeds the funding rate
+* Bloomberg's implied repo appears to run to the last delivery day, while a trader delivers on the first day whenever carry is negative, as from 2023
+* the implied repo to the first day follows from the one to the last day with only the coupon of the CTD, since the invoice price differs by one month of accrual, the trader takes the better of the two
+* second contracts as in Barth and Kahn, three to six months to delivery, benchmark the SOFR realized from the date to the chosen delivery day, the funding spread as in the repo chart
 
-* SOFR, date in the second column and the rate in percent in the fourth
+* SOFR, date in the second column and the rate in percent in the fourth, and its cumulative sum on calendar days for realized averages
 import delimited "$data/SOFR.csv", varnames(nonames) rowrange(2) clear
 keep v2 v4
 rename (v2 v4) (sofrdate sofr)
@@ -24,26 +24,15 @@ destring sofr, replace
 keep date sofr
 tempfile sofr
 save `sofr'
+tsset date
+tsfill
+replace sofr = sofr[_n-1] if missing(sofr)
+gen cum = sum(sofr)
+keep date cum
+tempfile cum
+save `cum'
 
-* cumulative SOFR on calendar days, the overnight rate applies over weekends and holidays, for the realized average to delivery
-preserve
-	tsset date
-	tsfill
-	replace sofr = sofr[_n-1] if missing(sofr)
-	gen cum = sum(sofr)
-	keep date cum
-	tempfile cum
-	save `cum'
-restore
-
-* check zero, the dates in basis_stacked, the raw file writes day month year and SAS may read an ambiguous date the American way, weekend dates would be the tell
-use "$key/basis_stacked.dta", clear
-keep if country_future == "US"
-gen dow = dow(date)
-tab dow
-
-* check one, the raw Bloomberg file read directly, the generic 2 contracts have three to six months to delivery and are far less exposed to the annualization of a few ticks of net basis
-* one header row with names like TY1_FUT_IMPLIED_REPO_RT, dates written month first, five fields per generic contract
+* the raw Bloomberg file, one header row, dates written month first, five fields per generic contract, keep the second contracts
 import delimited "$data/usbasis.csv", varnames(1) clear
 rename date datestr
 gen date = date(datestr, "MDY")
@@ -51,84 +40,71 @@ format date %td
 drop datestr
 tempfile raw
 local first = 1
-foreach b in ty1 ty2 fv1 fv2 tu1 tu2 uxy1 uxy2 wn1 wn2 us1 us2 {
+foreach b in ty2 fv2 tu2 uxy2 wn2 us2 {
 	preserve
-		keep date `b'_fut_implied_repo_rt `b'_open_int `b'_fut_ctd_net_basis `b'_fut_cur_gen_ticker `b'_fut_ctd_cusip
-		rename (`b'_fut_implied_repo_rt `b'_open_int `b'_fut_ctd_net_basis `b'_fut_cur_gen_ticker `b'_fut_ctd_cusip) (implied_repo open_interest net_basis contract cusip)
-		capture destring implied_repo open_interest net_basis, replace force
-		gen generic = upper("`b'")
+		keep date `b'_fut_implied_repo_rt `b'_fut_cur_gen_ticker `b'_fut_ctd_cusip
+		rename (`b'_fut_implied_repo_rt `b'_fut_cur_gen_ticker `b'_fut_ctd_cusip) (implied_repo contract cusip8)
+		capture destring implied_repo, replace force
+		gen root = upper(substr("`b'", 1, strlen("`b'") - 1))
 		if `first' == 0 append using `raw'
 		save `raw', replace
 	restore
 	local first = 0
 }
 use `raw', clear
-gen root = ustrregexs(1) if ustrregexm(generic, "^([A-Z]+)[12]$")
-gen second = substr(generic, -1, 1) == "2"
 drop if missing(implied_repo) | missing(date)
 keep if inrange(date, td(04jan2021), td(30sep2025))
-merge m:1 date using `sofr', keep(match) nogen
-gen irr = (implied_repo - sofr)*100
+
+* delivery month from the ticker, first delivery day the first of the month, last delivery day the last of the month
 gen mcode = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+([HMUZ])[0-9]{1,2}$")
 gen ydig = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+[HMUZ]([0-9]{1,2})$")
 gen dmonth = cond(mcode == "H", 3, cond(mcode == "M", 6, cond(mcode == "U", 9, 12)))
 gen dyear = cond(strlen(ydig) == 2, 2000 + real(ydig), 2020 + real(ydig))
-gen todelivery = dofm(mofd(mdy(dmonth, 1, dyear)) + 1) - 1 - date
-gen year = year(date)
-* the second contracts at more than 90 days to delivery, by year and root
-table year root if second & todelivery > 90, stat(median irr) stat(count irr) nformat(%6.0f)
-* the first contracts at more than 90 days to delivery for comparison
-table year root if !second & todelivery > 90, stat(median irr) nformat(%6.0f)
+gen firstdelivery = mdy(dmonth, 1, dyear)
+gen lastdelivery = dofm(mofd(firstdelivery) + 1) - 1
+format firstdelivery lastdelivery %td
+gen dfirst = firstdelivery - date
+gen dlast = lastdelivery - date
+keep if dfirst > 30
 
-* implied repo by contract root with the delivery month from the ticker, root letters, one month code and one or two year digits, the last delivery day is the last day of the month
-use "$key/basis_stacked.dta", clear
-keep if country_future == "US"
-keep date contract root implied_repo net_basis
-drop if missing(implied_repo)
-gen mcode = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+([HMUZ])[0-9]{1,2}$")
-gen ydig = ustrregexs(1) if ustrregexm(contract, "^[A-Z]+[HMUZ]([0-9]{1,2})$")
-gen dmonth = cond(mcode == "H", 3, cond(mcode == "M", 6, cond(mcode == "U", 9, 12)))
-gen dyear = cond(strlen(ydig) == 2, 2000 + real(ydig), 2020 + real(ydig))
-gen lastdelivery = dofm(mofd(mdy(dmonth, 1, dyear)) + 1) - 1
-format lastdelivery %td
-gen todelivery = lastdelivery - date
-drop if missing(todelivery)
+* coupon and price of the CTD from the bond day panel
+merge m:1 date cusip8 using "$key/bond_day.dta", keep(1 3) keepusing(couponrate refprice) nogen
+count if missing(couponrate)
+replace refprice = 100 if missing(refprice)
+gen cy = couponrate/refprice*100 /*current yield in percent*/
 
-* spot SOFR and the SOFR realized to delivery
-merge m:1 date using `sofr', keep(match) nogen
+* implied repo to the first delivery day from the one to the last, the trader takes the better of the two
+gen irr_last = implied_repo
+gen irr_first = (irr_last*dlast - cy*(dlast - dfirst))/dfirst
+gen irr_best = max(irr_first, irr_last)
+gen delivery = cond(irr_first > irr_last, firstdelivery, lastdelivery)
+format delivery %td
+
+* SOFR realized from the date to the chosen delivery day
 merge m:1 date using `cum', keep(match) nogen
 rename cum cum0
 rename date date0
-rename lastdelivery date
+rename delivery date
 merge m:1 date using `cum', keep(1 3) nogen
 rename cum cum1
-rename date lastdelivery
+rename date delivery
 rename date0 date
-gen sofr_real = (cum1 - cum0)/todelivery /*missing when delivery lies beyond the SOFR series*/
-gen irr = (implied_repo - sofr)*100 /*basis points*/
-gen irr_real = (implied_repo - sofr_real)*100
+gen sofr_real = (cum1 - cum0)/(delivery - date) /*missing when delivery lies beyond the SOFR series*/
+merge m:1 date using `sofr', keep(match) nogen
 
-* the implied repo is annualized, so a few 32nds of net basis over a few days become hundreds of basis points, the table shows it by days to delivery
-gen dbin = cond(todelivery < 30, 1, cond(todelivery < 45, 2, cond(todelivery < 60, 3, cond(todelivery < 90, 4, 5))))
-label define dbinlab 1 "under 30 days" 2 "30 to 45" 3 "45 to 60" 4 "60 to 90" 5 "90 and more"
-label values dbin dbinlab
-table dbin root, stat(median irr) stat(count irr) nformat(%6.0f)
-keep if todelivery >= 45
-
-* check one, the level by year and root under both benchmarks
+* the disconnect, raw and adjusted, against spot and realized SOFR, by year and root
 gen year = year(date)
-table year root, stat(median irr) nformat(%6.0f)
-table year root, stat(median irr_real) nformat(%6.0f)
-
-* check two, the implied repo against the net basis of the same field set, net basis in 32nds annualized over the days to delivery on a price near par
-* if the field is what we think, the annualized net basis and the shortfall of the implied repo move together
-gen nb_bp = net_basis/32*360/todelivery*100 /*32nds of a point, as an annualized rate in basis points on a price of 100*/
-table year root, stat(median nb_bp) nformat(%6.0f)
-corr irr nb_bp
-keep date root irr irr_real
-reshape wide irr irr_real, i(date) j(root) string
-tempfile irr
-save `irr'
+gen dis_raw = (irr_last - sofr)*100
+gen dis_adj = (irr_best - sofr)*100
+gen dis_adj_real = (irr_best - sofr_real)*100
+table year root, stat(median dis_raw) nformat(%6.0f)
+table year root, stat(median dis_adj) nformat(%6.0f)
+table year root, stat(median dis_adj_real) nformat(%6.0f)
+tab year delivery if delivery == firstdelivery, nofreq
+keep date root dis_adj_real
+reshape wide dis_adj_real, i(date) j(root) string
+tempfile dis
+save `dis'
 
 * the repo spread funds pay, overnight borrowing positions
 use "$int/sftds.dta", clear
@@ -146,23 +122,19 @@ bysort year: egen p1 = pctile(spread), p(1)
 bysort year: egen p99 = pctile(spread), p(99)
 drop if spread < p1 | spread > p99
 collapse (mean) spread [aw = borrowing_volume], by(date)
-merge 1:1 date using `irr', keep(match) nogen
+merge 1:1 date using `dis', keep(match) nogen
 
-* time series, the six implied repo spreads and the funding spread, once against spot SOFR and once against the SOFR realized to delivery
-foreach b in spot real {
-	local sfx = cond("`b'" == "real", "_real", "")
-	local lab = cond("`b'" == "real", "SOFR realized to delivery", "spot SOFR")
-	tw (line irr`sfx'TU date, lw(thin))(line irr`sfx'FV date, lw(thin))(line irr`sfx'TY date, lw(thin))(line irr`sfx'UXY date, lw(thin))(line irr`sfx'US date, lw(thin))(line irr`sfx'WN date, lw(thin)) ///
-		(line spread date, lc(black) lw(medthick)), ///
-		legend(order(1 "TU" 2 "FV" 3 "TY" 4 "UXY" 5 "US" 6 "WN" 7 "Repo spread paid by funds") pos(6) rows(2) size(small) symxsize(6)) ///
-		ytitle("Rate minus `lab', bp") xtitle("") yline(0) name(ts_`b', replace)
-}
+* time series on the left, the six disconnects over the realized SOFR and the funding spread
+tw (line dis_adj_realTU date, lw(thin))(line dis_adj_realFV date, lw(thin))(line dis_adj_realTY date, lw(thin))(line dis_adj_realUXY date, lw(thin))(line dis_adj_realUS date, lw(thin))(line dis_adj_realWN date, lw(thin)) ///
+	(line spread date, lc(black) lw(medthick)), ///
+	legend(order(1 "TU" 2 "FV" 3 "TY" 4 "UXY" 5 "US" 6 "WN" 7 "Repo spread paid by funds") pos(6) rows(2) size(small) symxsize(6)) ///
+	ytitle("Rate minus SOFR realized to delivery, bp") xtitle("") yline(0) name(ts, replace)
 
-* net carry per contract against the realized benchmark, implied repo minus the funding rate, means with Newey West standard errors over 20 trading days
+* net carry per contract, implied repo minus the funding rate, means with Newey West standard errors over 20 trading days
 local k = 0
 foreach r in TU FV TY UXY US WN {
 	local ++k
-	gen carry`r' = irr_real`r' - spread
+	gen carry`r' = dis_adj_real`r' - spread
 	preserve
 		keep if !missing(carry`r')
 		sort date
@@ -186,5 +158,4 @@ gen lo = mean - 1.96*se
 gen hi = mean + 1.96*se
 tw (bar mean x, barwidth(0.6))(rcap lo hi x, lcolor(black)), xlabel(1 "TU" 2 "FV" 3 "TY" 4 "UXY" 5 "US" 6 "WN") xtitle("") ///
 	ytitle("Implied repo minus funding rate, bp") yline(0) legend(off) name(bar, replace)
-graph combine ts_real bar, cols(2) name(real, replace)
-graph display ts_spot
+graph combine ts bar, cols(2)
