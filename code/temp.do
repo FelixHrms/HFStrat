@@ -29,6 +29,8 @@ tabstat miss_tot miss_pub, by(eom) stat(mean n)
 by isin: egen nvals_tot = nvals(amt_tot)
 by isin: egen nvals_pub = nvals(amt_pub)
 tabstat nvals_tot nvals_pub, stat(mean p50 max)
+* bonds without any public amount, by type, 1 bonds 2 notes 4 bills 11 and 12 inflation linked
+tab bondtype miss_pub, row nofreq
 list isin date amt_tot amt_pub if isin == isin[1] & eom, noobs
 
 * carry the last amount forward within each bond, amounts change only at auctions, reopenings and buybacks
