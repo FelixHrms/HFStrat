@@ -77,13 +77,17 @@ foreach v in eq hf {
 	tw (line gap_`v'_day date)(line gap_`v'_ttm date)(line gap_`v'_cell date), ///
 		legend(order(1 "Same day" 2 "Same remaining maturity" 3 "Same remaining maturity and age") pos(6) cols(1) size(small) symxsize(6)) ///
 		ytitle("CTD minus comparison, bp") xtitle("") yline(0) name(ts, replace)
-	sort date
-	gen long t = _n
-	tsset t
+	* means with Newey West standard errors over 20 trading days, each series on its own consecutive index over the days where it exists
 	foreach g in day ttm cell {
-		newey gap_`v'_`g', lag(20)
-		local m_`g' = _b[_cons]
-		local s_`g' = _se[_cons]
+		preserve
+			keep if !missing(gap_`v'_`g')
+			sort date
+			gen long t = _n
+			tsset t
+			newey gap_`v'_`g', lag(20)
+			local m_`g' = _b[_cons]
+			local s_`g' = _se[_cons]
+		restore
 	}
 	clear
 	set obs 3
